@@ -33,4 +33,18 @@ export const GAMES: GameRegistryEntry[] = [
       return day ? `Day ${day}: ${score} pts` : `Last dig: ${score} pts`;
     },
   },
+  {
+    id: 'terra-incognita',
+    title: 'Terra Incognita',
+    description: 'Identify the mystery country from a zoomed-in satellite silhouette.',
+    href: '/games/terra-incognita',
+    summarize: (stats) => {
+      if (!stats) return 'Not played yet';
+      const solved = Boolean(stats.solved);
+      const day = Number(stats.dayNumber ?? 0);
+      if (!solved) return day ? `Day ${day}: unsolved` : 'Last target: unsolved';
+      const guesses = Number(stats.guessesUsed ?? 0);
+      return day ? `Day ${day}: solved in ${guesses}/6` : `Solved in ${guesses}/6`;
+    },
+  },
 ];
