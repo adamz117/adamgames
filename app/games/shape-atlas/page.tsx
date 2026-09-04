@@ -3,29 +3,31 @@
 import { useEffect, useRef } from 'react';
 import { upsertGameStatsClient } from '@/lib/game-stats-client';
 
-export default function TerraIncognitaPage() {
+export default function ShapeAtlasPage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
       if (event.origin !== window.location.origin) return;
       if (event.source !== iframeRef.current?.contentWindow) return;
-      if (event.data?.type !== 'terra-incognita-progress') return;
-      const { solved, guessesUsed, score, dayNumber } = event.data;
+      if (event.data?.type !== 'shape-atlas-progress') return;
+      const { solved, guessesUsed, score, dayNumber, collectionSize } = event.data;
       if (
         typeof solved !== 'boolean' ||
         typeof guessesUsed !== 'number' ||
         typeof score !== 'number' ||
-        typeof dayNumber !== 'number'
+        typeof dayNumber !== 'number' ||
+        typeof collectionSize !== 'number'
       ) {
         return;
       }
 
-      upsertGameStatsClient('terra-incognita', {
+      upsertGameStatsClient('shape-atlas', {
         solved,
         guessesUsed,
         score,
         dayNumber,
+        collectionSize,
         lastPlayedAt: new Date().toISOString(),
       });
     }
@@ -37,14 +39,14 @@ export default function TerraIncognitaPage() {
   return (
     <iframe
       ref={iframeRef}
-      src="/games/terra-incognita.html"
+      src="/games/shape-atlas.html"
       style={{
         display: 'block',
         width: '100%',
         height: 'calc(100dvh - 65px)',
         border: 'none',
       }}
-      title="Terra Incognita"
+      title="Shape Atlas"
     />
   );
 }

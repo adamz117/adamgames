@@ -34,17 +34,18 @@ export const GAMES: GameRegistryEntry[] = [
     },
   },
   {
-    id: 'terra-incognita',
-    title: 'Terra Incognita',
-    description: 'Identify the mystery country from a zoomed-in satellite silhouette.',
-    href: '/games/terra-incognita',
+    id: 'shape-atlas',
+    title: 'Shape Atlas',
+    description: 'Name the country by its outline, then watch it drop into place on the map.',
+    href: '/games/shape-atlas',
     summarize: (stats) => {
       if (!stats) return 'Not played yet';
+      const collected = Number(stats.collectionSize ?? 0);
       const solved = Boolean(stats.solved);
       const day = Number(stats.dayNumber ?? 0);
-      if (!solved) return day ? `Day ${day}: unsolved` : 'Last target: unsolved';
+      if (!solved) return `${collected} collected · Day ${day || '?'}: unsolved`;
       const guesses = Number(stats.guessesUsed ?? 0);
-      return day ? `Day ${day}: solved in ${guesses}/6` : `Solved in ${guesses}/6`;
+      return `${collected} collected · solved in ${guesses}/6`;
     },
   },
 ];
