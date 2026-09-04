@@ -1,9 +1,9 @@
-import { createClient as createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client';
 
 export async function getGameStatsServer(
   gameId: string
 ): Promise<Record<string, unknown> | null | undefined> {
+  const { createClient: createServerSupabaseClient } = await import('@/lib/supabase/server');
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
