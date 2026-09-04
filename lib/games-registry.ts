@@ -21,4 +21,16 @@ export const GAMES: GameRegistryEntry[] = [
       return `${correct} / ${total} flags identified`;
     },
   },
+  {
+    id: 'deep-cut',
+    title: 'Deep Cut',
+    description: 'Dig for daily trivia — rarer, less obvious answers score more.',
+    href: '/games/deep-cut',
+    summarize: (stats) => {
+      if (!stats) return 'Not played yet';
+      const score = Number(stats.score ?? 0);
+      const day = Number(stats.dayNumber ?? 0);
+      return day ? `Day ${day}: ${score} pts` : `Last dig: ${score} pts`;
+    },
+  },
 ];

@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep Cut</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --soil-0:#f0dcb8;
+    --soil-1:#cf9f66;
+    --soil-2:#9c6a3f;
+    --soil-3:#6b452c;
+    --soil-4:#432b1d;
+    --bedrock:#20140d;
+    --bedrock-deep:#150d08;
+    --parchment:#f7ecd8;
+    --parchment-dim:#c9b79b;
+    --ink:#1c1108;
+    --ember:#e0742f;
+    --ember-bright:#f6944e;
+    --moss:#83a86c;
+    --amethyst:#a97fe0;
+    --amethyst-dim:rgba(169,127,224,.28);
+    --gold:#e0b23d;
+    --gold-dim:rgba(224,178,61,.32);
+    --rust:#b8492f;
+    --rust-bright:#d15c3e;
+    --rust-dim:rgba(184,73,47,.28);
+    --font-display:'Zilla Slab',Georgia,serif;
+    --font-body:'IBM Plex Sans','Helvetica Neue',Arial,sans-serif;
+    --font-mono:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bedrock);
+    color:var(--parchment);
+    font-family:var(--font-body);
+    overflow-x:hidden;
+  }
+  .stage{
+    position:relative;
+    min-height:100vh;
+    width:100%;
+    background:linear-gradient(180deg,
+      var(--soil-0) 0%, var(--soil-1) 20%, var(--soil-2) 42%,
+      var(--soil-3) 64%, var(--soil-4) 82%, var(--bedrock) 100%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+  .stage::before{
+    content:'';
+    position:absolute;
+    inset:0;
+    background-image:repeating-linear-gradient(180deg, rgba(0,0,0,.05) 0 2px, transparent 2px 26px);
+    pointer-events:none;
+  }
+
+  .rail{
+    position:absolute;
+    top:0; bottom:0;
+    right:32px;
+    width:64px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    z-index:1;
+  }
+  .rail-track{
+    position:relative;
+    width:5px;
+    flex:1;
+    margin:100px 0 50px;
+    background:rgba(0,0,0,.28);
+    border-radius:2px;
+  }
+  .rail-drill{
+    position:absolute;
+    left:50%;
+    top:0;
+    width:60px;
+    height:60px;
+    transform:translate(-50%,-50%);
+    transition:top 1.1s cubic-bezier(.2,.8,.2,1);
+    filter:drop-shadow(0 3px 4px rgba(0,0,0,.45));
+  }
+  .rail-label{
+    position:absolute;
+    right:34px;
+    transform:translateY(-50%);
+    font-family:var(--font-mono);
+    font-size:10px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--ink);
+    opacity:.55;
+    white-space:nowrap;
+  }
+
+  .masthead{
+    position:absolute;
+    top:26px;
+    left:28px;
+    z-index:2;
+  }
+  .masthead h1{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:clamp(24px,3.2vw,32px);
+    margin:0;
+    color:var(--ink);
+    text-wrap:balance;
+  }
+  .masthead .sub{
+    margin:4px 0 0;
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink);
+    opacity:.6;
+  }
+
+  .gauge-cluster{
+    position:absolute;
+    top:24px;
+    right:28px;
+    z-index:2;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .mute-btn{
+    width:30px;
+    height:30px;
+    flex:none;
+    border-radius:50%;
+    border:1.5px solid var(--soil-2);
+    background:rgba(32,20,13,.85);
+    color:var(--parchment-dim);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:0;
+    transition:border-color .15s ease,color .15s ease;
+  }
+  .mute-btn:hover{border-color:var(--gold);color:var(--gold);}
+  .mute-btn::before{
+    content:'';
+    width:15px;
+    height:15px;
+    background:currentColor;
+    -webkit-mask:var(--icon-sound) center/contain no-repeat;
+    mask:var(--icon-sound) center/contain no-repeat;
+  }
+  .mute-btn{ --icon-sound: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 10v4h4l5 5V5L7 10H3z'/%3E%3Cpath d='M15.5 8.5a5 5 0 010 7' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"); }
+  .mute-btn.is-muted{ --icon-sound: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 10v4h4l5 5V5L7 10H3z'/%3E%3Cpath d='M15 9l5 6M20 9l-5 6' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"); }
+
+  .gauge{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:rgba(32,20,13,.85);
+    border:1.5px solid var(--gold);
+    border-radius:9px;
+    padding:8px 16px 8px 12px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .gauge-icon{width:20px;height:20px;flex:none;filter:drop-shadow(0 0 3px rgba(224,178,61,.5));}
+  .gauge-text{text-align:right;}
+  .gauge-label{
+    font-family:var(--font-mono);
+    font-size:10px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin-bottom:1px;
+  }
+  .gauge-value{
+    font-family:var(--font-mono);
+    font-variant-numeric:tabular-nums;
+    font-size:24px;
+    font-weight:600;
+    color:var(--parchment);
+    line-height:1;
+  }
+  .gauge.flash{animation:gaugeFlash .6s ease;}
+  .gauge.flash{--flash-color:224,178,61;}
+  @keyframes gaugeFlash{
+    0%{box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 0 0 rgba(var(--flash-color,224,178,61),0);}
+    35%{box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 0 20px rgba(var(--flash-color,224,178,61),.6);}
+    100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 0 0 rgba(var(--flash-color,224,178,61),0);}
+  }
+
+  .dig-particle{
+    position:absolute;
+    border-radius:50%;
+    pointer-events:none;
+    animation:digParticle .65s cubic-bezier(.2,.7,.3,1) forwards;
+    z-index:3;
+  }
+  @keyframes digParticle{
+    0%{ transform:translate(0,0) scale(1); opacity:1; }
+    100%{ transform:translate(var(--dx),var(--dy)) scale(.25); opacity:0; }
+  }
+  .rail-drill.dig-small{ animation:drillShakeSmall .55s ease; }
+  .rail-drill.dig-big{ animation:drillShakeBig .8s cubic-bezier(.36,.07,.19,.97); }
+  .rail-drill.dig-reject{ animation:drillReject .35s ease; }
+  @keyframes drillShakeSmall{
+    0%,100%{ transform:translate(-50%,-50%) rotate(0deg); }
+    25%{ transform:translate(-53%,-50%) rotate(-5deg); }
+    75%{ transform:translate(-47%,-50%) rotate(5deg); }
+  }
+  @keyframes drillShakeBig{
+    0%,100%{ transform:translate(-50%,-50%) rotate(0deg) scale(1); }
+    15%{ transform:translate(-58%,-46%) rotate(-11deg) scale(1.08); }
+    35%{ transform:translate(-42%,-54%) rotate(11deg) scale(1.08); }
+    55%{ transform:translate(-56%,-47%) rotate(-8deg) scale(1.04); }
+    75%{ transform:translate(-45%,-53%) rotate(8deg) scale(1.04); }
+    90%{ transform:translate(-51%,-49%) rotate(-2deg) scale(1); }
+  }
+  @keyframes drillReject{
+    0%,100%{ transform:translate(-50%,-50%) rotate(0deg); filter:none; }
+    30%{ transform:translate(-50%,-46%) rotate(-3deg); filter:drop-shadow(0 0 5px var(--rust)); }
+    60%{ transform:translate(-50%,-50%) rotate(3deg); filter:drop-shadow(0 0 5px var(--rust)); }
+  }
+
+  @keyframes findPop{
+    0%{ transform:scale(0) rotate(-15deg); opacity:0; }
+    60%{ transform:scale(1.15) rotate(4deg); opacity:1; }
+    100%{ transform:scale(1) rotate(0deg); opacity:1; }
+  }
+  .find-icon{animation:findPop .45s cubic-bezier(.2,.9,.3,1.3) backwards;}
+
+  main.panel{
+    position:relative;
+    z-index:2;
+    width:min(560px,100%);
+    background:rgba(28,17,10,.92);
+    border:1.5px solid var(--ember);
+    border-radius:12px;
+    padding:26px 28px;
+    box-shadow:0 20px 55px rgba(0,0,0,.5);
+  }
+  .prompt-meta{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:10px;
+  }
+  .prompt-index{
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--ember-bright);
+  }
+  .timer{
+    font-family:var(--font-mono);
+    font-size:15px;
+    font-variant-numeric:tabular-nums;
+    color:var(--parchment-dim);
+  }
+  .timer.low{color:var(--ember-bright);}
+  .prompt-text{
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:clamp(24px,3.4vw,30px);
+    margin:0 0 18px;
+    text-wrap:balance;
+  }
+  #guessForm{display:flex;gap:8px;}
+  #guessInput{
+    flex:1;
+    min-width:0;
+    background:var(--bedrock-deep);
+    border:1px solid var(--soil-3);
+    border-radius:6px;
+    padding:11px 13px;
+    font-family:var(--font-mono);
+    font-size:16px;
+    color:var(--parchment);
+  }
+  #guessInput:focus{outline:none;border-color:var(--ember);box-shadow:0 0 0 3px rgba(224,116,47,.22);}
+  #guessInput::placeholder{color:var(--parchment-dim);opacity:.7;}
+  #guessForm button{
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:13px;
+    letter-spacing:.03em;
+    color:var(--ink);
+    background:var(--ember);
+    border:none;
+    border-radius:6px;
+    padding:0 22px;
+    cursor:pointer;
+  }
+  #guessForm button:hover{background:var(--ember-bright);}
+  #guessForm button:focus-visible,#guessInput:focus-visible{outline:2px solid var(--ember-bright);outline-offset:2px;}
+
+  .feedback{
+    min-height:44px;
+    margin-top:14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-family:var(--font-mono);
+    font-size:13px;
+  }
+  .tier-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 10px;
+    border-radius:5px;
+    font-weight:600;
+    letter-spacing:.03em;
+    text-transform:uppercase;
+    font-size:11px;
+  }
+  .tier-common{background:rgba(131,168,108,.2);color:var(--moss);}
+  .tier-uncommon{background:rgba(224,116,47,.2);color:var(--ember-bright);}
+  .tier-rare{background:var(--amethyst-dim);color:var(--amethyst);}
+  .tier-ultra{background:var(--gold-dim);color:var(--gold);}
+  .tier-none{background:rgba(255,255,255,.08);color:var(--parchment-dim);}
+  .tier-invalid{background:var(--rust-dim);color:var(--rust-bright);}
+
+  .finds-tray{
+    position:absolute;
+    z-index:2;
+    left:28px;
+    bottom:24px;
+    display:flex;
+    gap:8px;
+  }
+  .find-icon{width:26px;height:26px;}
+  .find-icon svg{width:100%;height:100%;display:block;}
+
+  .summary{
+    position:absolute;
+    inset:0;
+    z-index:5;
+    background:rgba(21,13,8,.94);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+  .summary.hidden{display:none;}
+  .summary-card{
+    width:min(600px,100%);
+    max-height:86vh;
+    overflow-y:auto;
+    background:var(--soil-4);
+    border:1.5px solid var(--gold);
+    border-radius:14px;
+    padding:30px 32px;
+  }
+  .summary-card h2{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:28px;
+    margin:0 0 4px;
+    text-align:center;
+  }
+  .summary-score{
+    text-align:center;
+    font-family:var(--font-mono);
+    font-size:15px;
+    color:var(--gold);
+    margin:0 0 20px;
+  }
+  .tier-tally{
+    display:flex;
+    justify-content:center;
+    gap:18px;
+    margin-bottom:22px;
+    flex-wrap:wrap;
+  }
+  .tier-tally div{
+    text-align:center;
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--parchment-dim);
+  }
+  .tier-tally strong{
+    display:block;
+    font-size:20px;
+    color:var(--parchment);
+  }
+  .recap-title{
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--parchment-dim);
+    margin:0 0 10px;
+  }
+  .recap-row{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:center;
+    padding:9px 0;
+    border-bottom:1px solid rgba(255,255,255,.08);
+    font-size:13px;
+  }
+  .recap-row .rq{color:var(--parchment-dim);flex:1;min-width:0;}
+  .recap-row .ra{
+    font-family:var(--font-mono);
+    flex:1;
+    min-width:0;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:8px;
+  }
+  .recap-row .ra-guess{
+    color:var(--parchment);
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    min-width:0;
+  }
+  .recap-row .tier-badge{flex:none;padding:2px 7px;}
+  .summary-actions{
+    display:flex;
+    justify-content:center;
+    gap:10px;
+    margin-top:22px;
+    flex-wrap:wrap;
+  }
+  .summary-actions button{
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:13px;
+    border-radius:6px;
+    padding:11px 20px;
+    cursor:pointer;
+    border:none;
+  }
+  #freeDigBtn{background:var(--ember);color:var(--ink);}
+  #freeDigBtn:hover{background:var(--ember-bright);}
+  #closeSummaryBtn{background:transparent;color:var(--parchment-dim);border:1px solid var(--soil-2);}
+  .daily-note{
+    text-align:center;
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--parchment-dim);
+    margin-top:14px;
+  }
+
+  @media (max-width:640px){
+    .stage{padding:16px;}
+    .masthead{left:16px;top:16px;}
+    .gauge{right:16px;top:16px;padding:7px 12px;}
+    .rail{right:10px;width:46px;}
+    .rail-drill{width:42px;height:42px;}
+    .rail-label{right:30px;font-size:9px;}
+    main.panel{padding:20px;}
+    .finds-tray{left:16px;bottom:16px;}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .rail-drill{transition:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="rail">
+    <div class="rail-track" id="railTrack">
+      <div class="rail-label" id="labelTopsoil" style="top:0%">topsoil</div>
+      <div class="rail-label" id="labelSubsoil" style="top:20%">subsoil</div>
+      <div class="rail-label" id="labelClay" style="top:42%">clay bed</div>
+      <div class="rail-label" id="labelRock" style="top:64%">rock layer</div>
+      <div class="rail-label" id="labelGem" style="top:82%">gem seam</div>
+      <div class="rail-label" id="labelBedrock" style="top:98%">bedrock</div>
+      <div class="rail-drill" id="railDrill" style="top:0%">
+        <svg viewBox="0 0 24 24"><path d="M11 2h2v3h-2z" fill="#e0742f"/><path d="M8 5h8l-1 5H9z" fill="#f6944e"/><path d="M9.5 10h5l-2.5 12z" fill="#cf9f66"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="masthead">
+    <h1>Deep Cut</h1>
+    <p class="sub" id="digLabel">Today's Dig</p>
+  </div>
+
+  <div class="gauge-cluster">
+    <button class="mute-btn" id="muteBtn" type="button" aria-label="Toggle sound" title="Toggle sound"></button>
+    <div class="gauge" id="scoreGauge">
+      <svg class="gauge-icon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2 20,9 16,22 8,22 4,9" fill="var(--gold)"/><polygon points="12,2 20,9 12,13" fill="#ffffff" opacity="0.25"/></svg>
+      <div class="gauge-text">
+        <div class="gauge-label">Score</div>
+        <div class="gauge-value" id="scoreValue">0</div>
+      </div>
+    </div>
+  </div>
+
+  <main class="panel" id="panel">
+    <div class="prompt-meta">
+      <span class="prompt-index" id="promptIndex">PROMPT 1 OF 7</span>
+      <span class="timer" id="timer">20</span>
+    </div>
+    <p class="prompt-text" id="promptText">Loading…</p>
+    <form id="guessForm" autocomplete="off">
+      <input id="guessInput" type="text" placeholder="Type one answer…" maxlength="60" autocapitalize="off" spellcheck="false" />
+      <button type="submit">Dig</button>
+    </form>
+    <div class="feedback" id="feedback"></div>
+  </main>
+
+  <div class="finds-tray" id="findsTray"></div>
+
+  <div class="summary hidden" id="summary">
+    <div class="summary-card">
+      <h2 id="summaryHeading">Dig complete</h2>
+      <p class="summary-score" id="summaryScore"></p>
+      <div class="tier-tally" id="tierTally"></div>
+      <p class="recap-title">Your dig, round by round</p>
+      <div id="recapList"></div>
+      <div class="summary-actions">
+        <button id="freeDigBtn">Free Dig (practice)</button>
+        <button id="closeSummaryBtn">Close</button>
+      </div>
+      <p class="daily-note" id="dailyNote"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+const TIER_POINTS = { common: 10, uncommon: 30, rare: 60, ultra: 100, none: 0, invalid: 0 };
+const TIER_LABEL = { common: 'Common find', uncommon: 'Uncommon find', rare: 'Rare find', ultra: 'Ultra-rare find', none: 'No find', invalid: 'Not recognized' };
+const ROUNDS_PER_DIG = 7;
+const SECONDS_PER_ROUND = 20;
+
+const PROMPTS = [
+  { id: 'fruit', text: 'Name a fruit', tiers: {
+    common: ['apple','banana','orange','grape','strawberry','watermelon','mango','pineapple'],
+    uncommon: ['kiwi','peach','pear','cherry','blueberry','plum','apricot','papaya','fig','raspberry'],
+    rare: ['lychee','persimmon','guava','passionfruit','dragonfruit','kumquat','pomelo','starfruit','jackfruit','durian'],
+    ultra: ['rambutan','cherimoya','salak','medlar','ackee',"buddha's hand"]
+  }},
+  { id: 'country', text: 'Name a country', tiers: {
+    common: ['france','united states','usa','china','japan','germany','canada','italy','spain','mexico','brazil','united kingdom','uk','england'],
+    uncommon: ['egypt','india','russia','australia','sweden','greece','ireland','netherlands','argentina','south korea','thailand','portugal'],
+    rare: ['bhutan','slovenia','uruguay','estonia','mongolia','namibia','laos','moldova','fiji','suriname','malta','eswatini'],
+    ultra: ['tuvalu','nauru','palau','kiribati','liechtenstein','san marino']
+  }},
+  { id: 'dogBreed', text: 'Name a dog breed', tiers: {
+    common: ['labrador','golden retriever','german shepherd','bulldog','poodle','beagle','chihuahua','husky','pug','dachshund'],
+    uncommon: ['boxer','rottweiler','great dane','corgi','shih tzu','doberman','border collie','bernese mountain dog'],
+    rare: ['basenji','xoloitzcuintli','shiba inu','whippet','weimaraner','vizsla','akita','papillon','saluki'],
+    ultra: ['azawakh','otterhound','sloughi','mudi','lagotto romagnolo','peruvian inca orchid']
+  }},
+  { id: 'instrument', text: 'Name a musical instrument', tiers: {
+    common: ['guitar','piano','drums','violin','flute','trumpet','saxophone'],
+    uncommon: ['cello','clarinet','trombone','harp','banjo','accordion','harmonica','ukulele'],
+    rare: ['bassoon','oboe','sitar','bagpipes','theremin','mandolin','xylophone','tuba','french horn'],
+    ultra: ['hurdy-gurdy','didgeridoo','kalimba','ondes martenot','hammered dulcimer','nyckelharpa']
+  }},
+  { id: 'usState', text: 'Name a U.S. state', tiers: {
+    common: ['california','texas','florida','new york','hawaii','alaska','nevada','colorado'],
+    uncommon: ['washington','oregon','arizona','illinois','michigan','ohio','georgia','virginia','pennsylvania','massachusetts','tennessee','louisiana','utah','montana'],
+    rare: ['north carolina','south carolina','new mexico','oklahoma','kansas','nebraska','minnesota','wisconsin','iowa','missouri','arkansas','mississippi','alabama','kentucky','indiana','west virginia','new hampshire','connecticut','new jersey','maryland','idaho','maine'],
+    ultra: ['vermont','delaware','south dakota','north dakota','rhode island','wyoming']
+  }},
+  { id: 'boardGame', text: 'Name a board game', tiers: {
+    common: ['monopoly','chess','checkers','scrabble','clue','risk','candy land'],
+    uncommon: ['sorry','life','battleship','trouble','connect four','yahtzee','backgammon'],
+    rare: ['settlers of catan','catan','pandemic','ticket to ride','carcassonne','stratego','mancala','go'],
+    ultra: ['codenames','azul','betrayal at house on the hill','dominion','terraforming mars','wingspan']
+  }},
+  { id: 'dinosaur', text: 'Name a dinosaur', tiers: {
+    common: ['t-rex','tyrannosaurus','tyrannosaurus rex','triceratops','velociraptor','stegosaurus','brachiosaurus','pterodactyl'],
+    uncommon: ['ankylosaurus','diplodocus','spinosaurus','iguanodon','allosaurus','parasaurolophus'],
+    rare: ['therizinosaurus','deinonychus','compsognathus','carnotaurus','archaeopteryx','pachycephalosaurus','oviraptor','gallimimus'],
+    ultra: ['microraptor','styracosaurus','edmontosaurus','giganotosaurus','suchomimus','amargasaurus']
+  }},
+  { id: 'cheese', text: 'Name a cheese', tiers: {
+    common: ['cheddar','mozzarella','swiss','parmesan','brie','feta','gouda'],
+    uncommon: ['blue cheese','gruyere','provolone','camembert','ricotta','mascarpone','munster'],
+    rare: ['roquefort','manchego','halloumi','gorgonzola','taleggio','comte','epoisses','stilton'],
+    ultra: ['reblochon','morbier','crottin de chavignol','tomme de savoie','cabrales',"vacherin mont d'or"]
+  }},
+  { id: 'shakespeare', text: 'Name a Shakespeare play', tiers: {
+    common: ['romeo and juliet','hamlet','macbeth',"a midsummer night's dream",'othello'],
+    uncommon: ['julius caesar','the tempest','twelfth night','king lear','the merchant of venice','much ado about nothing'],
+    rare: ['coriolanus','timon of athens','cymbeline','titus andronicus','pericles','henry v','richard iii',"the winter's tale",'as you like it',"all's well that ends well",'measure for measure',"love's labour's lost",'two gentlemen of verona'],
+    ultra: ['henry vi part 1','henry vi part 2','henry vi part 3','henry viii','the two noble kinsmen']
+  }},
+  { id: 'planet', text: 'Name a planet or dwarf planet', tiers: {
+    common: ['earth','mars','jupiter','saturn','venus'],
+    uncommon: ['mercury','uranus','neptune','pluto'],
+    rare: ['ceres','eris','haumea','makemake','sedna'],
+    ultra: ['quaoar','orcus','gonggong']
+  }},
+  { id: 'cardGame', text: 'Name a card game', tiers: {
+    common: ['poker','blackjack','uno','solitaire','go fish'],
+    uncommon: ['rummy','bridge','hearts','spades','euchre','war'],
+    rare: ['cribbage','canasta','pinochle','skat','bezique','whist','egyptian ratscrew'],
+    ultra: ['tarot card game','belote','durak','preferans','oh hell','five hundred']
+  }},
+  { id: 'spiceHerb', text: 'Name a spice or herb', tiers: {
+    common: ['salt','pepper','basil','cinnamon','oregano','garlic','ginger'],
+    uncommon: ['thyme','rosemary','paprika','cumin','nutmeg','turmeric','dill','parsley'],
+    rare: ['saffron','cardamom','fennel','tarragon','sumac','fenugreek','asafoetida','star anise','mace'],
+    ultra: ['galangal','grains of paradise','sichuan peppercorn','epazote','lovage']
+  }},
+  { id: 'vegetable', text: 'Name a vegetable', tiers: {
+    common: ['carrot','potato','broccoli','tomato','onion','pepper','corn'],
+    uncommon: ['cucumber','lettuce','spinach','zucchini','cauliflower','cabbage','celery','asparagus'],
+    rare: ['artichoke','fennel','parsnip','rutabaga','kohlrabi','radicchio','jicama','daikon'],
+    ultra: ['salsify','celeriac','tatsoi','chayote','tamarillo','sunchoke']
+  }},
+  { id: 'color', text: 'Name a color', tiers: {
+    common: ['red','blue','green','yellow','black','white','orange','purple'],
+    uncommon: ['pink','brown','gray','grey','teal','turquoise','maroon','navy','gold'],
+    rare: ['chartreuse','vermillion','periwinkle','ochre','magenta','indigo','cerulean','puce'],
+    ultra: ['gamboge','xanadu','wenge','glaucous','cerise','viridian']
+  }},
+  { id: 'usPresident', text: 'Name a U.S. president', tiers: {
+    common: ['washington','lincoln','obama','trump','biden','jefferson','roosevelt'],
+    uncommon: ['kennedy','reagan','clinton','nixon','eisenhower','truman','jackson','grant'],
+    rare: ['fillmore','pierce','buchanan','arthur','garfield','hayes','taft','coolidge','harding','van buren'],
+    ultra: ['madison','monroe','polk','tyler','mckinley','hoover']
+  }},
+  { id: 'greekGod', text: 'Name a Greek god or goddess', tiers: {
+    common: ['zeus','hera','poseidon','athena','apollo','aphrodite','ares','hades'],
+    uncommon: ['hermes','artemis','dionysus','demeter','hephaestus','persephone'],
+    rare: ['hestia','nemesis','hecate','nike','pan','eros','gaia','cronus'],
+    ultra: ['nyx','iris','hebe','morpheus','tyche','eris']
+  }},
+  { id: 'moon', text: 'Name a moon in the solar system', tiers: {
+    common: ['the moon','moon','europa','titan','phobos'],
+    uncommon: ['ganymede','callisto','io','triton','enceladus'],
+    rare: ['mimas','iapetus','miranda','charon','deimos','rhea','dione'],
+    ultra: ['oberon','umbriel','proteus','nereid','hyperion','amalthea']
+  }},
+  { id: 'pasta', text: 'Name a type of pasta', tiers: {
+    common: ['spaghetti','penne','macaroni','fettuccine','linguine','lasagna','ravioli'],
+    uncommon: ['rigatoni','fusilli','tortellini','gnocchi','orzo','ziti'],
+    rare: ['farfalle','tagliatelle','orecchiette','cavatappi','bucatini','pappardelle','gemelli'],
+    ultra: ['trofie','strozzapreti','malloreddus','garganelli','conchiglie','campanelle']
+  }},
+  { id: 'martialArt', text: 'Name a martial art', tiers: {
+    common: ['karate','judo','taekwondo','boxing','kung fu','wrestling'],
+    uncommon: ['jiu jitsu','muay thai','aikido','krav maga','capoeira','kickboxing'],
+    rare: ['wing chun','kendo','sambo','silat','systema','hapkido','sumo'],
+    ultra: ['pankration','glima','shuai jiao','naban','bokator','vale tudo']
+  }},
+  { id: 'tree', text: 'Name a tree', tiers: {
+    common: ['oak','pine','maple','birch','palm','willow','elm'],
+    uncommon: ['cedar','spruce','cypress','redwood','magnolia','dogwood','poplar'],
+    rare: ['baobab','sequoia','juniper','sycamore','eucalyptus','mahogany','acacia','banyan'],
+    ultra: ['ginkgo','tamarind','rowan','hornbeam','larch','baldcypress']
+  }},
+  { id: 'gemstone', text: 'Name a gemstone', tiers: {
+    common: ['diamond','ruby','emerald','sapphire','pearl','opal'],
+    uncommon: ['amethyst','topaz','garnet','turquoise','jade','aquamarine'],
+    rare: ['peridot','tanzanite','tourmaline','moonstone','lapis lazuli','onyx','citrine','zircon'],
+    ultra: ['alexandrite','tsavorite','spinel','kunzite','iolite','labradorite']
+  }},
+  { id: 'lake', text: 'Name a lake', tiers: {
+    common: ['lake superior','lake michigan','great salt lake','lake tahoe','loch ness'],
+    uncommon: ['lake victoria','lake baikal','lake erie','lake huron','lake ontario'],
+    rare: ['lake titicaca','lake malawi','lake tanganyika','crater lake','lake como'],
+    ultra: ['lake retba','lake hillier','lake vostok','dead sea','lake nyos','laguna colorada']
+  }},
+  { id: 'africanCountry', text: 'Name an African country', tiers: {
+    common: ['egypt','south africa','nigeria','kenya','morocco'],
+    uncommon: ['ethiopia','ghana','tanzania','algeria','tunisia','uganda'],
+    rare: ['namibia','botswana','senegal','rwanda','zambia','mozambique','gabon','comoros'],
+    ultra: ['djibouti','lesotho','eswatini','guinea-bissau','sao tome and principe','equatorial guinea']
+  }},
+  { id: 'asianCountry', text: 'Name an Asian country', tiers: {
+    common: ['china','japan','india','south korea','thailand'],
+    uncommon: ['vietnam','indonesia','philippines','malaysia','pakistan','mongolia'],
+    rare: ['bhutan','laos','cambodia','nepal','brunei','uzbekistan','tajikistan'],
+    ultra: ['turkmenistan','kyrgyzstan','east timor','maldives','armenia','azerbaijan']
+  }},
+  { id: 'southAmericanCountry', text: 'Name a South American country', tiers: {
+    common: ['brazil','argentina','chile','peru','colombia'],
+    uncommon: ['venezuela','ecuador','bolivia','paraguay','uruguay'],
+    rare: ['guyana','suriname'],
+    ultra: ['french guiana']
+  }},
+  { id: 'bird', text: 'Name a bird', tiers: {
+    common: ['eagle','robin','sparrow','owl','parrot','penguin','crow'],
+    uncommon: ['flamingo','peacock','woodpecker','hummingbird','pelican','swan','falcon'],
+    rare: ['kingfisher','heron','kestrel','albatross','toucan','puffin','ibis','cockatoo'],
+    ultra: ['hoatzin','shoebill','quetzal','lyrebird','kakapo','secretarybird']
+  }},
+  { id: 'insect', text: 'Name an insect', tiers: {
+    common: ['ant','bee','butterfly','fly','mosquito','ladybug','beetle'],
+    uncommon: ['grasshopper','cricket','dragonfly','moth','wasp','cockroach','termite'],
+    rare: ['cicada','mantis','firefly','weevil','aphid','earwig','katydid','stick insect'],
+    ultra: ['antlion','dung beetle','lacewing','silverfish','springtail','treehopper']
+  }},
+  { id: 'bigCat', text: 'Name a big cat', tiers: {
+    common: ['lion','tiger','leopard','cheetah','jaguar','cougar'],
+    uncommon: ['panther','puma','snow leopard','lynx','bobcat'],
+    rare: ['clouded leopard','caracal','serval','ocelot','margay'],
+    ultra: ['sand cat','marbled cat','pallas cat','fishing cat','flat-headed cat']
+  }},
+  { id: 'shark', text: 'Name a shark species', tiers: {
+    common: ['great white','hammerhead','tiger shark','bull shark','whale shark'],
+    uncommon: ['nurse shark','mako shark','reef shark','lemon shark','thresher shark'],
+    rare: ['goblin shark','basking shark','blue shark','leopard shark','angel shark','cookiecutter shark'],
+    ultra: ['megamouth shark','frilled shark','wobbegong','greenland shark','sawshark','ghost shark']
+  }},
+  { id: 'dance', text: 'Name a dance style', tiers: {
+    common: ['ballet','tap','hip hop','salsa','ballroom','waltz'],
+    uncommon: ['tango','swing','breakdance','jazz dance','contemporary','line dance'],
+    rare: ['flamenco','foxtrot','paso doble','capoeira','bharatanatyam','morris dance'],
+    ultra: ['kathak','butoh','lindy hop','csardas','haka','tarantella']
+  }},
+  { id: 'sport', text: 'Name a sport', tiers: {
+    common: ['soccer','basketball','football','baseball','tennis','golf'],
+    uncommon: ['hockey','volleyball','rugby','cricket','boxing','swimming'],
+    rare: ['curling','fencing','polo','squash','badminton','lacrosse','water polo'],
+    ultra: ['sepak takraw','pelota','kabaddi','hurling','bandy','buzkashi']
+  }},
+  { id: 'olympicSport', text: 'Name an Olympic sport', tiers: {
+    common: ['swimming','gymnastics','track and field','basketball','soccer'],
+    uncommon: ['diving','rowing','fencing','archery','wrestling','volleyball'],
+    rare: ['handball','curling','biathlon','skeleton','luge','modern pentathlon','rhythmic gymnastics'],
+    ultra: ['trampoline','canoe slalom','artistic swimming','nordic combined','ski jumping','dressage']
+  }},
+  { id: 'bone', text: 'Name a bone in the human body', tiers: {
+    common: ['skull','femur','ribs','spine','jaw','pelvis'],
+    uncommon: ['humerus','tibia','fibula','clavicle','sternum','vertebrae'],
+    rare: ['patella','scapula','mandible','ulna','radius','sacrum','coccyx','stirrup bone'],
+    ultra: ['hyoid bone','zygomatic bone','ethmoid bone','vomer','xiphoid process','pisiform']
+  }},
+  { id: 'element', text: 'Name a chemical element', tiers: {
+    common: ['oxygen','hydrogen','carbon','gold','silver','iron','helium'],
+    uncommon: ['nitrogen','sodium','calcium','copper','zinc','lead'],
+    rare: ['titanium','platinum','mercury','tungsten','cobalt','neon','krypton','uranium'],
+    ultra: ['rhodium','osmium','yttrium','gallium','tellurium','francium']
+  }},
+  { id: 'constellation', text: 'Name a constellation', tiers: {
+    common: ['orion','ursa major','big dipper','little dipper','leo'],
+    uncommon: ['cassiopeia','scorpius','gemini','taurus','pegasus'],
+    rare: ['andromeda','cygnus','lyra','aquarius','draco','perseus','cepheus'],
+    ultra: ['ophiuchus','lacerta','sextans','vulpecula','microscopium','telescopium']
+  }},
+  { id: 'cloud', text: 'Name a type of cloud', tiers: {
+    common: ['cumulus','stratus','cirrus','nimbus'],
+    uncommon: ['cumulonimbus','altostratus','stratocumulus','cirrostratus'],
+    rare: ['altocumulus','cirrocumulus','nimbostratus','lenticular','mammatus','noctilucent'],
+    ultra: ['pileus','asperitas','kelvin-helmholtz','fallstreak hole','shelf cloud','arcus']
+  }},
+  { id: 'mountainRange', text: 'Name a mountain range', tiers: {
+    common: ['rocky mountains','alps','himalayas','andes','appalachians'],
+    uncommon: ['urals','atlas mountains','pyrenees','caucasus','cascades'],
+    rare: ['karakoram','tian shan','drakensberg','carpathians','zagros','hindu kush'],
+    ultra: ['brooks range','altai mountains','sierra madre','transantarctic mountains','ahaggar mountains','ethiopian highlands']
+  }},
+  { id: 'desert', text: 'Name a desert', tiers: {
+    common: ['sahara','gobi','mojave','arabian desert','kalahari'],
+    uncommon: ['sonoran','atacama','namib','thar desert','painted desert'],
+    rare: ['taklamakan','karakum','simpson desert','great victoria desert','chihuahuan'],
+    ultra: ['ar rub al khali','patagonian desert','great basin desert','registan desert','nubian desert']
+  }},
+  { id: 'river', text: 'Name a river', tiers: {
+    common: ['nile','amazon','mississippi','yangtze','thames'],
+    uncommon: ['danube','rhine','congo river','ganges','volga','colorado river'],
+    rare: ['mekong','euphrates','tigris','zambezi','orinoco','murray river'],
+    ultra: ['irrawaddy','brahmaputra','niger river','indus river','yenisei','amur river']
+  }},
+  { id: 'oceanSea', text: 'Name an ocean or sea', tiers: {
+    common: ['pacific ocean','atlantic ocean','indian ocean','mediterranean sea','caribbean sea'],
+    uncommon: ['arctic ocean','red sea','black sea','caspian sea','north sea'],
+    rare: ['baltic sea','coral sea','tasman sea','sea of japan','bering sea','aegean sea'],
+    ultra: ['sargasso sea','sea of okhotsk','yellow sea','adriatic sea','ionian sea','tyrrhenian sea']
+  }},
+  { id: 'volcano', text: 'Name a volcano', tiers: {
+    common: ['mount vesuvius','mount fuji','mount etna','krakatoa','mount st helens'],
+    uncommon: ['kilauea','mauna loa','mount rainier','popocatepetl','mount pinatubo'],
+    rare: ['eyjafjallajokull','mount nyiragongo','cotopaxi','mount erebus','yellowstone caldera'],
+    ultra: ['mount tambora','mount pelee','laki','mount unzen','ol doinyo lengai']
+  }},
+  { id: 'knot', text: 'Name a type of knot', tiers: {
+    common: ['square knot','slip knot','bowline','granny knot'],
+    uncommon: ['clove hitch','figure eight','sheet bend','half hitch'],
+    rare: ['prusik knot',"monkey's fist","turk's head",'sheepshank','alpine butterfly','windsor knot'],
+    ultra: ['zeppelin bend','ashley stopper knot','constrictor knot','carrick bend',"trucker's hitch"]
+  }},
+  { id: 'tea', text: 'Name a type of tea', tiers: {
+    common: ['green tea','black tea','chamomile','earl grey','herbal tea'],
+    uncommon: ['oolong','white tea','chai','peppermint tea','jasmine tea'],
+    rare: ['matcha','pu-erh','rooibos','hibiscus tea','darjeeling','yerba mate'],
+    ultra: ['lapsang souchong','gunpowder tea','oolong milk tea','genmaicha','houjicha','silver needle tea']
+  }},
+  { id: 'nut', text: 'Name a nut', tiers: {
+    common: ['peanut','almond','cashew','walnut','pecan'],
+    uncommon: ['pistachio','hazelnut','macadamia','brazil nut','chestnut'],
+    rare: ['pine nut','pili nut','tiger nut','betel nut','ginkgo nut'],
+    ultra: ['kola nut','candlenut','marula nut','souari nut','beech nut']
+  }},
+  { id: 'bread', text: 'Name a type of bread', tiers: {
+    common: ['white bread','sourdough','baguette','rye bread','whole wheat'],
+    uncommon: ['focaccia','pita','ciabatta','naan','brioche','pumpernickel'],
+    rare: ['challah','lavash','injera','bannock','damper','fry bread','panettone'],
+    ultra: ['zopf','vollkornbrot','barmbrack','vetkoek','farl','lefse']
+  }},
+  { id: 'soup', text: 'Name a soup', tiers: {
+    common: ['chicken noodle','tomato soup','vegetable soup','minestrone','chili'],
+    uncommon: ['clam chowder','french onion','miso soup','gazpacho','split pea'],
+    rare: ['borscht','bouillabaisse','pho','tom yum','gumbo','mulligatawny','cock-a-leekie'],
+    ultra: ['laksa','harira','callaloo soup','avgolemono','solyanka','khao soi']
+  }},
+  { id: 'kitchenUtensil', text: 'Name a kitchen utensil', tiers: {
+    common: ['spoon','fork','knife','spatula','whisk','ladle'],
+    uncommon: ['tongs','peeler','grater','colander','rolling pin','can opener'],
+    rare: ['mandoline','zester','mortar and pestle','melon baller','garlic press','fish spatula'],
+    ultra: ['spurtle','microplane','offset spatula','bench scraper','chinois','salamander torch']
+  }},
+  { id: 'handTool', text: 'Name a hand tool', tiers: {
+    common: ['hammer','screwdriver','wrench','pliers','saw'],
+    uncommon: ['drill','level','chisel','file','tape measure','utility knife'],
+    rare: ['awl','rasp','vise grips','socket wrench','plumb bob','c-clamp','coping saw'],
+    ultra: ['adze','froe','drawknife','spokeshave','auger bit','scribe tool']
+  }},
+  { id: 'weather', text: 'Name a weather phenomenon', tiers: {
+    common: ['rain','snow','wind','sun','storm','fog'],
+    uncommon: ['hail','sleet','thunderstorm','drizzle','frost','heat wave'],
+    rare: ['monsoon','derecho','polar vortex','haboob','squall','virga','graupel'],
+    ultra: ['sun dog','fire whirl','microburst','katabatic wind','landspout','waterspout']
+  }}
+];
+
+const byId = Object.fromEntries(PROMPTS.map(p => [p.id, p]));
+const STORAGE_KEY = 'deep-cut-state-v1';
+
+const scoreValueEl = document.getElementById('scoreValue');
+const scoreGaugeEl = document.getElementById('scoreGauge');
+const promptIndexEl = document.getElementById('promptIndex');
+const promptTextEl = document.getElementById('promptText');
+const timerEl = document.getElementById('timer');
+const formEl = document.getElementById('guessForm');
+const inputEl = document.getElementById('guessInput');
+const feedbackEl = document.getElementById('feedback');
+const findsTrayEl = document.getElementById('findsTray');
+const railDrillEl = document.getElementById('railDrill');
+const railTrackEl = document.getElementById('railTrack');
+const digLabelEl = document.getElementById('digLabel');
+const muteBtnEl = document.getElementById('muteBtn');
+const summaryEl = document.getElementById('summary');
+const summaryHeadingEl = document.getElementById('summaryHeading');
+const summaryScoreEl = document.getElementById('summaryScore');
+const tierTallyEl = document.getElementById('tierTally');
+const recapListEl = document.getElementById('recapList');
+const freeDigBtn = document.getElementById('freeDigBtn');
+const closeSummaryBtn = document.getElementById('closeSummaryBtn');
+const dailyNoteEl = document.getElementById('dailyNote');
+
+function seededShuffle(arr, seed){
+  const a = arr.slice();
+  let s = seed >>> 0;
+  const rand = () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function todayKey(){
+  const d = new Date();
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+}
+
+function dayNumber(){
+  const epoch = Date.UTC(2026, 0, 1);
+  const now = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
+  return Math.floor((now - epoch) / 86400000) + 1;
+}
+
+function dailyPromptIds(){
+  // Deal the whole prompt bank into non-overlapping days of ROUNDS_PER_DIG
+  // each ("cycle"), so no prompt repeats until every other prompt in the
+  // bank has been used. Once a cycle is exhausted, the bank is reshuffled
+  // (seeded by cycle number) into a fresh set of day-groupings.
+  const allIds = PROMPTS.map(p => p.id);
+  const daysPerCycle = Math.floor(allIds.length / ROUNDS_PER_DIG);
+  const usable = allIds.slice(0, daysPerCycle * ROUNDS_PER_DIG);
+  const n = dayNumber() - 1;
+  const cycleIndex = Math.floor(n / daysPerCycle);
+  const dayInCycle = n % daysPerCycle;
+  const dealt = seededShuffle(usable, cycleIndex + 1);
+  return dealt.slice(dayInCycle * ROUNDS_PER_DIG, dayInCycle * ROUNDS_PER_DIG + ROUNDS_PER_DIG);
+}
+
+function freePromptIds(){
+  return shuffle(PROMPTS.map(p => p.id)).slice(0, ROUNDS_PER_DIG);
+}
+
+var DIACRITIC_RE = new RegExp(String.fromCharCode(91) + '\\u0300-\\u036f' + String.fromCharCode(93), 'g');
+function normalize(s){
+  return s.toLowerCase()
+    .normalize('NFD').replace(DIACRITIC_RE, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function levenshtein(a, b){
+  const m = a.length, n = b.length;
+  if(m === 0) return n;
+  if(n === 0) return m;
+  let prev = new Array(n + 1);
+  let curr = new Array(n + 1);
+  for(let j = 0; j <= n; j++) prev[j] = j;
+  for(let i = 1; i <= m; i++){
+    curr[0] = i;
+    for(let j = 1; j <= n; j++){
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+function listMatch(guess, list){
+  for(const raw of list){
+    const cand = normalize(raw);
+    if(guess === cand) return true;
+    const maxDist = cand.length <= 4 ? 0 : cand.length <= 7 ? 1 : 2;
+    if(Math.abs(guess.length - cand.length) <= maxDist + 1 && levenshtein(guess, cand) <= maxDist) return true;
+  }
+  return false;
+}
+
+function matchTier(promptData, guessRaw){
+  const guess = normalize(guessRaw);
+  if(!guess) return 'none';
+  if(listMatch(guess, promptData.tiers.common)) return 'common';
+  if(listMatch(guess, promptData.tiers.uncommon)) return 'uncommon';
+  if(listMatch(guess, promptData.tiers.rare)) return 'rare';
+  if(listMatch(guess, promptData.tiers.ultra)) return 'ultra';
+  return 'invalid';
+}
+
+function freshRun(mode){
+  const promptIds = mode === 'daily' ? dailyPromptIds() : freePromptIds();
+  return { mode, dateKey: todayKey(), promptIds, idx: 0, answers: [], finished: false };
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return null;
+    const s = JSON.parse(raw);
+    if(!s || !Array.isArray(s.promptIds)) return null;
+    if(s.mode !== 'daily') return null;
+    if(s.dateKey !== todayKey()) return null;
+    return s;
+  }catch(e){
+    return null;
+  }
+}
+
+function saveState(){
+  // Only the daily run persists, so starting a Free Dig never clobbers
+  // today's saved daily progress. Reloading mid-Free-Dig just returns
+  // you to today's dig, which is the primary experience.
+  if(run.mode !== 'daily') return;
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(run)); }catch(e){}
+}
+
+const SOUND_KEY = 'deep-cut-sound-v1';
+let soundEnabled = true;
+try{ soundEnabled = localStorage.getItem(SOUND_KEY) !== '0'; }catch(e){}
+let audioCtx = null;
+
+function ensureAudioCtx(){
+  if(!audioCtx){
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return null;
+    try{ audioCtx = new Ctx(); }catch(e){ return null; }
+  }
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playTone(freq, offset, duration, type, peakVol){
+  if(!soundEnabled) return;
+  const ctx = ensureAudioCtx();
+  if(!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+  const t0 = ctx.currentTime + (offset || 0);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(peakVol != null ? peakVol : 0.16, t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+
+function playSweep(freqStart, freqEnd, offset, duration, type, peakVol){
+  if(!soundEnabled) return;
+  const ctx = ensureAudioCtx();
+  if(!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sawtooth';
+  const t0 = ctx.currentTime + (offset || 0);
+  osc.frequency.setValueAtTime(freqStart, t0);
+  osc.frequency.exponentialRampToValueAtTime(freqEnd, t0 + duration);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(peakVol != null ? peakVol : 0.14, t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+
+function playSubmitClick(){
+  playTone(680, 0, 0.05, 'square', 0.07);
+}
+
+function playResultSound(tier){
+  if(tier === 'common'){
+    playTone(320, 0, 0.16, 'sine', 0.16);
+  } else if(tier === 'uncommon'){
+    playTone(420, 0, 0.13, 'triangle', 0.17);
+    playTone(560, 0.05, 0.14, 'triangle', 0.13);
+  } else if(tier === 'rare'){
+    playTone(520, 0, 0.13, 'triangle', 0.18);
+    playTone(700, 0.07, 0.15, 'triangle', 0.16);
+    playTone(880, 0.14, 0.22, 'sine', 0.14);
+  } else if(tier === 'ultra'){
+    playTone(600, 0, 0.12, 'triangle', 0.2);
+    playTone(800, 0.08, 0.12, 'triangle', 0.19);
+    playTone(1000, 0.16, 0.13, 'triangle', 0.18);
+    playTone(1300, 0.24, 0.32, 'sine', 0.18);
+  } else if(tier === 'invalid'){
+    playSweep(260, 110, 0, 0.28, 'sawtooth', 0.13);
+  } else {
+    playTone(180, 0, 0.18, 'sine', 0.09);
+  }
+}
+
+function setMuteButtonState(){
+  if(!muteBtnEl) return;
+  muteBtnEl.classList.toggle('is-muted', !soundEnabled);
+}
+
+let run = loadState() || freshRun('daily');
+let timerId = null;
+let secondsLeft = SECONDS_PER_ROUND;
+let roundLocked = false;
+
+function totalScore(){
+  return run.answers.reduce((sum, a) => sum + a.points, 0);
+}
+
+const TIER_COLOR = { common: 'var(--moss)', uncommon: 'var(--ember-bright)', rare: 'var(--amethyst)', ultra: 'var(--gold)', none: '#5a4a3c', invalid: 'var(--rust)' };
+
+function findIconSvg(tier){
+  const c = TIER_COLOR[tier];
+  return '<svg viewBox="0 0 24 24"><polygon points="12,2 20,9 16,22 8,22 4,9" fill="' + c + '" opacity="0.9"/><polygon points="12,2 20,9 12,13" fill="#ffffff" opacity="0.18"/></svg>';
+}
+
+function renderFindsTray(){
+  findsTrayEl.innerHTML = run.answers.map(a => '<span class="find-icon" title="' + TIER_LABEL[a.tier] + '">' + findIconSvg(a.tier) + '</span>').join('');
+}
+
+function appendFindIcon(tier){
+  const span = document.createElement('span');
+  span.className = 'find-icon';
+  span.title = TIER_LABEL[tier];
+  span.innerHTML = findIconSvg(tier);
+  findsTrayEl.appendChild(span);
+}
+
+let displayedScore = 0;
+let scoreAnimHandle = null;
+
+function updateGauge(){
+  const target = totalScore();
+  if(scoreAnimHandle) cancelAnimationFrame(scoreAnimHandle);
+  const start = displayedScore;
+  const delta = target - start;
+  if(delta === 0){ scoreValueEl.textContent = target; return; }
+  const duration = 550;
+  const t0 = performance.now();
+  const step = (now) => {
+    const t = Math.min(1, (now - t0) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    displayedScore = Math.round(start + delta * eased);
+    scoreValueEl.textContent = displayedScore;
+    if(t < 1){ scoreAnimHandle = requestAnimationFrame(step); }
+    else { displayedScore = target; scoreAnimHandle = null; }
+  };
+  scoreAnimHandle = requestAnimationFrame(step);
+}
+
+const TIER_FLASH_RGB = { common: '131,168,108', uncommon: '224,116,47', rare: '169,127,224', ultra: '224,178,61', invalid: '184,73,47', none: '201,183,155' };
+
+function flashGauge(tier){
+  scoreGaugeEl.classList.remove('flash');
+  scoreGaugeEl.style.setProperty('--flash-color', TIER_FLASH_RGB[tier] || TIER_FLASH_RGB.common);
+  void scoreGaugeEl.offsetWidth;
+  scoreGaugeEl.classList.add('flash');
+}
+
+const DIG_FX = {
+  common: { count: 3, size: 3, spread: 12, color: 'var(--moss)', shakeClass: 'dig-small', shakeMs: 500 },
+  uncommon: { count: 5, size: 4, spread: 18, color: 'var(--ember-bright)', shakeClass: 'dig-small', shakeMs: 600 },
+  rare: { count: 7, size: 5, spread: 24, color: 'var(--amethyst)', shakeClass: 'dig-big', shakeMs: 750 },
+  ultra: { count: 11, size: 6, spread: 34, color: 'var(--gold)', shakeClass: 'dig-big', shakeMs: 950 },
+  invalid: { count: 4, size: 3, spread: 9, color: 'var(--rust)', shakeClass: 'dig-reject', shakeMs: 350 },
+  none: { count: 0, size: 0, spread: 0, color: '', shakeClass: '', shakeMs: 0 }
+};
+
+function spawnDigParticles(tier){
+  const fx = DIG_FX[tier] || DIG_FX.none;
+  if(fx.count === 0 || !railTrackEl) return;
+  const trackRect = railTrackEl.getBoundingClientRect();
+  const drillRect = railDrillEl.getBoundingClientRect();
+  const originX = drillRect.left + drillRect.width / 2 - trackRect.left;
+  const originY = drillRect.top + drillRect.height / 2 - trackRect.top;
+  for(let i = 0; i < fx.count; i++){
+    const p = document.createElement('div');
+    p.className = 'dig-particle';
+    const angle = Math.random() * Math.PI - Math.PI / 2 - Math.PI / 4;
+    const dist = fx.spread + Math.random() * fx.spread;
+    const dx = Math.cos(angle) * dist;
+    const dy = -Math.abs(Math.sin(angle) * dist) - Math.random() * 8;
+    p.style.left = originX + 'px';
+    p.style.top = originY + 'px';
+    p.style.width = fx.size + 'px';
+    p.style.height = fx.size + 'px';
+    p.style.background = fx.color;
+    p.style.setProperty('--dx', dx + 'px');
+    p.style.setProperty('--dy', dy + 'px');
+    railTrackEl.appendChild(p);
+    p.addEventListener('animationend', () => p.remove());
+  }
+}
+
+function shakeDrill(tier){
+  const fx = DIG_FX[tier] || DIG_FX.none;
+  if(!fx.shakeClass) return;
+  railDrillEl.classList.remove('dig-small', 'dig-big', 'dig-reject');
+  void railDrillEl.offsetWidth;
+  railDrillEl.classList.add(fx.shakeClass);
+  setTimeout(() => railDrillEl.classList.remove(fx.shakeClass), fx.shakeMs);
+}
+
+function updateDrill(tier){
+  const maxScore = ROUNDS_PER_DIG * TIER_POINTS.ultra;
+  const pct = Math.min(100, (totalScore() / maxScore) * 100);
+  railDrillEl.style.top = pct + '%';
+  spawnDigParticles(tier);
+  shakeDrill(tier);
+}
+
+function updateDigLabel(){
+  if(run.mode === 'daily'){
+    digLabelEl.textContent = "Today's Dig #" + dayNumber();
+  } else {
+    digLabelEl.innerHTML = 'Free Dig (practice) · <a href="#" id="backToDailyLink" style="color:inherit;text-decoration:underline;">back to today\'s dig</a>';
+    const link = document.getElementById('backToDailyLink');
+    if(link) link.addEventListener('click', (e) => { e.preventDefault(); location.reload(); });
+  }
+}
+
+function stopTimer(){
+  if(timerId){ clearInterval(timerId); timerId = null; }
+}
+
+function startTimer(){
+  stopTimer();
+  secondsLeft = SECONDS_PER_ROUND;
+  timerEl.textContent = secondsLeft;
+  timerEl.classList.remove('low');
+  timerId = setInterval(() => {
+    secondsLeft -= 1;
+    timerEl.textContent = secondsLeft;
+    if(secondsLeft <= 5) timerEl.classList.add('low');
+    if(secondsLeft <= 0){
+      stopTimer();
+      handleTimeout();
+    }
+  }, 1000);
+}
+
+function renderRound(){
+  if(run.idx >= run.promptIds.length){
+    showSummary();
+    return;
+  }
+  roundLocked = false;
+  const promptData = byId[run.promptIds[run.idx]];
+  promptIndexEl.textContent = 'PROMPT ' + (run.idx + 1) + ' OF ' + run.promptIds.length;
+  promptTextEl.textContent = promptData.text;
+  feedbackEl.innerHTML = '';
+  inputEl.value = '';
+  inputEl.disabled = false;
+  formEl.querySelector('button').disabled = false;
+  inputEl.focus();
+  startTimer();
+}
+
+function resolveRound(tier, guessRaw){
+  roundLocked = true;
+  stopTimer();
+  inputEl.disabled = true;
+  formEl.querySelector('button').disabled = true;
+
+  const promptData = byId[run.promptIds[run.idx]];
+  const points = TIER_POINTS[tier];
+
+  run.answers.push({ promptId: promptData.id, guess: (guessRaw || '').trim(), tier, points });
+  saveState();
+
+  let message;
+  if(tier === 'invalid'){
+    message = '<span class="tier-badge tier-invalid">' + TIER_LABEL.invalid + '</span><span>Time\'s up — that wasn\'t on the list.</span>';
+  } else if(tier === 'none'){
+    message = '<span class="tier-badge tier-none">' + TIER_LABEL.none + '</span><span>Time\'s up — no answer.</span>';
+  } else {
+    message = '<span class="tier-badge tier-' + tier + '">' + TIER_LABEL[tier] + '</span><span>+' + points + ' pts</span>';
+  }
+  feedbackEl.innerHTML = message;
+
+  updateGauge();
+  flashGauge(tier);
+  updateDrill(tier);
+  appendFindIcon(tier);
+  playResultSound(tier);
+
+  setTimeout(() => {
+    run.idx += 1;
+    saveState();
+    renderRound();
+  }, 1300);
+}
+
+function handleTimeout(){
+  if(roundLocked) return;
+  const promptData = byId[run.promptIds[run.idx]];
+  const tier = matchTier(promptData, inputEl.value || '');
+  resolveRound(tier, inputEl.value || '');
+}
+
+function handleGuess(guessRaw){
+  if(roundLocked) return;
+  const val = (guessRaw || '').trim();
+  if(!val) return;
+
+  const promptData = byId[run.promptIds[run.idx]];
+  const tier = matchTier(promptData, val);
+
+  if(tier === 'invalid'){
+    playResultSound('invalid');
+    shakeDrill('invalid');
+    feedbackEl.innerHTML = '<span class="tier-badge tier-invalid">Wrong</span><span>Not on the list — try again.</span>';
+    inputEl.value = '';
+    inputEl.focus();
+    return;
+  }
+
+  playSubmitClick();
+  resolveRound(tier, val);
+}
+
+function tierTallyHtml(){
+  const counts = { common: 0, uncommon: 0, rare: 0, ultra: 0, none: 0, invalid: 0 };
+  run.answers.forEach(a => counts[a.tier]++);
+  return ['common','uncommon','rare','ultra','invalid'].map(t =>
+    '<div><strong>' + counts[t] + '</strong>' + TIER_LABEL[t].replace(' find','') + '</div>'
+  ).join('');
+}
+
+function recapHtml(){
+  return run.answers.map(a => {
+    const promptData = byId[a.promptId];
+    const guessText = a.guess ? a.guess : '(no answer)';
+    return '<div class="recap-row"><span class="rq">' + promptData.text + '</span><span class="ra"><span class="ra-guess">' + guessText + '</span><span class="tier-badge tier-' + a.tier + '">' + TIER_LABEL[a.tier] + '</span></span></div>';
+  }).join('');
+}
+
+function showSummary(){
+  stopTimer();
+  summaryHeadingEl.textContent = run.mode === 'daily' ? 'Dig complete' : 'Free dig complete';
+  summaryScoreEl.textContent = 'You scored ' + totalScore() + ' points across ' + run.promptIds.length + ' prompts.';
+  tierTallyEl.innerHTML = tierTallyHtml();
+  recapListEl.innerHTML = recapHtml();
+  dailyNoteEl.textContent = run.mode === 'daily' ? 'Come back tomorrow for a new daily dig, or practice below.' : '';
+  summaryEl.classList.remove('hidden');
+
+  if(run.mode === 'daily' && window.parent !== window){
+    window.parent.postMessage({
+      type: 'deep-cut-progress',
+      score: totalScore(),
+      promptsAnswered: run.answers.length,
+      totalPrompts: run.promptIds.length,
+      dayNumber: dayNumber(),
+    }, window.location.origin);
+  }
+}
+
+function startFreeDig(){
+  summaryEl.classList.add('hidden');
+  run = freshRun('free');
+  saveState();
+  updateDigLabel();
+  updateGauge();
+  updateDrill();
+  renderFindsTray();
+  renderRound();
+}
+
+formEl.addEventListener('submit', (e) => {
+  e.preventDefault();
+  handleGuess(inputEl.value);
+});
+inputEl.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    handleGuess(inputEl.value);
+  }
+});
+freeDigBtn.addEventListener('click', startFreeDig);
+closeSummaryBtn.addEventListener('click', () => summaryEl.classList.add('hidden'));
+muteBtnEl.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  try{ localStorage.setItem(SOUND_KEY, soundEnabled ? '1' : '0'); }catch(e){}
+  setMuteButtonState();
+  if(soundEnabled){ ensureAudioCtx(); playSubmitClick(); }
+});
+
+setMuteButtonState();
+updateDigLabel();
+displayedScore = totalScore();
+updateGauge();
+updateDrill();
+renderFindsTray();
+
+if(run.idx >= run.promptIds.length){
+  showSummary();
+} else {
+  renderRound();
+}
+</script>
+
+</body></html>
