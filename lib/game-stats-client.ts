@@ -6,17 +6,18 @@ export async function upsertGameStatsClient(
 ): Promise<void> {
   const supabase = createBrowserSupabaseClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.user) return;
 
-  await supabase.from('game_stats').upsert(
+  const { error } = await supabase.from('game_stats').upsert(
     {
-      user_id: user.id,
+      user_id: session.user.id,
       game_id: gameId,
       stats,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id,game_id' }
   );
+  if (error) console.error('upsertGameStatsClient failed:', error);
 }

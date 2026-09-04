@@ -50,20 +50,28 @@ export default async function Nav() {
               <SignOutButton />
             </>
           ) : (
-            <Link
-              href="/login"
-              style={{
-                color: 'var(--bg)',
-                background: 'var(--accent)',
-                textDecoration: 'none',
-                fontSize: 14,
-                fontWeight: 600,
-                padding: '8px 16px',
-                borderRadius: 6,
-              }}
-            >
-              Sign in
-            </Link>
+            <>
+              <Link
+                href="/signup"
+                style={{ color: 'var(--text-dim)', textDecoration: 'none', fontSize: 14 }}
+              >
+                Sign up
+              </Link>
+              <Link
+                href="/login"
+                style={{
+                  color: 'var(--bg)',
+                  background: 'var(--accent)',
+                  textDecoration: 'none',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                }}
+              >
+                Sign in
+              </Link>
+            </>
           )}
         </nav>
       </div>

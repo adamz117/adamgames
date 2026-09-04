@@ -8,17 +8,23 @@ export default function SignupForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      setError(error.message);
-      return;
+    setSubmitting(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      setSubmitted(true);
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitted(true);
   }
 
   if (submitted) {
@@ -67,6 +73,7 @@ export default function SignupForm() {
       {error && <p style={{ color: 'var(--accent-bright)', fontSize: 13 }}>{error}</p>}
       <button
         type="submit"
+        disabled={submitting}
         style={{
           background: 'var(--accent)',
           color: 'var(--bg)',

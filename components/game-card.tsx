@@ -14,6 +14,7 @@ export default function GameCard({
   return (
     <Link
       href={href}
+      className="game-card"
       style={{
         display: 'block',
         background: 'var(--surface)',

@@ -21,3 +21,12 @@ body {
   color: var(--text);
   font-family: var(--font-body);
 }
+
+.game-card {
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.game-card:hover,
+.game-card:focus-visible {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
