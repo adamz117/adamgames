@@ -3,12 +3,12 @@ import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/clie
 
 export async function getGameStatsServer(
   gameId: string
-): Promise<Record<string, unknown> | null> {
+): Promise<Record<string, unknown> | null | undefined> {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) return undefined;
 
   const { data } = await supabase
     .from('game_stats')

@@ -33,7 +33,7 @@ export default async function HomePage() {
             title={game.title}
             description={game.description}
             href={game.href}
-            summary={stats ? game.summarize(stats) : undefined}
+            summary={stats === undefined ? undefined : game.summarize(stats)}
           />
         ))}
       </div>
