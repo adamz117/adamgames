@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import SignOutButton from '@/components/sign-out-button';
+import GamesDropdown from '@/components/games-dropdown';
+import { GAMES } from '@/lib/games-registry';
 
 export default async function Nav() {
   const supabase = await createClient();
@@ -38,12 +40,9 @@ export default async function Nav() {
           ADAM GAMES
         </Link>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          <Link
-            href="/games/flag-atlas"
-            style={{ color: 'var(--text-dim)', textDecoration: 'none', fontSize: 14 }}
-          >
-            Flag Atlas
-          </Link>
+          <GamesDropdown
+            games={GAMES.map(({ id, title, description, href }) => ({ id, title, description, href }))}
+          />
           {user ? (
             <>
               <span style={{ color: 'var(--text-dim)', fontSize: 14 }}>{user.email}</span>

@@ -210,16 +210,51 @@
   .rivet-tr{top:9px;right:9px;}
   .rivet-bl{bottom:9px;right:9px;}
 
-  .porthole{
+  .porthole-wrap{
     position:relative;
     flex:none;
     width:132px;
     height:132px;
+    touch-action:none;
+    cursor:grab;
+  }
+  .porthole-wrap.is-dragging{cursor:grabbing;}
+  .porthole-wrap.is-floating{position:fixed;z-index:60;}
+  .porthole{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
     border-radius:50%;
     border:5px solid var(--brass);
     box-shadow:inset 0 0 18px rgba(0,0,0,.6),0 0 0 3px var(--ink-deep);
     overflow:hidden;
     background:var(--ink-deep);
+  }
+  .porthole-wrap.is-dragging .porthole{box-shadow:inset 0 0 18px rgba(0,0,0,.6),0 0 0 3px var(--ink-deep),0 0 22px 6px rgba(201,154,75,.5);}
+  .porthole-resize{
+    position:absolute;
+    right:-2px;
+    bottom:-2px;
+    width:20px;
+    height:20px;
+    border-radius:50%;
+    background:var(--brass);
+    border:2px solid var(--ink-deep);
+    box-shadow:0 1px 4px rgba(0,0,0,.5);
+    cursor:nwse-resize;
+    touch-action:none;
+    z-index:1;
+  }
+  .porthole-resize::after{
+    content:'';
+    position:absolute;
+    left:50%;
+    top:50%;
+    width:9px;
+    height:2px;
+    background:var(--ink-deep);
+    transform:translate(-50%,-50%);
   }
   .reel{
     position:absolute;
@@ -254,7 +289,7 @@
     border-radius:6px;
     padding:10px 12px;
     font-family:var(--font-mono);
-    font-size:15px;
+    font-size:16px;
     color:var(--parchment);
   }
   #guessInput:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(201,154,75,.2);}
@@ -385,7 +420,7 @@
 
   @media (max-width:640px){
     main.panel{flex-direction:column;padding:20px;}
-    .porthole{width:110px;height:110px;}
+    .porthole-wrap{width:110px;height:110px;}
     .masthead{left:16px;top:16px;}
     .gauge{right:16px;top:16px;padding:8px 12px;}
     .legend{left:16px;bottom:16px;}
@@ -4461,8 +4496,11 @@
   </div>
 
   <main class="panel" id="panel">
-    <div class="porthole" id="porthole">
-      <div class="reel" id="reel"></div>
+    <div class="porthole-wrap" id="portholeWrap" title="Drag to move, corner to resize">
+      <div class="porthole" id="porthole">
+        <div class="reel" id="reel"></div>
+      </div>
+      <div class="porthole-resize" id="portholeResize" aria-hidden="true"></div>
     </div>
 
     <div class="readout">
@@ -4830,6 +4868,134 @@ if(state.idx >= state.queue.length){
 } else {
   spinToCountry(currentCode(), { instant: true });
 }
+
+(function setupPortholeInteraction(){
+  const wrap = document.getElementById('portholeWrap');
+  const resizeHandle = document.getElementById('portholeResize');
+  if(!wrap || !resizeHandle) return;
+
+  const MIN_SIZE = 80;
+
+  let dragging = false, dragPointerId = null, dragOffsetX = 0, dragOffsetY = 0;
+  let resizing = false, resizePointerId = null, resizeStartSize = 132, resizeStartX = 0, resizeStartY = 0;
+
+  function maxSize(){
+    return Math.min(320, Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.6));
+  }
+
+  function clamp(left, top, width, height){
+    const margin = 8;
+    const maxLeft = Math.max(margin, window.innerWidth - margin - width);
+    const maxTop = Math.max(margin, window.innerHeight - margin - height);
+    return {
+      left: Math.min(Math.max(left, margin), maxLeft),
+      top: Math.min(Math.max(top, margin), maxTop),
+    };
+  }
+
+  function makeFloating(rect){
+    wrap.classList.add('is-floating');
+    wrap.style.left = rect.left + 'px';
+    wrap.style.top = rect.top + 'px';
+    wrap.style.width = rect.width + 'px';
+    wrap.style.height = rect.height + 'px';
+  }
+
+  function clampToViewport(){
+    if(!wrap.classList.contains('is-floating')) return;
+    const rect = wrap.getBoundingClientRect();
+    const pos = clamp(rect.left, rect.top, rect.width, rect.height);
+    wrap.style.left = pos.left + 'px';
+    wrap.style.top = pos.top + 'px';
+  }
+
+  wrap.addEventListener('pointerdown', (e) => {
+    if(e.target === resizeHandle || resizeHandle.contains(e.target) || resizing) return;
+    dragging = true;
+    dragPointerId = e.pointerId;
+    const rect = wrap.getBoundingClientRect();
+    dragOffsetX = e.clientX - rect.left;
+    dragOffsetY = e.clientY - rect.top;
+    if(!wrap.classList.contains('is-floating')) makeFloating(rect);
+    wrap.classList.add('is-dragging');
+    wrap.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  wrap.addEventListener('pointermove', (e) => {
+    if(!dragging || e.pointerId !== dragPointerId) return;
+    const rect = wrap.getBoundingClientRect();
+    const pos = clamp(e.clientX - dragOffsetX, e.clientY - dragOffsetY, rect.width, rect.height);
+    wrap.style.left = pos.left + 'px';
+    wrap.style.top = pos.top + 'px';
+  });
+
+  function endDrag(e){
+    if(!dragging || e.pointerId !== dragPointerId) return;
+    dragging = false;
+    dragPointerId = null;
+    wrap.classList.remove('is-dragging');
+  }
+  wrap.addEventListener('pointerup', endDrag);
+  wrap.addEventListener('pointercancel', endDrag);
+
+  resizeHandle.addEventListener('pointerdown', (e) => {
+    resizing = true;
+    resizePointerId = e.pointerId;
+    const rect = wrap.getBoundingClientRect();
+    resizeStartSize = rect.width;
+    resizeStartX = e.clientX;
+    resizeStartY = e.clientY;
+    if(!wrap.classList.contains('is-floating')) makeFloating(rect);
+    resizeHandle.setPointerCapture(e.pointerId);
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  resizeHandle.addEventListener('pointermove', (e) => {
+    if(!resizing || e.pointerId !== resizePointerId) return;
+    const delta = Math.max(e.clientX - resizeStartX, e.clientY - resizeStartY);
+    const size = Math.min(Math.max(resizeStartSize + delta, MIN_SIZE), maxSize());
+    wrap.style.width = size + 'px';
+    wrap.style.height = size + 'px';
+  });
+
+  function endResize(e){
+    if(!resizing || e.pointerId !== resizePointerId) return;
+    resizing = false;
+    resizePointerId = null;
+    clampToViewport();
+  }
+  resizeHandle.addEventListener('pointerup', endResize);
+  resizeHandle.addEventListener('pointercancel', endResize);
+
+  wrap.addEventListener('dblclick', () => {
+    wrap.classList.remove('is-floating', 'is-dragging');
+    wrap.style.left = '';
+    wrap.style.top = '';
+    wrap.style.width = '';
+    wrap.style.height = '';
+  });
+
+  window.addEventListener('resize', clampToViewport);
+
+  function forceEndGestures(){
+    if(dragging){
+      dragging = false;
+      dragPointerId = null;
+      wrap.classList.remove('is-dragging');
+    }
+    if(resizing){
+      resizing = false;
+      resizePointerId = null;
+      clampToViewport();
+    }
+  }
+  window.addEventListener('blur', forceEndGestures);
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden) forceEndGestures();
+  });
+})();
 </script>
 </body>
 </html>

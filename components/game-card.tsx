@@ -5,11 +5,13 @@ export default function GameCard({
   description,
   href,
   summary,
+  style,
 }: {
   title: string;
   description: string;
   href: string;
   summary?: React.ReactNode;
+  style?: React.CSSProperties;
 }) {
   return (
     <Link
@@ -23,6 +25,7 @@ export default function GameCard({
         padding: 20,
         textDecoration: 'none',
         color: 'var(--text)',
+        ...style,
       }}
     >
       <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, letterSpacing: '0.01em' }}>
