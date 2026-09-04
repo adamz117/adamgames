@@ -1,6 +1,13 @@
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import SignOutButton from '@/components/sign-out-button';
 
-export default function Nav() {
+export default async function Nav() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <header
       style={{
@@ -37,20 +44,27 @@ export default function Nav() {
           >
             Flag Atlas
           </Link>
-          <Link
-            href="/login"
-            style={{
-              color: 'var(--bg)',
-              background: 'var(--accent)',
-              textDecoration: 'none',
-              fontSize: 14,
-              fontWeight: 600,
-              padding: '8px 16px',
-              borderRadius: 6,
-            }}
-          >
-            Sign in
-          </Link>
+          {user ? (
+            <>
+              <span style={{ color: 'var(--text-dim)', fontSize: 14 }}>{user.email}</span>
+              <SignOutButton />
+            </>
+          ) : (
+            <Link
+              href="/login"
+              style={{
+                color: 'var(--bg)',
+                background: 'var(--accent)',
+                textDecoration: 'none',
+                fontSize: 14,
+                fontWeight: 600,
+                padding: '8px 16px',
+                borderRadius: 6,
+              }}
+            >
+              Sign in
+            </Link>
+          )}
         </nav>
       </div>
     </header>
