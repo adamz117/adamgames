@@ -10,6 +10,7 @@
   --text-dim: #a3a0ac;
   --accent: #ef4577;
   --accent-bright: #ff6d95;
+  --accent-2: #22e0e0;
   --border: #2c2c38;
   --font-display: 'Bebas Neue', Impact, sans-serif;
   --font-body: 'Manrope', -apple-system, 'Helvetica Neue', Arial, sans-serif;
@@ -20,6 +21,14 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
+}
+
+.site-header {
+  position: relative;
+  box-shadow: 0 16px 32px -20px rgba(239, 69, 119, 0.5);
+}
+.brand-wordmark {
+  text-shadow: 0 0 14px rgba(239, 69, 119, 0.45);
 }
 
 .games-dropdown-item {
@@ -61,11 +70,72 @@ body {
   }
 }
 
+@keyframes gridScroll {
+  from {
+    background-position: 0 0, 0 0;
+  }
+  to {
+    background-position: 0 48px, 0 0;
+  }
+}
+
+@keyframes neonFlicker {
+  0%, 100% {
+    text-shadow:
+      0 0 8px rgba(239, 69, 119, 0.6),
+      0 0 26px rgba(239, 69, 119, 0.4),
+      0 0 60px rgba(34, 224, 224, 0.18);
+  }
+  50% {
+    text-shadow:
+      0 0 10px rgba(239, 69, 119, 0.75),
+      0 0 34px rgba(239, 69, 119, 0.5),
+      0 0 74px rgba(34, 224, 224, 0.25);
+  }
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 .hero-glow {
   animation: driftGlow 16s ease-in-out infinite;
 }
 .hero-glow-2 {
   animation: driftGlow 20s ease-in-out infinite reverse;
+}
+
+.arcade-grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 360px;
+  background-image:
+    linear-gradient(var(--accent-2) 1px, transparent 1px),
+    linear-gradient(90deg, var(--accent-2) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.14;
+  transform: perspective(300px) rotateX(60deg);
+  transform-origin: bottom;
+  mask-image: linear-gradient(to top, black, transparent);
+  -webkit-mask-image: linear-gradient(to top, black, transparent);
+  animation: gridScroll 6s linear infinite;
+  pointer-events: none;
 }
 
 .hero-badge,
@@ -74,33 +144,106 @@ body {
   animation: fadeUp 0.6s ease-out both;
 }
 .hero-title {
-  animation-delay: 0.05s;
+  animation-name: fadeUp, neonFlicker;
+  animation-duration: 0.6s, 4s;
+  animation-timing-function: ease-out, ease-in-out;
+  animation-iteration-count: 1, infinite;
+  animation-delay: 0.05s, 1s;
+  animation-fill-mode: both, none;
 }
 .hero-sub {
   animation-delay: 0.12s;
 }
 
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 6px var(--accent-2);
+  animation: blink 1.6s ease-in-out infinite;
+}
+
+.marquee {
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  white-space: nowrap;
+}
+.marquee-track {
+  display: inline-flex;
+  gap: 24px;
+  padding: 10px 0;
+  width: max-content;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+  animation: marquee 18s linear infinite;
+}
+.marquee-track span {
+  opacity: 0.85;
+}
+
 .game-card {
+  position: relative;
+  overflow: hidden;
   animation: fadeUp 0.5s ease-out both;
   transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
+.game-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+.game-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.6s ease;
+  pointer-events: none;
+}
 .game-card:hover,
 .game-card:focus-visible {
-  border-color: var(--accent);
-  transform: translateY(-4px);
-  box-shadow: 0 12px 28px -8px rgba(239, 69, 119, 0.35);
+  border-color: var(--accent-bright);
+  transform: translateY(-6px) scale(1.015);
+  box-shadow:
+    0 16px 32px -10px rgba(239, 69, 119, 0.4),
+    0 0 0 1px rgba(34, 224, 224, 0.15),
+    0 20px 48px -16px rgba(34, 224, 224, 0.25);
+}
+.game-card:hover::after,
+.game-card:focus-visible::after {
+  left: 120%;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .hero-glow,
   .hero-glow-2,
+  .arcade-grid,
+  .live-dot,
+  .marquee-track,
   .hero-badge,
   .hero-title,
   .hero-sub,
   .game-card {
     animation: none !important;
   }
-  .game-card {
+  .game-card,
+  .game-card::after {
     transition: none !important;
   }
 }

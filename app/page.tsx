@@ -44,12 +44,14 @@ export default async function HomePage() {
           pointerEvents: 'none',
         }}
       />
+      <div aria-hidden="true" className="arcade-grid" />
 
-      <div style={{ position: 'relative', maxWidth: 1100, margin: '0 auto', padding: '48px 24px' }}>
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: 1100, margin: '0 auto', padding: '56px 24px 0' }}>
         <div
           className="hero-badge"
           style={{
-            display: 'inline-block',
+            display: 'inline-flex',
+            alignItems: 'center',
             fontFamily: 'var(--font-mono)',
             fontSize: 12,
             letterSpacing: '0.08em',
@@ -58,27 +60,60 @@ export default async function HomePage() {
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             borderRadius: 999,
-            padding: '5px 14px',
+            padding: '6px 16px',
           }}
         >
-          Personal arcade
+          <span className="live-dot" aria-hidden="true" />
+          Insert coin to continue
         </div>
         <h1
           className="hero-title"
-          style={{ fontFamily: 'var(--font-display)', fontSize: 48, margin: '14px 0 0' }}
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 'clamp(48px, 9vw, 88px)',
+            lineHeight: 1.02,
+            letterSpacing: '0.01em',
+            margin: '18px 0 0',
+            color: 'var(--text)',
+          }}
         >
-          Your games. Your stats.
+          Your games.
+          <br />
+          Your stats.
         </h1>
-        <p className="hero-sub" style={{ color: 'var(--text-dim)', marginTop: 8, maxWidth: 520 }}>
+        <p className="hero-sub" style={{ color: 'var(--text-dim)', marginTop: 14, maxWidth: 520, fontSize: 17 }}>
           A personal arcade — every game you play here tracks your progress in
           one place, once you sign in.
         </p>
+      </div>
+
+      <div
+        className="marquee"
+        aria-hidden="true"
+        style={{ position: 'relative', zIndex: 1, marginTop: 40 }}
+      >
+        <div className="marquee-track">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <span key={i} style={{ display: 'inline-flex', gap: 24 }}>
+              <span>New high score unlocked</span>
+              <span>•</span>
+              <span>Flag Atlas — 188 countries charted</span>
+              <span>•</span>
+              <span>Sign in to save your progress</span>
+              <span>•</span>
+              <span>More games loading soon</span>
+              <span>•</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: 1100, margin: '0 auto', padding: '40px 24px 56px' }}>
         <div
           style={{
-            marginTop: 32,
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-            gap: 16,
+            gap: 20,
           }}
         >
           {gamesWithStats.map(({ game, stats }, i) => (

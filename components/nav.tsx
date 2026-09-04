@@ -12,6 +12,7 @@ export default async function Nav() {
 
   return (
     <header
+      className="site-header"
       style={{
         borderBottom: '1px solid var(--border)',
         background: 'var(--surface)',
@@ -29,6 +30,7 @@ export default async function Nav() {
       >
         <Link
           href="/"
+          className="brand-wordmark"
           style={{
             fontFamily: 'var(--font-display)',
             fontSize: 28,
