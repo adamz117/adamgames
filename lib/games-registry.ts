@@ -62,4 +62,18 @@ export const GAMES: GameRegistryEntry[] = [
       return solved ? `Day ${day}: solved · ${streak} day streak` : `Day ${day}: missed today`;
     },
   },
+  {
+    id: 'common-threads',
+    title: 'Common Threads',
+    description: 'Sort sixteen words into four hidden categories before you run out of mistakes.',
+    href: '/games/common-threads',
+    summarize: (stats) => {
+      if (!stats) return 'Not played yet';
+      const day = Number(stats.dayNumber ?? 0);
+      const solved = Boolean(stats.solved);
+      const streak = Number(stats.streak ?? 0);
+      if (!day) return 'Not played yet';
+      return solved ? `Day ${day}: solved · ${streak} day streak` : `Day ${day}: missed today`;
+    },
+  },
 ];
