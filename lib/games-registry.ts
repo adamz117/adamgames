@@ -76,4 +76,18 @@ export const GAMES: GameRegistryEntry[] = [
       return solved ? `Day ${day}: solved · ${streak} day streak` : `Day ${day}: missed today`;
     },
   },
+  {
+    id: 'brain-buzzer',
+    title: 'Brain Buzzer',
+    description: 'Five general-knowledge questions a day, one hundred days of trivia to work through.',
+    href: '/games/brain-buzzer',
+    summarize: (stats) => {
+      if (!stats) return 'Not played yet';
+      const day = Number(stats.dayNumber ?? 0);
+      const score = Number(stats.score ?? 0);
+      const streak = Number(stats.streak ?? 0);
+      if (!day) return 'Not played yet';
+      return `Day ${day}: ${score}/5 · ${streak} day streak`;
+    },
+  },
 ];

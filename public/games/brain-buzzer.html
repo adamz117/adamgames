@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Brain Buzzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{
+    --stage:#1a1330;
+    --stage-deep:#120c22;
+    --card:#241a3f;
+    --card-border:#4a3a7a;
+    --text:#f5f0ff;
+    --text-dim:#a99cd6;
+    --gold:#f5c542;
+    --gold-bright:#ffe08a;
+    --gold-dim:rgba(245,197,66,.2);
+    --correct:#3ecf7a;
+    --correct-bright:#5ee896;
+    --correct-dim:rgba(62,207,122,.2);
+    --wrong:#ef4560;
+    --wrong-bright:#ff6b82;
+    --wrong-dim:rgba(239,69,96,.22);
+    --font-display:'Anton','Archivo Black',sans-serif;
+    --font-body:'Work Sans','Helvetica Neue',Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:
+      radial-gradient(circle at 20% 0%, rgba(245,197,66,.14) 0%, transparent 45%),
+      radial-gradient(circle at 85% 15%, rgba(239,69,96,.12) 0%, transparent 40%),
+      var(--stage-deep);
+    color:var(--text);
+    font-family:var(--font-body);
+    -webkit-tap-highlight-color:transparent;
+  }
+  .stage{
+    position:relative;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:16px 14px;
+  }
+  header{
+    width:100%;
+    max-width:520px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .title-block h1{
+    font-family:var(--font-display);
+    font-size:26px;
+    letter-spacing:.02em;
+    margin:0;
+    color:var(--gold-bright);
+    text-shadow:0 0 18px rgba(245,197,66,.35);
+  }
+  .title-block p{
+    margin:2px 0 0;
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+  }
+  .header-right{display:flex;align-items:center;gap:8px;}
+  .streak-badge{
+    display:flex;align-items:center;gap:4px;
+    font-weight:700;font-size:13px;
+    color:var(--gold-bright);
+    background:var(--gold-dim);
+    border:1px solid var(--gold);
+    border-radius:999px;
+    padding:4px 10px;
+  }
+  .live-score{
+    font-family:var(--font-display);
+    font-size:13px;
+    letter-spacing:.04em;
+    color:var(--text);
+    background:var(--card);
+    border:1px solid var(--card-border);
+    border-radius:999px;
+    padding:5px 12px;
+  }
+  .live-score span{color:var(--gold-bright);}
+  .home-btn,.mute-btn{
+    width:32px;height:32px;
+    border-radius:50%;
+    border:1px solid var(--card-border);
+    background:var(--card);
+    color:var(--text-dim);
+    display:flex;align-items:center;justify-content:center;
+    text-decoration:none;
+    cursor:pointer;
+  }
+  .mute-btn.is-muted::after{content:'\1F507';}
+  .mute-btn::after{content:'\1F50A';}
+
+  .progress-dots{
+    display:flex;
+    gap:8px;
+    margin-bottom:18px;
+  }
+  .progress-dot{
+    width:30px;height:8px;
+    border-radius:4px;
+    background:var(--card);
+    border:1px solid var(--card-border);
+  }
+  .progress-dot.is-current{background:var(--gold-dim);border-color:var(--gold);}
+  .progress-dot.is-correct{background:var(--correct);border-color:var(--correct);}
+  .progress-dot.is-wrong{background:var(--wrong);border-color:var(--wrong);}
+
+  .quiz-card{
+    width:100%;
+    max-width:520px;
+    background:var(--card);
+    border:1.5px solid var(--card-border);
+    border-radius:14px;
+    padding:26px 22px;
+    box-shadow:0 20px 50px -20px rgba(0,0,0,.6);
+  }
+  .q-counter{
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin:0 0 10px;
+  }
+  .q-text{
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:20px;
+    line-height:1.35;
+    margin:0 0 22px;
+    color:var(--text);
+  }
+  .options{display:flex;flex-direction:column;gap:10px;}
+  .option-btn{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    text-align:left;
+    width:100%;
+    background:var(--stage);
+    border:1.5px solid var(--card-border);
+    border-radius:10px;
+    padding:13px 16px;
+    color:var(--text);
+    font-family:var(--font-body);
+    font-weight:600;
+    font-size:15px;
+    cursor:pointer;
+    transition:border-color 120ms ease,background 120ms ease,transform 80ms ease;
+  }
+  .option-btn:hover:not(:disabled){border-color:var(--gold);}
+  .option-btn:active:not(:disabled){transform:scale(.98);}
+  .option-badge{
+    flex:none;
+    width:26px;height:26px;
+    border-radius:50%;
+    background:var(--card);
+    border:1px solid var(--card-border);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-display);
+    font-size:12px;
+    color:var(--text-dim);
+  }
+  .option-btn:disabled{cursor:default;}
+  .option-btn.is-correct{background:var(--correct-dim);border-color:var(--correct);}
+  .option-btn.is-correct .option-badge{background:var(--correct);border-color:var(--correct);color:#08210f;}
+  .option-btn.is-wrong{background:var(--wrong-dim);border-color:var(--wrong);}
+  .option-btn.is-wrong .option-badge{background:var(--wrong);border-color:var(--wrong);color:#2a0308;}
+
+  .summary{
+    position:absolute;
+    inset:0;
+    z-index:5;
+    background:rgba(10,6,20,.82);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .summary.hidden{display:none;}
+  .summary-card{
+    width:min(440px,100%);
+    max-height:88vh;
+    overflow-y:auto;
+    background:var(--card);
+    border:1.5px solid var(--gold);
+    border-radius:14px;
+    padding:28px;
+    text-align:center;
+    box-shadow:0 0 60px -10px rgba(245,197,66,.25);
+  }
+  .summary-card h2{
+    font-family:var(--font-display);
+    font-size:28px;
+    letter-spacing:.02em;
+    margin:0 0 6px;
+    color:var(--gold-bright);
+  }
+  .summary-score{
+    font-family:var(--font-display);
+    font-size:22px;
+    color:var(--text);
+    margin:0 0 4px;
+  }
+  .summary-meta{font-size:13px;color:var(--text-dim);margin:0 0 18px;}
+  .review-list{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin:0 0 20px;
+    text-align:left;
+  }
+  .review-row{
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    background:var(--stage);
+    border:1px solid var(--card-border);
+    border-radius:8px;
+    padding:10px 12px;
+    font-size:13px;
+  }
+  .review-icon{flex:none;font-size:15px;line-height:1.4;}
+  .review-text .rq{color:var(--text);font-weight:600;}
+  .review-text .ra{color:var(--text-dim);margin-top:2px;}
+  .review-text .ra.wrong-answer{color:var(--wrong-bright);}
+  .review-text .ra .correct-answer{color:var(--correct-bright);}
+  .summary-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+  .summary-actions button{
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:13px;
+    border-radius:6px;
+    padding:11px 18px;
+    cursor:pointer;
+  }
+  #copyResultBtn{background:var(--gold);color:#2a1d00;border:1px solid var(--gold);}
+  #copyResultBtn:hover{background:var(--gold-bright);}
+  #closeSummaryBtn{background:transparent;color:var(--text-dim);border:1px solid var(--card-border);}
+
+  .countdown-block{
+    margin-top:18px;
+    padding-top:16px;
+    border-top:1px solid var(--card-border);
+    text-align:center;
+  }
+  .countdown-label{font-size:12px;color:var(--text-dim);margin:0 0 8px;}
+  .countdown-timer{
+    font-family:var(--font-display);
+    font-size:26px;
+    letter-spacing:.04em;
+    color:var(--gold-bright);
+    margin:0;
+  }
+  .countdown-sub{font-size:10px;color:var(--text-dim);margin:6px 0 0;}
+
+  @media (max-width:480px){
+    .q-text{font-size:18px;}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <header>
+    <div class="title-block">
+      <h1>Brain Buzzer</h1>
+      <p id="dayLabel">Day 1</p>
+    </div>
+    <div class="header-right">
+      <a class="home-btn" href="/" target="_top" aria-label="Back to Adam Games home" title="Back to home">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      </a>
+      <div class="streak-badge">🔥 <span id="streakCount">0</span></div>
+      <div class="live-score">SCORE <span id="liveScore">0</span>/5</div>
+      <button class="mute-btn" id="muteBtn" type="button" aria-label="Toggle sound" title="Toggle sound"></button>
+    </div>
+  </header>
+
+  <div class="progress-dots" id="progressDots"></div>
+
+  <div class="quiz-card" id="quizCard">
+    <p class="q-counter" id="qCounter">Question 1 of 5</p>
+    <h2 class="q-text" id="qText"></h2>
+    <div class="options" id="optionsWrap"></div>
+  </div>
+
+  <div class="summary hidden" id="summary">
+    <div class="summary-card">
+      <h2 id="summaryTitle">Perfect Score!</h2>
+      <p class="summary-score" id="summaryScore">5/5</p>
+      <p class="summary-meta" id="summaryMeta"></p>
+      <div class="review-list" id="reviewList"></div>
+      <div class="summary-actions">
+        <button id="copyResultBtn">Copy Result</button>
+        <button id="closeSummaryBtn">Close</button>
+      </div>
+      <div class="countdown-block">
+        <p class="countdown-label">You've already played today's quiz</p>
+        <p class="countdown-timer" id="countdownTimer">--:--:--</p>
+        <p class="countdown-sub">until the next one unlocks</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DAYS = [[{"q":"What is the capital of the U.S. state of Illinois?","options":["Lansing","Hartford","Olympia","Springfield"],"correct":"Springfield"},{"q":"What is the chemical symbol for Vanadium?","options":["Be","V","Si","Ce"],"correct":"V"},{"q":"What is the currency of Bangladesh?","options":["Taka","Rupiah","Ruble","Real"],"correct":"Taka"},{"q":"What is the capital of Jordan?","options":["Banjul","Amman","Georgetown","Dhaka"],"correct":"Amman"},{"q":"In what year did the Berlin Wall fall?","options":["1989","2001","1975","1991"],"correct":"1989"}],[{"q":"What do you call a baby dog?","options":["Kit","Cub","Fawn","Puppy"],"correct":"Puppy"},{"q":"Who sculpted the statue of David?","options":["Donatello","Bernini","Michelangelo","Rodin"],"correct":"Michelangelo"},{"q":"What is the chemical symbol for Antimony?","options":["Sb","Na","As","Cs"],"correct":"Sb"},{"q":"Who co-founded Apple alongside Steve Jobs?","options":["Larry Page","Bill Gates","Steve Wozniak","Elon Musk"],"correct":"Steve Wozniak"},{"q":"In which country is the Christ the Redeemer statue located?","options":["Mexico","Argentina","Chile","Brazil"],"correct":"Brazil"}],[{"q":"What grain is used to make traditional Japanese sake?","options":["Wheat","Corn","Rice","Barley"],"correct":"Rice"},{"q":"What is the capital of the U.S. state of Michigan?","options":["Phoenix","Oklahoma City","Austin","Lansing"],"correct":"Lansing"},{"q":"In which sport would a competitor perform a dive off a springboard into water?","options":["Diving","Gymnastics","Trampoline","Swimming"],"correct":"Diving"},{"q":"How many letters are in the English alphabet?","options":["25","28","24","26"],"correct":"26"},{"q":"Which instrument category does the trumpet belong to?","options":["String","Brass","Percussion","Woodwind"],"correct":"Brass"}],[{"q":"What is the capital of North Macedonia?","options":["City of San Marino","Skopje","Bamako","Seoul"],"correct":"Skopje"},{"q":"What is the chemical symbol for Caesium?","options":["Co","Cs","V","W"],"correct":"Cs"},{"q":"What is the term for a line that touches a circle at exactly one point?","options":["Tangent","Chord","Secant","Radius"],"correct":"Tangent"},{"q":"What is the currency of New Zealand?","options":["Sol","Taka","Dollar","Shilling"],"correct":"Dollar"},{"q":"What is the capital of Guyana?","options":["Dhaka","Georgetown","Seoul","Rome"],"correct":"Georgetown"}],[{"q":"In what year did Christopher Columbus first reach the Americas?","options":["1500","1776","1492","1620"],"correct":"1492"},{"q":"Which planet has the shortest day (fastest rotation)?","options":["Venus","Jupiter","Mars","Saturn"],"correct":"Jupiter"},{"q":"Which continent is South Sudan located in?","options":["Europe","Africa","North America","South America"],"correct":"Africa"},{"q":"Which sea creature has the largest eyes of any animal?","options":["Octopus","Swordfish","Whale","Giant squid"],"correct":"Giant squid"},{"q":"Who wrote the \"Harry Potter\" book series?","options":["Roald Dahl","Suzanne Collins","C.S. Lewis","J.K. Rowling"],"correct":"J.K. Rowling"}],[{"q":"Which element has the chemical symbol \"Be\"?","options":["Magnesium","Calcium","Beryllium","Zirconium"],"correct":"Beryllium"},{"q":"What is the capital of Tajikistan?","options":["Saint John's","Nassau","Dushanbe","Paris"],"correct":"Dushanbe"},{"q":"Which scientist developed the theory of general relativity?","options":["Isaac Newton","Albert Einstein","Stephen Hawking","Niels Bohr"],"correct":"Albert Einstein"},{"q":"In which country is the Great Wall located?","options":["Japan","India","Mongolia","China"],"correct":"China"},{"q":"What grain is most commonly used to brew traditional beer?","options":["Corn","Wheat","Rice","Barley"],"correct":"Barley"}],[{"q":"What is the currency of Czechia?","options":["Koruna","Pound","Krona","Yuan"],"correct":"Koruna"},{"q":"Which continent is Ukraine located in?","options":["South America","North America","Europe","Africa"],"correct":"Europe"},{"q":"In which country did the sport of golf originate?","options":["Wales","Ireland","England","Scotland"],"correct":"Scotland"},{"q":"What part of the body do you use to smell?","options":["Tongue","Nose","Ears","Skin"],"correct":"Nose"},{"q":"Which country was formerly known as Persia?","options":["Turkey","Egypt","Iran","Iraq"],"correct":"Iran"}],[{"q":"Which continent is Kazakhstan located in?","options":["Europe","Asia","South America","Africa"],"correct":"Asia"},{"q":"What do you call a word that means the same as another word?","options":["Synonym","Pronoun","Homonym","Antonym"],"correct":"Synonym"},{"q":"Which musical instrument has keys, pedals, and strings, played by pressing keys?","options":["Piano","Accordion","Harp","Organ"],"correct":"Piano"},{"q":"Which planet is often called Earth's \"twin\" due to similar size?","options":["Saturn","Neptune","Mars","Venus"],"correct":"Venus"},{"q":"What is the capital of Türkiye?","options":["Vaduz","Colombo","Sarajevo","Ankara"],"correct":"Ankara"}],[{"q":"What do you call an animal that eats both plants and meat?","options":["Carnivore","Omnivore","Herbivore","Insectivore"],"correct":"Omnivore"},{"q":"What was the full name of the painter commonly known as Pablo Picasso?","options":["Salvador Dalí","Diego Rivera","Joan Miró","Pablo Ruiz y Picasso"],"correct":"Pablo Ruiz y Picasso"},{"q":"What is the currency of Iran?","options":["Ringgit","Shekel","Rial","Sol"],"correct":"Rial"},{"q":"What is the capital of Gabon?","options":["Kigali","Libreville","Panama City","Kampala"],"correct":"Libreville"},{"q":"Which element has the chemical symbol \"Zr\"?","options":["Beryllium","Tin","Tungsten","Zirconium"],"correct":"Zirconium"}],[{"q":"What is the capital of Uzbekistan?","options":["Bern","Tashkent","Madrid","Pyongyang"],"correct":"Tashkent"},{"q":"Who is credited with inventing dynamite?","options":["Thomas Edison","Alfred Nobel","John Moses Browning","Robert Oppenheimer"],"correct":"Alfred Nobel"},{"q":"In which country would you find Mount Fuji?","options":["Philippines","South Korea","China","Japan"],"correct":"Japan"},{"q":"Which spice, derived from the crocus flower, is the most expensive by weight?","options":["Saffron","Cinnamon","Turmeric","Paprika"],"correct":"Saffron"},{"q":"What is the name of the period of severe economic hardship that began in 1929?","options":["The Great Recession","The Great Depression","The Panic of 1893","The Gilded Age"],"correct":"The Great Depression"}],[{"q":"How many faces does a cube have?","options":["4","8","6","12"],"correct":"6"},{"q":"Which element has the chemical symbol \"Pb\"?","options":["Nitrogen","Cerium","Lead","Radon"],"correct":"Lead"},{"q":"What is the capital of Burkina Faso?","options":["Lilongwe","Yamoussoukro","Paramaribo","Ouagadougou"],"correct":"Ouagadougou"},{"q":"How many players are on a standard soccer team on the field at one time?","options":["9","12","10","11"],"correct":"11"},{"q":"What is the capital of Barbados?","options":["Brussels","Ankara","Baku","Bridgetown"],"correct":"Bridgetown"}],[{"q":"What is the currency of Australia?","options":["Rial","Zloty","Dollar","Baht"],"correct":"Dollar"},{"q":"What do you call a baby kangaroo?","options":["Kit","Joey","Cub","Calf"],"correct":"Joey"},{"q":"Who painted the \"Mona Lisa\"?","options":["Michelangelo","Vincent van Gogh","Leonardo da Vinci","Pablo Picasso"],"correct":"Leonardo da Vinci"},{"q":"What is the chemical symbol for Radon?","options":["Nd","Ni","H","Rn"],"correct":"Rn"},{"q":"Which language is the most spoken in the world when counting all speakers, including second-language speakers?","options":["Spanish","English","Mandarin Chinese","Hindi"],"correct":"English"}],[{"q":"Which musical genre originated in New Orleans in the early 20th century?","options":["Blues","Country","Jazz","Rock and roll"],"correct":"Jazz"},{"q":"Which continent is Chad located in?","options":["Oceania","Europe","Africa","South America"],"correct":"Africa"},{"q":"How many planets are in our solar system?","options":["10","9","6","8"],"correct":"8"},{"q":"What was the name of the historic trade route connecting Europe and Asia?","options":["The Amber Road","The Spice Route","The Silk Road","The Incense Route"],"correct":"The Silk Road"},{"q":"What is the capital of the U.S. state of Wisconsin?","options":["Providence","Madison","Pierre","Augusta"],"correct":"Madison"}],[{"q":"Who invented the first successful vaccine, for smallpox?","options":["Edward Jenner","Alexander Fleming","Jonas Salk","Louis Pasteur"],"correct":"Edward Jenner"},{"q":"In which city would you find the Kremlin?","options":["Moscow","Kyiv","Warsaw","St. Petersburg"],"correct":"Moscow"},{"q":"What type of food is a bagel traditionally boiled in before baking?","options":["Broth","Water","Oil","Milk"],"correct":"Water"},{"q":"What is the closest star to Earth?","options":["Betelgeuse","Sirius","The Sun","Proxima Centauri"],"correct":"The Sun"},{"q":"What is the currency of Kenya?","options":["Ruble","Shilling","Dong","Krone"],"correct":"Shilling"}],[{"q":"What is the capital of Turkmenistan?","options":["Ashgabat","Bandar Seri Begawan","Zagreb","Tripoli"],"correct":"Ashgabat"},{"q":"Which gas makes up the majority of Earth's atmosphere?","options":["Hydrogen","Oxygen","Nitrogen","Carbon dioxide"],"correct":"Nitrogen"},{"q":"What is the name of the fictional detective created by Arthur Conan Doyle?","options":["Sam Spade","Sherlock Holmes","Philip Marlowe","Hercule Poirot"],"correct":"Sherlock Holmes"},{"q":"What is the capital of the U.S. state of New Jersey?","options":["Trenton","Harrisburg","Charleston","Madison"],"correct":"Trenton"},{"q":"Which is the smallest planet in our solar system?","options":["Mercury","Venus","Pluto","Earth"],"correct":"Mercury"}],[{"q":"How many players are on a standard baseball team on the field at one time?","options":["9","11","8","10"],"correct":"9"},{"q":"In what year did World War I begin?","options":["1920","1914","1918","1910"],"correct":"1914"},{"q":"What is the capital of the U.S. state of Hawaii?","options":["Annapolis","Des Moines","Santa Fe","Honolulu"],"correct":"Honolulu"},{"q":"What is the chemical symbol for Silicon?","options":["C","Si","Fe","Ni"],"correct":"Si"},{"q":"What is the currency of Norway?","options":["Peso","Krone","Taka","Riyal"],"correct":"Krone"}],[{"q":"Which continent is Gabon located in?","options":["Africa","Europe","Asia","South America"],"correct":"Africa"},{"q":"What is the antonym of \"happy\"?","options":["Joyful","Sad","Excited","Content"],"correct":"Sad"},{"q":"How many sides does an octagon have?","options":["8","9","7","6"],"correct":"8"},{"q":"Which instrument is renowned cellist Yo-Yo Ma famous for playing?","options":["Cello","Flute","Violin","Piano"],"correct":"Cello"},{"q":"What is the capital of the U.S. state of Montana?","options":["Boise","Salt Lake City","Helena","Jackson"],"correct":"Helena"}],[{"q":"What gas do plants absorb from the atmosphere for photosynthesis?","options":["Carbon dioxide","Oxygen","Nitrogen","Hydrogen"],"correct":"Carbon dioxide"},{"q":"Who invented the Braille reading system for the blind?","options":["Thomas Edison","Helen Keller","Alexander Graham Bell","Louis Braille"],"correct":"Louis Braille"},{"q":"Which river runs through Paris?","options":["The Seine","The Rhine","The Loire","The Thames"],"correct":"The Seine"},{"q":"What is the main ingredient in traditional Greek tzatziki sauce?","options":["Cream cheese","Sour cream","Mayonnaise","Yogurt"],"correct":"Yogurt"},{"q":"Which big cat cannot roar?","options":["Cheetah","Jaguar","Tiger","Lion"],"correct":"Cheetah"}],[{"q":"Who composed \"The Four Seasons\"?","options":["Wolfgang Amadeus Mozart","Antonio Vivaldi","Ludwig van Beethoven","Johann Sebastian Bach"],"correct":"Antonio Vivaldi"},{"q":"What is the capital of the U.S. state of South Dakota?","options":["Salt Lake City","Lansing","Pierre","Baton Rouge"],"correct":"Pierre"},{"q":"What event triggered the start of World War I in 1914?","options":["The sinking of the Lusitania","Assassination of Archduke Franz Ferdinand","The bombing of Pearl Harbor","The invasion of Poland"],"correct":"Assassination of Archduke Franz Ferdinand"},{"q":"What is the chemical symbol for Arsenic?","options":["Sb","Cs","Hg","As"],"correct":"As"},{"q":"What is the currency of Argentina?","options":["Pound Sterling","Peso","Yuan","Dong"],"correct":"Peso"}],[{"q":"What is the capital of El Salvador?","options":["Prague","Phnom Penh","San Salvador","Lomé"],"correct":"San Salvador"},{"q":"In which sport would you use a \"puck\"?","options":["Field hockey","Ice hockey","Lacrosse","Curling"],"correct":"Ice hockey"},{"q":"What is the capital of the U.S. state of Virginia?","options":["Little Rock","Richmond","Pierre","Boise"],"correct":"Richmond"},{"q":"Which element has the chemical symbol \"Zn\"?","options":["Helium","Fluorine","Arsenic","Zinc"],"correct":"Zinc"},{"q":"What is the capital of Panama?","options":["Tirana","Libreville","Panama City","Yaren"],"correct":"Panama City"}],[{"q":"What is the chemical symbol for Iron?","options":["I","Fe","U","Ba"],"correct":"Fe"},{"q":"In what year did the Titanic sink?","options":["1920","1912","1905","1898"],"correct":"1912"},{"q":"Which continent has no native reptiles or snakes?","options":["Europe","North America","Australia","Antarctica"],"correct":"Antarctica"},{"q":"What art movement is Salvador Dalí associated with?","options":["Surrealism","Impressionism","Cubism","Realism"],"correct":"Surrealism"},{"q":"Who is credited with inventing the modern automobile assembly line?","options":["Henry Ford","Rudolf Diesel","Ransom Olds","Karl Benz"],"correct":"Henry Ford"}],[{"q":"Which country is home to the Blue Mosque?","options":["Iran","Egypt","Morocco","Turkey"],"correct":"Turkey"},{"q":"What is the main ingredient in guacamole?","options":["Lime","Tomato","Avocado","Onion"],"correct":"Avocado"},{"q":"What is the currency of Japan?","options":["Yen","Krona","Sol","Franc"],"correct":"Yen"},{"q":"Which continent is Hungary located in?","options":["South America","Europe","Asia","Oceania"],"correct":"Europe"},{"q":"What language family does English belong to?","options":["Germanic","Romance","Celtic","Slavic"],"correct":"Germanic"}],[{"q":"What do you call a piece of music written for a solo instrument with orchestral accompaniment?","options":["Symphony","Overture","Sonata","Concerto"],"correct":"Concerto"},{"q":"Approximately how long does it take Earth to orbit the Sun?","options":["365 days","200 days","30 days","500 days"],"correct":"365 days"},{"q":"What is the capital of the U.S. state of Washington?","options":["Montgomery","Saint Paul","Olympia","Oklahoma City"],"correct":"Olympia"},{"q":"What is the capital of Argentina?","options":["Buenos Aires","Baku","Georgetown","Quito"],"correct":"Buenos Aires"},{"q":"What is the chemical symbol for Barium?","options":["Cd","Ba","H","Ce"],"correct":"Ba"}],[{"q":"How many sides does a pentagon have?","options":["6","4","5","7"],"correct":"5"},{"q":"Which U.S. president is depicted on the one-dollar bill?","options":["George Washington","Abraham Lincoln","Thomas Jefferson","Benjamin Franklin"],"correct":"George Washington"},{"q":"What is the currency of United Kingdom?","options":["Pound","Lira","Rupee","Pound Sterling"],"correct":"Pound Sterling"},{"q":"What is the capital of Madagascar?","options":["Antananarivo","Kingston","Tunis","Ashgabat"],"correct":"Antananarivo"},{"q":"How many points is a touchdown worth in American football?","options":["6","7","3","10"],"correct":"6"}],[{"q":"What is the fastest land animal?","options":["Horse","Greyhound","Cheetah","Lion"],"correct":"Cheetah"},{"q":"Who wrote the dystopian novel \"Brave New World\"?","options":["Aldous Huxley","Ray Bradbury","George Orwell","H.G. Wells"],"correct":"Aldous Huxley"},{"q":"Which element has the chemical symbol \"I\"?","options":["Bromine","Iodine","Gold","Zirconium"],"correct":"Iodine"},{"q":"What is the capital of Sri Lanka?","options":["Vaduz","Monrovia","Colombo","Maseru"],"correct":"Colombo"},{"q":"Who is credited with inventing the telephone?","options":["Nikola Tesla","Alexander Graham Bell","Guglielmo Marconi","Thomas Edison"],"correct":"Alexander Graham Bell"}],[{"q":"In which city is the Taj Mahal located?","options":["Jaipur","Agra","Mumbai","New Delhi"],"correct":"Agra"},{"q":"What spice gives traditional Indian curry its distinctive yellow color?","options":["Turmeric","Ginger","Paprika","Cumin"],"correct":"Turmeric"},{"q":"What is the capital of the U.S. state of Louisiana?","options":["Des Moines","Baton Rouge","Saint Paul","Hartford"],"correct":"Baton Rouge"},{"q":"What force keeps planets in orbit around the Sun?","options":["Friction","Magnetism","Inertia","Gravity"],"correct":"Gravity"},{"q":"What does the acronym \"NASA\" stand for?","options":["National Aeronautics and Space Administration","National Association of Space Astronauts","North American Space Agency","National Aerospace and Science Administration"],"correct":"National Aeronautics and Space Administration"}],[{"q":"Which country is the origin of the tango, a passionate dance and music style?","options":["Spain","Argentina","Mexico","Brazil"],"correct":"Argentina"},{"q":"What is the currency of Saudi Arabia?","options":["Riyal","Shilling","Won","Baht"],"correct":"Riyal"},{"q":"Which continent is Mauritania located in?","options":["Africa","Oceania","Europe","Asia"],"correct":"Africa"},{"q":"Who was Queen of England for over 60 years starting in 1952?","options":["Mary","Victoria","Elizabeth I","Elizabeth II"],"correct":"Elizabeth II"},{"q":"Which element has the chemical symbol \"Au\"?","options":["Gold","Nickel","Vanadium","Zirconium"],"correct":"Gold"}],[{"q":"What is the capital of Chad?","options":["Kinshasa","Hanoi","N'Djamena","Ankara"],"correct":"N'Djamena"},{"q":"What is a group of lions called?","options":["A herd","A pride","A flock","A pack"],"correct":"A pride"},{"q":"What is the name of Ebenezer Scrooge's deceased business partner in \"A Christmas Carol\"?","options":["Bob Cratchit","Fezziwig","Jacob Marley","Tiny Tim"],"correct":"Jacob Marley"},{"q":"What is the capital of the U.S. state of New Hampshire?","options":["Springfield","Concord","Juneau","Topeka"],"correct":"Concord"},{"q":"What do we call a rocky object orbiting the Sun that is too small to be a planet?","options":["Moon","Comet","Asteroid","Nebula"],"correct":"Asteroid"}],[{"q":"What is the maximum score in ten-pin bowling for a single game?","options":["250","300","500","200"],"correct":"300"},{"q":"What is the currency of Chile?","options":["Franc","Peso","Dong","Krone"],"correct":"Peso"},{"q":"What is the capital of DR Congo?","options":["Nuku'alofa","Rome","Maseru","Kinshasa"],"correct":"Kinshasa"},{"q":"Who invented the polio vaccine?","options":["Louis Pasteur","Edward Jenner","Alexander Fleming","Jonas Salk"],"correct":"Jonas Salk"},{"q":"Which mountain range separates Europe from Asia?","options":["The Himalayas","The Andes","The Alps","The Ural Mountains"],"correct":"The Ural Mountains"}],[{"q":"What is the main ingredient in traditional French onion soup?","options":["Garlic","Onions","Shallots","Leeks"],"correct":"Onions"},{"q":"Who was the first President of the United States?","options":["Abraham Lincoln","John Adams","George Washington","Thomas Jefferson"],"correct":"George Washington"},{"q":"What is the chemical symbol for Titanium?","options":["Ti","He","Pt","Cu"],"correct":"Ti"},{"q":"What is the capital of the U.S. state of Connecticut?","options":["Charleston","Lincoln","Tallahassee","Hartford"],"correct":"Hartford"},{"q":"How many degrees do the angles of a triangle add up to?","options":["270","360","180","90"],"correct":"180"}],[{"q":"What is the powerhouse of the cell?","options":["Golgi apparatus","Mitochondria","Nucleus","Ribosome"],"correct":"Mitochondria"},{"q":"What is the capital of Belarus?","options":["Harare","Minsk","Port-au-Prince","Paramaribo"],"correct":"Minsk"},{"q":"Which insect is known for producing honey?","options":["Wasp","Bee","Beetle","Ant"],"correct":"Bee"},{"q":"What museum in Paris houses the Mona Lisa?","options":["The Louvre","Musée d'Orsay","Centre Pompidou","Petit Palais"],"correct":"The Louvre"},{"q":"What do you call the repetition of the same consonant sound at the start of nearby words?","options":["Rhyme","Alliteration","Assonance","Onomatopoeia"],"correct":"Alliteration"}],[{"q":"Who composed the famous opera \"The Magic Flute\"?","options":["Giuseppe Verdi","Johann Sebastian Bach","Wolfgang Amadeus Mozart","Ludwig van Beethoven"],"correct":"Wolfgang Amadeus Mozart"},{"q":"What is the currency of Ukraine?","options":["Hryvnia","Franc","Taka","Ruble"],"correct":"Hryvnia"},{"q":"What is the capital of Kenya?","options":["Addis Ababa","Vienna","Nairobi","Pretoria"],"correct":"Nairobi"},{"q":"Which element has the chemical symbol \"Co\"?","options":["Krypton","Tungsten","Cobalt","Silver"],"correct":"Cobalt"},{"q":"In what year was the American Declaration of Independence signed?","options":["1776","1789","1783","1800"],"correct":"1776"}],[{"q":"What is the capital of the U.S. state of Alabama?","options":["Austin","Richmond","Columbia","Montgomery"],"correct":"Montgomery"},{"q":"What is the term for a score of one under par on a single hole in golf?","options":["Par","Bogey","Birdie","Eagle"],"correct":"Birdie"},{"q":"Who is credited with creating Mosaic, one of the first popular web browsers?","options":["Tim Berners-Lee","Marc Andreessen","Larry Page","Bill Gates"],"correct":"Marc Andreessen"},{"q":"Which country is home to the ancient ruins of Angkor Wat?","options":["Vietnam","Laos","Thailand","Cambodia"],"correct":"Cambodia"},{"q":"What type of pastry is used to make a traditional croissant?","options":["Shortcrust pastry","Filo pastry","Choux pastry","Puff pastry"],"correct":"Puff pastry"}],[{"q":"What is the name of Earth's only natural satellite?","options":["The Moon","Phobos","Titan","Io"],"correct":"The Moon"},{"q":"What is the capital of the U.S. state of Pennsylvania?","options":["Lincoln","Harrisburg","Springfield","Frankfort"],"correct":"Harrisburg"},{"q":"Which continent is Italy located in?","options":["North America","South America","Africa","Europe"],"correct":"Europe"},{"q":"What is the currency of Egypt?","options":["Rial","Pound","Dong","Dollar"],"correct":"Pound"},{"q":"Which bird is known for its ability to mimic human speech?","options":["Parrot","Owl","Crow","Eagle"],"correct":"Parrot"}],[{"q":"What is the name of the fictional continent where \"Game of Thrones\" is primarily set?","options":["Narnia","Middle-earth","Westeros","Azeroth"],"correct":"Westeros"},{"q":"What is the term for the point in the sky where a planet appears brightest?","options":["Opposition","Eclipse","Perihelion","Transit"],"correct":"Opposition"},{"q":"What is the capital of Qatar?","options":["Jakarta","Monaco","Doha","Baku"],"correct":"Doha"},{"q":"Who was the leader of Nazi Germany during World War II?","options":["Benito Mussolini","Winston Churchill","Joseph Stalin","Adolf Hitler"],"correct":"Adolf Hitler"},{"q":"Which planet is known for its extreme axial tilt, causing it to spin on its side?","options":["Saturn","Uranus","Neptune","Mars"],"correct":"Uranus"}],[{"q":"Which continent is Sierra Leone located in?","options":["Oceania","Africa","South America","North America"],"correct":"Africa"},{"q":"What does the Latin phrase \"et cetera\" mean?","options":["And also","And finally","And so forth","And therefore"],"correct":"And so forth"},{"q":"What is the term for singing without instrumental accompaniment?","options":["Acoustic","Vibrato","A cappella","Falsetto"],"correct":"A cappella"},{"q":"What is the capital of the U.S. state of Alaska?","options":["Cheyenne","Juneau","Concord","Olympia"],"correct":"Juneau"},{"q":"What is the currency of Indonesia?","options":["Dong","Shekel","Lira","Rupiah"],"correct":"Rupiah"}],[{"q":"Which element has the chemical symbol \"Pu\"?","options":["Calcium","Plutonium","Silver","Bromine"],"correct":"Plutonium"},{"q":"Who invented the telegraph?","options":["Alexander Graham Bell","Thomas Edison","Samuel Morse","Guglielmo Marconi"],"correct":"Samuel Morse"},{"q":"In which U.S. city is the Empire State Building located?","options":["Boston","Philadelphia","Chicago","New York City"],"correct":"New York City"},{"q":"What is the main ingredient in traditional Italian risotto?","options":["Pasta","Barley","Potatoes","Rice"],"correct":"Rice"},{"q":"What is the term for a triangle with no equal sides?","options":["Right","Scalene","Equilateral","Isosceles"],"correct":"Scalene"}],[{"q":"How many players are on a standard volleyball team on the court at one time?","options":["4","7","6","5"],"correct":"6"},{"q":"Which continent is Bhutan located in?","options":["Africa","South America","Asia","North America"],"correct":"Asia"},{"q":"Which desert is the largest hot desert in the world?","options":["Mojave","Kalahari","Gobi","Sahara"],"correct":"Sahara"},{"q":"Which artist painted \"Starry Night\"?","options":["Georges Seurat","Edvard Munch","Vincent van Gogh","Claude Monet"],"correct":"Vincent van Gogh"},{"q":"In what year did the Wright brothers achieve the first powered flight?","options":["1890","1910","1920","1903"],"correct":"1903"}],[{"q":"Which organ produces insulin in the human body?","options":["Liver","Kidney","Spleen","Pancreas"],"correct":"Pancreas"},{"q":"What is the capital of Belize?","options":["Doha","Belmopan","Tegucigalpa","Georgetown"],"correct":"Belmopan"},{"q":"What is the chemical symbol for Boron?","options":["Na","Ba","B","Ag"],"correct":"B"},{"q":"What is the capital of the U.S. state of Nevada?","options":["Raleigh","Carson City","Nashville","Salem"],"correct":"Carson City"},{"q":"What is the currency of Sweden?","options":["Krona","Yuan","Dong","Riyal"],"correct":"Krona"}],[{"q":"What is the capital of Japan?","options":["Tokyo","Bratislava","Santiago","Bern"],"correct":"Tokyo"},{"q":"Which element has the chemical symbol \"Ga\"?","options":["Zinc","Carbon","Neon","Gallium"],"correct":"Gallium"},{"q":"Who was the first emperor of Rome?","options":["Constantine","Julius Caesar","Nero","Augustus"],"correct":"Augustus"},{"q":"What is the largest species of big cat?","options":["Leopard","Jaguar","Lion","Tiger"],"correct":"Tiger"},{"q":"What is the pen name of the author of \"The Adventures of Tom Sawyer\"?","options":["Nathaniel Hawthorne","Herman Melville","Edgar Allan Poe","Mark Twain"],"correct":"Mark Twain"}],[{"q":"Which company did Bill Gates co-found?","options":["Google","Apple","Microsoft","Amazon"],"correct":"Microsoft"},{"q":"In which U.S. city would you find the Golden Gate Bridge?","options":["Seattle","Los Angeles","San Francisco","Portland"],"correct":"San Francisco"},{"q":"Which Mesoamerican civilization is credited with first drinking chocolate as a beverage?","options":["The Egyptians","The Romans","The Vikings","The Aztecs"],"correct":"The Aztecs"},{"q":"What is the capital of Armenia?","options":["Yerevan","Luanda","Washington D.C.","Baghdad"],"correct":"Yerevan"},{"q":"What do you call a word formed from the first letters of a phrase, pronounced as a single word?","options":["Acronym","Abbreviation","Synonym","Homophone"],"correct":"Acronym"}],[{"q":"Which pop star is known as the \"King of Pop\"?","options":["Elvis Presley","Prince","Michael Jackson","Justin Timberlake"],"correct":"Michael Jackson"},{"q":"Which element has the chemical symbol \"Ni\"?","options":["Gold","Copper","Potassium","Nickel"],"correct":"Nickel"},{"q":"What is the capital of Azerbaijan?","options":["Wellington","Lobamba","Bridgetown","Baku"],"correct":"Baku"},{"q":"What is the currency of Poland?","options":["Zloty","Yuan","Ruble","Baht"],"correct":"Zloty"},{"q":"How many holes are played in a standard round of golf?","options":["12","24","9","18"],"correct":"18"}],[{"q":"What is the capital of the U.S. state of Oklahoma?","options":["Sacramento","Oklahoma City","Annapolis","Juneau"],"correct":"Oklahoma City"},{"q":"Which is the largest planet in our solar system?","options":["Saturn","Uranus","Jupiter","Earth"],"correct":"Jupiter"},{"q":"Which continent is Ecuador located in?","options":["North America","Europe","Africa","South America"],"correct":"South America"},{"q":"Which ancient civilization built the pyramids of Giza?","options":["The Greeks","The Egyptians","The Romans","The Babylonians"],"correct":"The Egyptians"},{"q":"What do you call a triangle with all three sides equal?","options":["Equilateral","Isosceles","Obtuse","Scalene"],"correct":"Equilateral"}],[{"q":"What blood type is considered the universal donor?","options":["O negative","AB positive","B positive","A negative"],"correct":"O negative"},{"q":"What is the only mammal capable of true flight?","options":["Ostrich","Sugar glider","Flying squirrel","Bat"],"correct":"Bat"},{"q":"Which composer continued composing after going deaf?","options":["Johann Strauss","Ludwig van Beethoven","Franz Schubert","Wolfgang Amadeus Mozart"],"correct":"Ludwig van Beethoven"},{"q":"What is the capital of Croatia?","options":["Paramaribo","Roseau","Mexico City","Zagreb"],"correct":"Zagreb"},{"q":"What is the currency of Turkey?","options":["Krona","Yen","Lira","Zloty"],"correct":"Lira"}],[{"q":"Which physicist won the Nobel Prize in Physics for his work on the photoelectric effect?","options":["Albert Einstein","Niels Bohr","Max Planck","Werner Heisenberg"],"correct":"Albert Einstein"},{"q":"In which city is the Eiffel Tower located?","options":["Paris","Berlin","London","Rome"],"correct":"Paris"},{"q":"What vegetable is the main ingredient in traditional Korean kimchi?","options":["Cabbage","Carrot","Radish","Cucumber"],"correct":"Cabbage"},{"q":"What is the capital of the U.S. state of Colorado?","options":["Harrisburg","Salt Lake City","Denver","Des Moines"],"correct":"Denver"},{"q":"Which element has the chemical symbol \"F\"?","options":["Titanium","Xenon","Fluorine","Cobalt"],"correct":"Fluorine"}],[{"q":"What do you call two words that sound the same but have different meanings and spellings?","options":["Synonyms","Homographs","Antonyms","Homophones"],"correct":"Homophones"},{"q":"What is the term for the speed at which a piece of music is played?","options":["Pitch","Tempo","Timbre","Dynamics"],"correct":"Tempo"},{"q":"What is the capital of Libya?","options":["Tripoli","São Tomé","Vilnius","Castries"],"correct":"Tripoli"},{"q":"In which sport is a \"hat-trick\" the term for scoring three goals in one game?","options":["Basketball","Baseball","Soccer (football)","Golf"],"correct":"Soccer (football)"},{"q":"Which country was the first to grant women the right to vote nationally?","options":["United States","United Kingdom","New Zealand","France"],"correct":"New Zealand"}],[{"q":"Which element has the chemical symbol \"Sn\"?","options":["Carbon","Neon","Tin","Vanadium"],"correct":"Tin"},{"q":"What is the capital of Kuwait?","options":["Ashgabat","Dili","Bridgetown","Kuwait City"],"correct":"Kuwait City"},{"q":"What is the currency of Mexico?","options":["Dong","Yen","Peso","Yuan"],"correct":"Peso"},{"q":"Which is the only continent where kangaroos are found in the wild?","options":["Asia","Australia","Africa","South America"],"correct":"Australia"},{"q":"Who wrote \"To Kill a Mockingbird\"?","options":["Harper Lee","Toni Morrison","Alice Walker","Maya Angelou"],"correct":"Harper Lee"}],[{"q":"What is the chemical symbol for Oxygen?","options":["Br","Nd","He","O"],"correct":"O"},{"q":"What is the capital of United Arab Emirates?","options":["Dakar","Abu Dhabi","Sofia","Manila"],"correct":"Abu Dhabi"},{"q":"What is the capital of Austria?","options":["Nuku'alofa","Kinshasa","Lomé","Vienna"],"correct":"Vienna"},{"q":"Who invented the cotton gin?","options":["Eli Whitney","Samuel Slater","Robert Fulton","Elias Howe"],"correct":"Eli Whitney"},{"q":"In which country would you find the ancient city of Petra?","options":["Israel","Syria","Jordan","Egypt"],"correct":"Jordan"}],[{"q":"Which country is considered the origin of the modern croissant?","options":["Austria","Italy","France","Belgium"],"correct":"France"},{"q":"What is the chemical symbol for Uranium?","options":["Al","U","Mg","Ca"],"correct":"U"},{"q":"In what century did the Renaissance begin?","options":["11th century","18th century","14th century","20th century"],"correct":"14th century"},{"q":"What is the capital of Iceland?","options":["N'Djamena","Saint John's","Reykjavik","Santo Domingo"],"correct":"Reykjavik"},{"q":"What is the currency of Hungary?","options":["Forint","Krona","Shekel","Rupiah"],"correct":"Forint"}],[{"q":"Which element has the chemical symbol \"He\"?","options":["Boron","Nitrogen","Helium","Iodine"],"correct":"Helium"},{"q":"What is the capital of Singapore?","options":["Port Louis","Brussels","Singapore","Madrid"],"correct":"Singapore"},{"q":"Which punctuation mark is used to indicate a question?","options":["Colon","Exclamation point","Question mark","Semicolon"],"correct":"Question mark"},{"q":"Which iconic rock band recorded the album \"The Dark Side of the Moon\"?","options":["Led Zeppelin","The Rolling Stones","Pink Floyd","Queen"],"correct":"Pink Floyd"},{"q":"Which animal is famous for changing color to blend into its surroundings?","options":["Octopus","Gecko","Chameleon","Frog"],"correct":"Chameleon"}],[{"q":"Who wrote \"Pride and Prejudice\"?","options":["Jane Austen","George Eliot","Virginia Woolf","Emily Brontë"],"correct":"Jane Austen"},{"q":"In which sport is the term \"love\" used to mean zero points?","options":["Badminton","Table tennis","Tennis","Squash"],"correct":"Tennis"},{"q":"What is the name for a shape with four equal sides and four right angles?","options":["Rectangle","Trapezoid","Square","Rhombus"],"correct":"Square"},{"q":"What is the capital of Iraq?","options":["Kuala Lumpur","Baghdad","Jakarta","Vatican City"],"correct":"Baghdad"},{"q":"What is the largest organ in the human body?","options":["Lungs","Heart","Liver","Skin"],"correct":"Skin"}],[{"q":"What is the capital of Burundi?","options":["Gitega","Accra","N'Djamena","Juba"],"correct":"Gitega"},{"q":"What is the currency of China?","options":["Yuan","Rupiah","Rial","Koruna"],"correct":"Yuan"},{"q":"In which year did the Apollo 11 Moon landing take place?","options":["1958","1969","1965","1972"],"correct":"1969"},{"q":"What is the chemical symbol for Chromium?","options":["Sn","Kr","Cr","B"],"correct":"Cr"},{"q":"Who invented the printing press with movable type in Europe?","options":["Isaac Newton","Johannes Gutenberg","Leonardo da Vinci","Galileo Galilei"],"correct":"Johannes Gutenberg"}],[{"q":"In which country is the ancient site of the Acropolis located?","options":["Greece","Turkey","Italy","Egypt"],"correct":"Greece"},{"q":"Which country is considered the origin of sushi?","options":["China","Korea","Japan","Thailand"],"correct":"Japan"},{"q":"What is the capital of Tunisia?","options":["Havana","Tunis","Antananarivo","Hanoi"],"correct":"Tunis"},{"q":"What is the capital of Costa Rica?","options":["Baghdad","Bridgetown","San José","Accra"],"correct":"San José"},{"q":"Which element has the chemical symbol \"N\"?","options":["Sulfur","Calcium","Nitrogen","Cerium"],"correct":"Nitrogen"}],[{"q":"What is the term for animals that are active mainly at night?","options":["Hibernal","Diurnal","Crepuscular","Nocturnal"],"correct":"Nocturnal"},{"q":"Who wrote \"Romeo and Juliet\"?","options":["Charles Dickens","Jane Austen","William Shakespeare","Mark Twain"],"correct":"William Shakespeare"},{"q":"What is the capital of Indonesia?","options":["San Salvador","Dushanbe","Bridgetown","Jakarta"],"correct":"Jakarta"},{"q":"What is the currency of Pakistan?","options":["Shekel","Sol","Rupee","Pound"],"correct":"Rupee"},{"q":"Which country gifted the Statue of Liberty to the United States?","options":["Spain","France","England","Italy"],"correct":"France"}],[{"q":"How many bones are in the adult human body?","options":["186","226","256","206"],"correct":"206"},{"q":"In which sport would you perform a \"slam dunk\"?","options":["Basketball","Volleyball","Tennis","Badminton"],"correct":"Basketball"},{"q":"What is the capital of Botswana?","options":["Port Moresby","Abuja","Gaborone","Chișinău"],"correct":"Gaborone"},{"q":"What is the term for words that imitate the sound they describe, like \"buzz\" or \"hiss\"?","options":["Onomatopoeia","Simile","Assonance","Alliteration"],"correct":"Onomatopoeia"},{"q":"How many strings does a standard guitar have?","options":["8","12","6","4"],"correct":"6"}],[{"q":"What is the largest bone in the human body?","options":["Tibia","Humerus","Femur","Spine"],"correct":"Femur"},{"q":"What is the capital of Trinidad and Tobago?","options":["Port of Spain","Asmara","Port Vila","Port Moresby"],"correct":"Port of Spain"},{"q":"Which scientist discovered radioactivity and won two Nobel Prizes?","options":["Niels Bohr","Ernest Rutherford","Marie Curie","Wilhelm Röntgen"],"correct":"Marie Curie"},{"q":"In which city is the Sydney Opera House located?","options":["Sydney","Canberra","Melbourne","Brisbane"],"correct":"Sydney"},{"q":"Which fruit is used to make wine?","options":["Plums","Grapes","Cherries","Apples"],"correct":"Grapes"}],[{"q":"What is the capital of South Africa?","options":["Pretoria","Beirut","Muscat","Bangkok"],"correct":"Pretoria"},{"q":"What is the currency of Brazil?","options":["Real","Dollar","Ruble","Yuan"],"correct":"Real"},{"q":"Which sea creature has three hearts?","options":["Octopus","Whale","Shark","Dolphin"],"correct":"Octopus"},{"q":"Who wrote the epic poem \"Paradise Lost\"?","options":["Geoffrey Chaucer","William Blake","John Donne","John Milton"],"correct":"John Milton"},{"q":"Which element has the chemical symbol \"Al\"?","options":["Carbon","Neodymium","Aluminium","Xenon"],"correct":"Aluminium"}],[{"q":"How many sides does a hexagon have?","options":["5","6","8","7"],"correct":"6"},{"q":"Which empire was ruled by Julius Caesar?","options":["The Ottoman Empire","The Persian Empire","The Greek Empire","The Roman Empire"],"correct":"The Roman Empire"},{"q":"What is the capital of Jamaica?","options":["Kingston","Muscat","Lusaka","Vilnius"],"correct":"Kingston"},{"q":"How many pairs of chromosomes do humans typically have?","options":["25","23","21","19"],"correct":"23"},{"q":"What is the capital of the U.S. state of Rhode Island?","options":["Providence","Cheyenne","Boston","Montgomery"],"correct":"Providence"}],[{"q":"In which sport do athletes compete in events like the \"butterfly\" and \"backstroke\"?","options":["Rowing","Diving","Water polo","Swimming"],"correct":"Swimming"},{"q":"What is the capital of Cyprus?","options":["Montevideo","Nicosia","Monaco","Gitega"],"correct":"Nicosia"},{"q":"What is the currency of South Korea?","options":["Lira","Rand","Won","Dollar"],"correct":"Won"},{"q":"What is the name for a large body of rock and ice that orbits the sun with a visible tail?","options":["Meteor","Comet","Nebula","Asteroid"],"correct":"Comet"},{"q":"What do you call a word that means the opposite of another word?","options":["Antonym","Synonym","Acronym","Homonym"],"correct":"Antonym"}],[{"q":"Which band did John Lennon and Paul McCartney belong to?","options":["The Beatles","The Rolling Stones","The Who","Pink Floyd"],"correct":"The Beatles"},{"q":"What is the capital of Ghana?","options":["Ankara","Accra","Kampala","Niamey"],"correct":"Accra"},{"q":"Which scientist is known for his laws of motion and gravity?","options":["Galileo Galilei","Johannes Kepler","Albert Einstein","Isaac Newton"],"correct":"Isaac Newton"},{"q":"Which country is home to Machu Picchu?","options":["Peru","Chile","Bolivia","Mexico"],"correct":"Peru"},{"q":"What is the traditional main cheese used in a classic Caesar salad?","options":["Feta","Parmesan","Mozzarella","Cheddar"],"correct":"Parmesan"}],[{"q":"Which animal is known as the \"King of the Jungle\"?","options":["Elephant","Lion","Tiger","Gorilla"],"correct":"Lion"},{"q":"Who is the author of \"The Lord of the Rings\"?","options":["George R.R. Martin","J.R.R. Tolkien","Terry Pratchett","C.S. Lewis"],"correct":"J.R.R. Tolkien"},{"q":"What ship did the Pilgrims sail to America on in 1620?","options":["The Beagle","The Mayflower","The Santa Maria","The Titanic"],"correct":"The Mayflower"},{"q":"What is the study of living organisms called?","options":["Physics","Biology","Geology","Chemistry"],"correct":"Biology"},{"q":"What is the capital of South Sudan?","options":["Juba","Maputo","San Salvador","Nicosia"],"correct":"Juba"}],[{"q":"What is the currency of South Africa?","options":["Ringgit","Rand","Naira","Zloty"],"correct":"Rand"},{"q":"What is the capital of Tanzania?","options":["Roseau","Doha","Baku","Dodoma"],"correct":"Dodoma"},{"q":"What is the chemical symbol for Phosphorus?","options":["Sb","Mn","P","Ag"],"correct":"P"},{"q":"What is the capital of the U.S. state of Indiana?","options":["Boston","Pierre","Indianapolis","Montgomery"],"correct":"Indianapolis"},{"q":"Who was the ancient Egyptian queen known for her relationships with Julius Caesar and Mark Antony?","options":["Hatshepsut","Nefertiti","Cleopatra","Isis"],"correct":"Cleopatra"}],[{"q":"Which element has the chemical symbol \"Pt\"?","options":["Silver","Zirconium","Platinum","Cadmium"],"correct":"Platinum"},{"q":"What is the tallest species of tree in the world?","options":["Oak","Redwood","Baobab","Pine"],"correct":"Redwood"},{"q":"What is the name of the fictional wizard school in Harry Potter?","options":["Durmstrang","Ilvermorny","Beauxbatons","Hogwarts"],"correct":"Hogwarts"},{"q":"Which continent is Montenegro located in?","options":["Oceania","Europe","Asia","North America"],"correct":"Europe"},{"q":"In which sport would you perform a \"checkmate\"?","options":["Backgammon","Checkers","Chess","Bridge"],"correct":"Chess"}],[{"q":"How many degrees are in a full circle?","options":["100","180","270","360"],"correct":"360"},{"q":"Which inventor developed the process for vulcanizing rubber?","options":["John Dunlop","Charles Macintosh","Charles Goodyear","Harvey Firestone"],"correct":"Charles Goodyear"},{"q":"Which country is home to the pyramids of Giza?","options":["Egypt","Libya","Morocco","Sudan"],"correct":"Egypt"},{"q":"Which country is considered the origin of the dish paella?","options":["Italy","France","Spain","Portugal"],"correct":"Spain"},{"q":"What galaxy is Earth located in?","options":["Sombrero","Andromeda","Whirlpool","The Milky Way"],"correct":"The Milky Way"}],[{"q":"What is the currency of Singapore?","options":["Riyal","Zloty","Hryvnia","Dollar"],"correct":"Dollar"},{"q":"What is the capital of Congo?","options":["Brazzaville","New Delhi","Sucre","Nairobi"],"correct":"Brazzaville"},{"q":"What is the term for a figure of speech that compares two things using \"like\" or \"as\"?","options":["Simile","Metaphor","Alliteration","Hyperbole"],"correct":"Simile"},{"q":"What is the standard number of lines in a musical staff?","options":["4","5","7","6"],"correct":"5"},{"q":"What is the capital of Mongolia?","options":["Santiago","Niamey","Manama","Ulan Bator"],"correct":"Ulan Bator"}],[{"q":"What is the chemical symbol for Cerium?","options":["Ar","F","Ce","Ti"],"correct":"Ce"},{"q":"Who was the first man to walk on the Moon?","options":["Buzz Aldrin","Neil Armstrong","Yuri Gagarin","John Glenn"],"correct":"Neil Armstrong"},{"q":"What is the capital of Sweden?","options":["Ljubljana","Stockholm","London","Moroni"],"correct":"Stockholm"},{"q":"Which element has the chemical symbol \"C\"?","options":["Carbon","Arsenic","Beryllium","Sodium"],"correct":"Carbon"},{"q":"What is the largest species of penguin?","options":["Adélie penguin","Rockhopper penguin","King penguin","Emperor penguin"],"correct":"Emperor penguin"}],[{"q":"Who wrote the play \"Hamlet\"?","options":["Christopher Marlowe","William Shakespeare","Oscar Wilde","Ben Jonson"],"correct":"William Shakespeare"},{"q":"What is the currency of Switzerland?","options":["Franc","Baht","Won","Pound Sterling"],"correct":"Franc"},{"q":"Which continent is Zimbabwe located in?","options":["Oceania","North America","Asia","Africa"],"correct":"Africa"},{"q":"What is the capital of Georgia?","options":["Tbilisi","Honiara","Accra","Buenos Aires"],"correct":"Tbilisi"},{"q":"What is the chemical symbol for Chlorine?","options":["Fe","Ce","Ag","Cl"],"correct":"Cl"}],[{"q":"Who invented the elevator safety brake that made tall buildings practical?","options":["Nikola Tesla","Elisha Otis","Thomas Edison","Alexander Graham Bell"],"correct":"Elisha Otis"},{"q":"In which city would you find the Statue of Liberty?","options":["Washington D.C.","New York City","Boston","Chicago"],"correct":"New York City"},{"q":"What is tofu made from?","options":["Soybeans","Wheat","Peanuts","Rice"],"correct":"Soybeans"},{"q":"What is the traditional national sport of Japan?","options":["Karate","Sumo wrestling","Baseball","Judo"],"correct":"Sumo wrestling"},{"q":"What is the capital of the U.S. state of Kansas?","options":["Lincoln","Denver","Topeka","Sacramento"],"correct":"Topeka"}],[{"q":"Who led the Indian independence movement through nonviolent protest?","options":["Martin Luther King Jr.","Jawaharlal Nehru","Nelson Mandela","Mahatma Gandhi"],"correct":"Mahatma Gandhi"},{"q":"What is the chemical symbol for Neodymium?","options":["Sb","Nd","V","Mn"],"correct":"Nd"},{"q":"What is the currency of Denmark?","options":["Krone","Rupee","Shekel","Peso"],"correct":"Krone"},{"q":"What is the capital of Algeria?","options":["Algiers","Georgetown","Tirana","Bern"],"correct":"Algiers"},{"q":"What is the term for a figure of speech that directly states one thing is another?","options":["Personification","Onomatopoeia","Metaphor","Simile"],"correct":"Metaphor"}],[{"q":"What is the term for a musical performance by a single musician?","options":["Duet","Solo","Ensemble","Chorus"],"correct":"Solo"},{"q":"What is the largest bird in the world by weight?","options":["Eagle","Ostrich","Emu","Albatross"],"correct":"Ostrich"},{"q":"Which author created the detective duo of Sherlock Holmes and Dr. Watson?","options":["Agatha Christie","Charles Dickens","Arthur Conan Doyle","Wilkie Collins"],"correct":"Arthur Conan Doyle"},{"q":"What is the capital of Ukraine?","options":["Kuala Lumpur","Kyiv","Seoul","Dublin"],"correct":"Kyiv"},{"q":"What is the chemical symbol for Bromine?","options":["Sb","Si","Br","Co"],"correct":"Br"}],[{"q":"What is the name for a 3D shape with six equal square faces?","options":["Cube","Cylinder","Sphere","Pyramid"],"correct":"Cube"},{"q":"What is the capital of Germany?","options":["Belmopan","Berlin","Vienna","Tokyo"],"correct":"Berlin"},{"q":"What was the name of the ship on which Charles Darwin conducted his famous voyage?","options":["HMS Bounty","HMS Beagle","HMS Victory","HMS Endeavour"],"correct":"HMS Beagle"},{"q":"What is the main function of red blood cells?","options":["Clot blood","Carry oxygen","Digest food","Fight infection"],"correct":"Carry oxygen"},{"q":"Which inventor is credited with creating the first commercially successful typewriter?","options":["Thomas Edison","Christopher Latham Sholes","Elisha Otis","Isaac Singer"],"correct":"Christopher Latham Sholes"}],[{"q":"Which country is home to Stonehenge?","options":["England","Ireland","Wales","Scotland"],"correct":"England"},{"q":"Which country is credited with inventing the sandwich, named after its Earl?","options":["France","England","Germany","Italy"],"correct":"England"},{"q":"What is the currency of India?","options":["Krone","Ruble","Rupee","Ringgit"],"correct":"Rupee"},{"q":"What is the capital of the U.S. state of California?","options":["Madison","Olympia","Sacramento","Juneau"],"correct":"Sacramento"},{"q":"What sport is played at Wimbledon?","options":["Badminton","Cricket","Golf","Tennis"],"correct":"Tennis"}],[{"q":"What is the chemical symbol for Silver?","options":["Ag","Ni","Ga","Co"],"correct":"Ag"},{"q":"What is the capital of the U.S. state of Nebraska?","options":["Austin","Salem","Olympia","Lincoln"],"correct":"Lincoln"},{"q":"How many legs does a spider have?","options":["6","4","10","8"],"correct":"8"},{"q":"Which artist famously cut off part of his own ear?","options":["Salvador Dalí","Vincent van Gogh","Claude Monet","Pablo Picasso"],"correct":"Vincent van Gogh"},{"q":"What is the capital of Bosnia and Herzegovina?","options":["Baghdad","Luxembourg","Sarajevo","Dublin"],"correct":"Sarajevo"}],[{"q":"Which planet is closest to the Sun?","options":["Earth","Venus","Mercury","Pluto"],"correct":"Mercury"},{"q":"Which document, signed in 1215, limited the power of the English king?","options":["The Treaty of Versailles","Magna Carta","The Bill of Rights","The Domesday Book"],"correct":"Magna Carta"},{"q":"What is the currency of Philippines?","options":["Taka","Peso","Forint","Yen"],"correct":"Peso"},{"q":"What is the capital of Honduras?","options":["Suva","Tegucigalpa","Budapest","Nouakchott"],"correct":"Tegucigalpa"},{"q":"What is the official language of Brazil?","options":["Italian","French","Portuguese","Spanish"],"correct":"Portuguese"}],[{"q":"What is the term for the highest female singing voice?","options":["Alto","Mezzo-soprano","Soprano","Contralto"],"correct":"Soprano"},{"q":"Which element has the chemical symbol \"S\"?","options":["Krypton","Sulfur","Potassium","Magnesium"],"correct":"Sulfur"},{"q":"What is the capital of Seychelles?","options":["Luanda","Bogotá","Victoria","Port Moresby"],"correct":"Victoria"},{"q":"Which siblings are credited with the first successful powered airplane?","options":["The Lumière Brothers","The Curtiss Brothers","The Montgolfier Brothers","The Wright Brothers"],"correct":"The Wright Brothers"},{"q":"Which famous clock tower is located in London?","options":["Tower Bridge","The London Eye","Big Ben","Buckingham Palace"],"correct":"Big Ben"}],[{"q":"Black pepper is made from the dried berries of which type of plant?","options":["A chili plant","A mustard plant","A ginger plant","A pepper plant (peppercorn vine)"],"correct":"A pepper plant (peppercorn vine)"},{"q":"Which continent is Moldova located in?","options":["Africa","Europe","Oceania","Asia"],"correct":"Europe"},{"q":"Which planet is known as the Red Planet?","options":["Mars","Venus","Jupiter","Saturn"],"correct":"Mars"},{"q":"What do you call an animal that only eats plants?","options":["Insectivore","Carnivore","Omnivore","Herbivore"],"correct":"Herbivore"},{"q":"Which instrument did Mozart famously compose for, besides orchestra and opera?","options":["Piano","Guitar","Flute","Violin"],"correct":"Piano"}],[{"q":"In which sport do national teams compete for the FIFA World Cup?","options":["Basketball","Baseball","Soccer (football)","American football"],"correct":"Soccer (football)"},{"q":"What is the currency of Peru?","options":["Forint","Sol","Rupiah","Shilling"],"correct":"Sol"},{"q":"What is the capital of Spain?","options":["Tegucigalpa","Madrid","Algiers","Islamabad"],"correct":"Madrid"},{"q":"Who was the British Prime Minister during most of World War II?","options":["Winston Churchill","Neville Chamberlain","Tony Blair","Margaret Thatcher"],"correct":"Winston Churchill"},{"q":"What is the mathematical constant pi approximately equal to?","options":["1.61","2.71","3.14","4.13"],"correct":"3.14"}],[{"q":"Which element has the chemical symbol \"Hg\"?","options":["Zirconium","Mercury","Sodium","Lead"],"correct":"Mercury"},{"q":"What is the capital of New Zealand?","options":["Lomé","Accra","Panama City","Wellington"],"correct":"Wellington"},{"q":"What is the capital of Bahrain?","options":["Manama","Jerusalem","Djibouti","Bridgetown"],"correct":"Manama"},{"q":"What is the chemical symbol for Magnesium?","options":["B","Si","S","Mg"],"correct":"Mg"},{"q":"What is the official language of France?","options":["Italian","German","Spanish","French"],"correct":"French"}],[{"q":"Which composer wrote \"Symphony No. 9\", featuring \"Ode to Joy\"?","options":["Wolfgang Amadeus Mozart","Ludwig van Beethoven","Franz Schubert","Johann Sebastian Bach"],"correct":"Ludwig van Beethoven"},{"q":"What is the currency of Russia?","options":["Rupee","Rand","Ruble","Krona"],"correct":"Ruble"},{"q":"Which continent is Morocco located in?","options":["Asia","South America","Europe","Africa"],"correct":"Africa"},{"q":"Who is credited with inventing the World Wide Web?","options":["Tim Berners-Lee","Bill Gates","Steve Jobs","Mark Zuckerberg"],"correct":"Tim Berners-Lee"},{"q":"Which country is home to the Colosseum?","options":["Greece","Italy","Spain","France"],"correct":"Italy"}],[{"q":"What is the main ingredient in traditional Japanese tempura batter?","options":["Rice","Cornstarch","Flour","Breadcrumbs"],"correct":"Flour"},{"q":"What is the process by which caterpillars become butterflies called?","options":["Germination","Pollination","Metamorphosis","Hibernation"],"correct":"Metamorphosis"},{"q":"Who wrote \"The Great Gatsby\"?","options":["John Steinbeck","Ernest Hemingway","William Faulkner","F. Scott Fitzgerald"],"correct":"F. Scott Fitzgerald"},{"q":"Who painted the ceiling of the Sistine Chapel?","options":["Donatello","Raphael","Michelangelo","Leonardo da Vinci"],"correct":"Michelangelo"},{"q":"What is the human body's largest internal organ?","options":["Liver","Kidney","Stomach","Lung"],"correct":"Liver"}],[{"q":"What is the capital of Moldova?","options":["Chișinău","Tallinn","Riyadh","Paris"],"correct":"Chișinău"},{"q":"Which element has the chemical symbol \"H\"?","options":["Neodymium","Manganese","Hydrogen","Antimony"],"correct":"Hydrogen"},{"q":"Which continent is Russia located in?","options":["Asia","Europe","South America","Africa"],"correct":"Europe"},{"q":"What was traditionally considered a perfect score in gymnastics?","options":["20","10","100","9"],"correct":"10"},{"q":"What is the currency of Colombia?","options":["Dollar","Rial","Lira","Peso"],"correct":"Peso"}],[{"q":"What is the capital of Australia?","options":["Lobamba","Canberra","Niamey","Belgrade"],"correct":"Canberra"},{"q":"What is the chemical symbol for Argon?","options":["Ni","P","He","Ar"],"correct":"Ar"},{"q":"What wall divided East and West Berlin during the Cold War?","options":["Hadrian's Wall","The Berlin Wall","The Great Wall","The Iron Curtain"],"correct":"The Berlin Wall"},{"q":"What is the capital of Colombia?","options":["Chișinău","Saint John's","Bogotá","Gaborone"],"correct":"Bogotá"},{"q":"What is the tallest animal in the world?","options":["Camel","Ostrich","Giraffe","Elephant"],"correct":"Giraffe"}],[{"q":"Which Renaissance artist painted \"The Last Supper\"?","options":["Raphael","Leonardo da Vinci","Titian","Michelangelo"],"correct":"Leonardo da Vinci"},{"q":"Who is credited with discovering penicillin?","options":["Jonas Salk","Louis Pasteur","Alexander Fleming","Marie Curie"],"correct":"Alexander Fleming"},{"q":"In which city is the Vatican located?","options":["Milan","Rome","Venice","Florence"],"correct":"Rome"},{"q":"What is the main ingredient in traditional hummus?","options":["Lentils","Chickpeas","Black beans","Peas"],"correct":"Chickpeas"},{"q":"Which element has the chemical symbol \"Cu\"?","options":["Plutonium","Copper","Aluminium","Sulfur"],"correct":"Copper"}],[{"q":"What is the capital of Iran?","options":["Doha","Dili","Rabat","Tehran"],"correct":"Tehran"},{"q":"Which language is primarily spoken in Mexico?","options":["Italian","Spanish","French","Portuguese"],"correct":"Spanish"},{"q":"Who is known as the \"King of Rock and Roll\"?","options":["Chuck Berry","Elvis Presley","Little Richard","Buddy Holly"],"correct":"Elvis Presley"},{"q":"How many degrees are in a right angle?","options":["180","45","90","60"],"correct":"90"},{"q":"What is the currency of Iceland?","options":["Peso","Dong","Rupee","Krona"],"correct":"Krona"}],[{"q":"What is the capital of Benin?","options":["Vienna","Porto-Novo","Accra","Tegucigalpa"],"correct":"Porto-Novo"},{"q":"Which element has the chemical symbol \"K\"?","options":["Cadmium","Potassium","Oxygen","Calcium"],"correct":"Potassium"},{"q":"What is the capital of Latvia?","options":["Riga","Rabat","Abuja","Bangui"],"correct":"Riga"},{"q":"Which war was fought between the North and South regions of the United States?","options":["World War I","The Revolutionary War","The War of 1812","The Civil War"],"correct":"The Civil War"},{"q":"In which sport do competitors use a \"shuttlecock\"?","options":["Table tennis","Squash","Tennis","Badminton"],"correct":"Badminton"}],[{"q":"What is the process by which plants make their own food called?","options":["Transpiration","Respiration","Fermentation","Photosynthesis"],"correct":"Photosynthesis"},{"q":"What is the capital of Liberia?","options":["Panama City","Monrovia","Damascus","Kyiv"],"correct":"Monrovia"},{"q":"What is the largest living land animal?","options":["Hippopotamus","African elephant","Giraffe","White rhinoceros"],"correct":"African elephant"},{"q":"Who wrote \"Moby-Dick\"?","options":["Mark Twain","Jack London","Nathaniel Hawthorne","Herman Melville"],"correct":"Herman Melville"},{"q":"What is the currency of Thailand?","options":["Pound","Sol","Lira","Baht"],"correct":"Baht"}],[{"q":"What is the capital of the U.S. state of Oregon?","options":["Albany","Springfield","Sacramento","Salem"],"correct":"Salem"},{"q":"What is the chemical symbol for Cadmium?","options":["Hg","Ce","Be","Cd"],"correct":"Cd"},{"q":"Who invented the first commercially practical light bulb?","options":["Nikola Tesla","Alexander Graham Bell","Benjamin Franklin","Thomas Edison"],"correct":"Thomas Edison"},{"q":"Which famous former prison is located on an island near San Francisco?","options":["Rikers Island","Ellis Island","Devil's Island","Alcatraz"],"correct":"Alcatraz"},{"q":"Which beverage is made by fermenting mashed grapes?","options":["Wine","Mead","Beer","Cider"],"correct":"Wine"}],[{"q":"What is the capital of Malta?","options":["Belgrade","Bangui","Valletta","New Delhi"],"correct":"Valletta"},{"q":"Which country was divided by the Iron Curtain during the Cold War?","options":["Germany","France","Spain","Italy"],"correct":"Germany"},{"q":"Which element has the chemical symbol \"Xe\"?","options":["Argon","Xenon","Antimony","Titanium"],"correct":"Xenon"},{"q":"Which continent is Paraguay located in?","options":["Asia","North America","Oceania","South America"],"correct":"South America"},{"q":"Which language has the most native speakers in the world?","options":["Spanish","Hindi","Mandarin Chinese","English"],"correct":"Mandarin Chinese"}],[{"q":"What is the term for a group of four musicians playing together?","options":["Quartet","Trio","Quintet","Ensemble"],"correct":"Quartet"},{"q":"What is the chemical symbol for Tungsten?","options":["Ce","Nd","W","Cu"],"correct":"W"},{"q":"What is the slowest-moving mammal in the world?","options":["Sloth","Snail","Turtle","Koala"],"correct":"Sloth"},{"q":"Which artist is known for the painting \"The Scream\"?","options":["Pablo Picasso","Edvard Munch","Vincent van Gogh","Gustav Klimt"],"correct":"Edvard Munch"},{"q":"What is the currency of Malaysia?","options":["Ringgit","Hryvnia","Krona","Dollar"],"correct":"Ringgit"}],[{"q":"What is the capital of the U.S. state of Iowa?","options":["Lansing","Indianapolis","Des Moines","Providence"],"correct":"Des Moines"},{"q":"How often are the Summer Olympic Games held?","options":["Every 5 years","Every 2 years","Every 3 years","Every 4 years"],"correct":"Every 4 years"},{"q":"What is the capital of Lebanon?","options":["Bangui","Beirut","Belgrade","Vaduz"],"correct":"Beirut"},{"q":"What is the chemical symbol for Calcium?","options":["Hg","Pb","Ca","Nd"],"correct":"Ca"},{"q":"What do you call a polygon with 10 sides?","options":["Decagon","Dodecagon","Nonagon","Heptagon"],"correct":"Decagon"}],[{"q":"What ancient wonder was located in Alexandria, Egypt?","options":["The Temple of Artemis","The Lighthouse of Alexandria","The Hanging Gardens","The Colossus of Rhodes"],"correct":"The Lighthouse of Alexandria"},{"q":"Who is credited with inventing the safety pin?","options":["Walter Hunt","Isaac Singer","Charles Goodyear","Samuel Colt"],"correct":"Walter Hunt"},{"q":"Which country is home to the fjord Geirangerfjord?","options":["Iceland","Sweden","Finland","Norway"],"correct":"Norway"},{"q":"Which country is considered the origin of the taco?","options":["Peru","Mexico","Brazil","Spain"],"correct":"Mexico"},{"q":"What is the capital of the U.S. state of Maryland?","options":["Annapolis","Phoenix","Harrisburg","Saint Paul"],"correct":"Annapolis"}],[{"q":"How many chambers does the human heart have?","options":["3","2","4","5"],"correct":"4"},{"q":"What is the currency of Nigeria?","options":["Yuan","Naira","Peso","Shekel"],"correct":"Naira"},{"q":"What is the capital of Israel?","options":["Minsk","Jerusalem","Yaoundé","Bern"],"correct":"Jerusalem"},{"q":"What is the main plant organ responsible for photosynthesis?","options":["Stem","Leaf","Flower","Root"],"correct":"Leaf"},{"q":"Who wrote \"1984\" and \"Animal Farm\"?","options":["George Orwell","Kurt Vonnegut","Ray Bradbury","Aldous Huxley"],"correct":"George Orwell"}],[{"q":"What is the capital of the U.S. state of Wyoming?","options":["Phoenix","Salt Lake City","Cheyenne","Indianapolis"],"correct":"Cheyenne"},{"q":"What is the chemical symbol for Sodium?","options":["Pb","Au","Zr","Na"],"correct":"Na"},{"q":"What is the official language of Egypt?","options":["Turkish","Arabic","Hebrew","French"],"correct":"Arabic"},{"q":"Which musical instrument is known as the \"king of instruments\"?","options":["Organ","Cello","Violin","Piano"],"correct":"Organ"},{"q":"What is the capital of Venezuela?","options":["Algiers","Caracas","Riga","Buenos Aires"],"correct":"Caracas"}],[{"q":"Who was the Soviet leader during the Cuban Missile Crisis?","options":["Leonid Brezhnev","Mikhail Gorbachev","Nikita Khrushchev","Joseph Stalin"],"correct":"Nikita Khrushchev"},{"q":"Which planet is famous for the \"Great Red Spot\" storm?","options":["Jupiter","Mars","Neptune","Saturn"],"correct":"Jupiter"},{"q":"How many players are on a standard basketball team on the court at one time?","options":["5","6","4","7"],"correct":"5"},{"q":"What is the currency of Canada?","options":["Won","Shekel","Ruble","Dollar"],"correct":"Dollar"},{"q":"What is the capital of Portugal?","options":["Banjul","Lisbon","Jakarta","Basseterre"],"correct":"Lisbon"}],[{"q":"Who developed the process of pasteurization?","options":["Gregor Mendel","Robert Koch","Louis Pasteur","Alexander Fleming"],"correct":"Louis Pasteur"},{"q":"In which city is the glass Louvre Pyramid located?","options":["Paris","Madrid","London","Berlin"],"correct":"Paris"},{"q":"Which country is credited with inventing pizza in its modern form?","options":["Greece","Spain","Italy","France"],"correct":"Italy"},{"q":"What is the capital of Bulgaria?","options":["Havana","Sofia","Vienna","Buenos Aires"],"correct":"Sofia"},{"q":"Which element has the chemical symbol \"Kr\"?","options":["Krypton","Magnesium","Nickel","Silver"],"correct":"Krypton"}],[{"q":"What is the largest mammal in the world?","options":["Giraffe","African elephant","Polar bear","Blue whale"],"correct":"Blue whale"},{"q":"Which Greek poet is credited with writing \"The Odyssey\"?","options":["Sophocles","Aristotle","Plato","Homer"],"correct":"Homer"},{"q":"What is the capital of the U.S. state of North Dakota?","options":["Sacramento","Hartford","Bismarck","Boise"],"correct":"Bismarck"},{"q":"Who wrote the Declaration of Independence?","options":["Thomas Jefferson","John Adams","Benjamin Franklin","George Washington"],"correct":"Thomas Jefferson"},{"q":"Which element has the chemical symbol \"Li\"?","options":["Vanadium","Barium","Lithium","Phosphorus"],"correct":"Lithium"}],[{"q":"What is the currency of Israel?","options":["Ruble","Zloty","Pound Sterling","Shekel"],"correct":"Shekel"},{"q":"What is the capital of South Korea?","options":["Dushanbe","Seoul","Wellington","Georgetown"],"correct":"Seoul"},{"q":"What do you call the longest side of a right triangle?","options":["Opposite","Adjacent","Base","Hypotenuse"],"correct":"Hypotenuse"},{"q":"Which planet has the most prominent ring system?","options":["Saturn","Neptune","Mars","Uranus"],"correct":"Saturn"},{"q":"What is the capital of the U.S. state of Kentucky?","options":["Raleigh","Frankfort","Springfield","Carson City"],"correct":"Frankfort"}],[{"q":"What is the term for a word that reads the same forwards and backwards?","options":["Homophone","Palindrome","Anagram","Acronym"],"correct":"Palindrome"},{"q":"Which instrument family does the violin belong to?","options":["Brass","String","Percussion","Woodwind"],"correct":"String"},{"q":"How many rings are on the Olympic flag?","options":["7","4","5","6"],"correct":"5"},{"q":"Which continent is Bulgaria located in?","options":["North America","Asia","Europe","South America"],"correct":"Europe"},{"q":"Who invented the first practical steam engine used for industry?","options":["Robert Fulton","George Stephenson","Thomas Newcomen","James Watt"],"correct":"James Watt"}],[{"q":"Which desert covers most of northern Africa?","options":["The Sahara","The Kalahari","The Gobi","The Sonoran"],"correct":"The Sahara"},{"q":"Which nut is used to make traditional marzipan?","options":["Cashews","Almonds","Walnuts","Pistachios"],"correct":"Almonds"},{"q":"What is the chemical symbol for Manganese?","options":["Zn","Ne","H","Mn"],"correct":"Mn"},{"q":"What is the largest species of shark?","options":["Whale shark","Hammerhead shark","Tiger shark","Great white shark"],"correct":"Whale shark"},{"q":"Who composed the ballet \"Swan Lake\"?","options":["Igor Stravinsky","Pyotr Ilyich Tchaikovsky","Frédéric Chopin","Sergei Prokofiev"],"correct":"Pyotr Ilyich Tchaikovsky"}],[{"q":"In what year did World War II end?","options":["1918","1945","1939","1950"],"correct":"1945"},{"q":"What is the currency of Vietnam?","options":["Rupee","Krona","Dong","Won"],"correct":"Dong"},{"q":"What is the capital of the U.S. state of South Carolina?","options":["Boston","Baton Rouge","Columbia","Indianapolis"],"correct":"Columbia"},{"q":"Which element has the chemical symbol \"Ne\"?","options":["Neon","Radon","Gallium","Vanadium"],"correct":"Neon"},{"q":"What is the capital of Mauritius?","options":["Conakry","Bangkok","Port Louis","Ashgabat"],"correct":"Port Louis"}]];
+
+const MAX_QUESTIONS = 5;
+const STORAGE_KEY = 'brain-buzzer-state-v1';
+const STREAK_KEY = 'brain-buzzer-streak-v1';
+const SOUND_KEY = 'brain-buzzer-sound-v1';
+const TIER_MESSAGE = {5:'Perfect Score!',4:'Great Job!',3:'Nice Work!',2:'Not Bad!',1:'Keep Trying!',0:'Better Luck Tomorrow!'};
+
+const dayLabelEl = document.getElementById('dayLabel');
+const streakCountEl = document.getElementById('streakCount');
+const liveScoreEl = document.getElementById('liveScore');
+const progressDotsEl = document.getElementById('progressDots');
+const qCounterEl = document.getElementById('qCounter');
+const qTextEl = document.getElementById('qText');
+const optionsWrapEl = document.getElementById('optionsWrap');
+const quizCardEl = document.getElementById('quizCard');
+const muteBtnEl = document.getElementById('muteBtn');
+const summaryEl = document.getElementById('summary');
+const summaryTitleEl = document.getElementById('summaryTitle');
+const summaryScoreEl = document.getElementById('summaryScore');
+const summaryMetaEl = document.getElementById('summaryMeta');
+const reviewListEl = document.getElementById('reviewList');
+const copyResultBtn = document.getElementById('copyResultBtn');
+const closeSummaryBtn = document.getElementById('closeSummaryBtn');
+const countdownTimerEl = document.getElementById('countdownTimer');
+
+function dayNumber(){
+  const epoch = Date.UTC(2026, 0, 1);
+  const now = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
+  return Math.floor((now - epoch) / 86400000) + 1;
+}
+
+function seededShuffle(arr, seed){
+  const a = arr.slice();
+  let s = seed >>> 0;
+  const rand = () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function dailyPackIndex(){
+  const n = dayNumber() - 1;
+  const cycleIndex = Math.floor(n / DAYS.length);
+  const dayInCycle = n % DAYS.length;
+  const dealt = seededShuffle(DAYS.map((_, i) => i), cycleIndex + 1);
+  return dealt[dayInCycle];
+}
+
+function freshRun(){
+  return {
+    day: dayNumber(),
+    packIndex: dailyPackIndex(),
+    currentIndex: 0,
+    score: 0,
+    answers: [],
+    finished: false,
+  };
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return freshRun();
+    const parsed = JSON.parse(raw);
+    if(parsed.day !== dayNumber()) return freshRun();
+    return parsed;
+  }catch(e){ return freshRun(); }
+}
+function saveState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(run)); }catch(e){}
+}
+
+function loadStreak(){
+  try{
+    const parsed = JSON.parse(localStorage.getItem(STREAK_KEY));
+    if(parsed && typeof parsed.current === 'number') return parsed;
+  }catch(e){}
+  return { current: 0, lastPlayedDay: 0 };
+}
+function saveStreak(s){
+  try{ localStorage.setItem(STREAK_KEY, JSON.stringify(s)); }catch(e){}
+}
+
+let soundEnabled = true;
+try{ soundEnabled = localStorage.getItem(SOUND_KEY) !== '0'; }catch(e){}
+let audioCtx = null;
+function ensureAudioCtx(){
+  if(!audioCtx){
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return null;
+    try{ audioCtx = new Ctx(); }catch(e){ return null; }
+  }
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playTone(freq, offset, duration, type, peakVol){
+  if(!soundEnabled) return;
+  const ctx = ensureAudioCtx();
+  if(!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+  const t0 = ctx.currentTime + (offset || 0);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(peakVol != null ? peakVol : 0.16, t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+function playSweep(freqStart, freqEnd, offset, duration, type, peakVol){
+  if(!soundEnabled) return;
+  const ctx = ensureAudioCtx();
+  if(!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sawtooth';
+  const t0 = ctx.currentTime + (offset || 0);
+  osc.frequency.setValueAtTime(freqStart, t0);
+  osc.frequency.exponentialRampToValueAtTime(freqEnd, t0 + duration);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(peakVol != null ? peakVol : 0.14, t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+function playCorrectSound(){
+  playTone(600, 0, 0.1, 'triangle', 0.15);
+  playTone(800, 0.08, 0.14, 'triangle', 0.16);
+}
+function playWrongSound(){ playTone(180, 0, 0.18, 'sawtooth', 0.12); }
+function playWinSound(){
+  playTone(523, 0, 0.12, 'triangle', 0.16);
+  playTone(659, 0.1, 0.12, 'triangle', 0.16);
+  playTone(784, 0.2, 0.22, 'triangle', 0.18);
+}
+function playLoseSound(){ playSweep(300, 140, 0, 0.4, 'sawtooth', 0.1); }
+function updateMuteButton(){ muteBtnEl.classList.toggle('is-muted', !soundEnabled); }
+muteBtnEl.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  try{ localStorage.setItem(SOUND_KEY, soundEnabled ? '1' : '0'); }catch(e){}
+  updateMuteButton();
+  if(soundEnabled){ ensureAudioCtx(); playCorrectSound(); }
+});
+updateMuteButton();
+
+let run = loadState();
+const pack = DAYS[run.packIndex];
+let answered = false;
+
+function renderProgressDots(){
+  progressDotsEl.innerHTML = '';
+  for(let i = 0; i < MAX_QUESTIONS; i++){
+    const dot = document.createElement('div');
+    dot.className = 'progress-dot';
+    if(i < run.answers.length){
+      dot.classList.add(run.answers[i].isCorrect ? 'is-correct' : 'is-wrong');
+    } else if(i === run.currentIndex && !run.finished){
+      dot.classList.add('is-current');
+    }
+    progressDotsEl.appendChild(dot);
+  }
+}
+
+function renderQuestion(){
+  answered = false;
+  const q = pack[run.currentIndex];
+  qCounterEl.textContent = 'Question ' + (run.currentIndex + 1) + ' of ' + MAX_QUESTIONS;
+  qTextEl.textContent = q.q;
+  optionsWrapEl.innerHTML = '';
+  const badges = ['A', 'B', 'C', 'D'];
+  q.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'option-btn';
+    btn.dataset.option = opt;
+    btn.innerHTML = '<span class="option-badge">' + badges[i] + '</span><span>' + opt + '</span>';
+    btn.addEventListener('click', () => selectAnswer(opt, btn, q));
+    optionsWrapEl.appendChild(btn);
+  });
+  renderProgressDots();
+  liveScoreEl.textContent = run.score;
+}
+
+function selectAnswer(option, btnEl, q){
+  if(answered || run.finished) return;
+  answered = true;
+  const isCorrect = option === q.correct;
+  run.answers.push({ question: q.q, selected: option, correct: q.correct, isCorrect });
+  if(isCorrect) run.score++;
+
+  Array.from(optionsWrapEl.children).forEach(btn => {
+    btn.disabled = true;
+    if(btn.dataset.option === q.correct) btn.classList.add('is-correct');
+    else if(btn === btnEl) btn.classList.add('is-wrong');
+  });
+
+  if(isCorrect) playCorrectSound(); else playWrongSound();
+  renderProgressDots();
+  liveScoreEl.textContent = run.score;
+  saveState();
+
+  setTimeout(() => {
+    if(run.answers.length >= MAX_QUESTIONS){
+      run.finished = true;
+      resolveRound();
+    } else {
+      run.currentIndex++;
+      saveState();
+      renderQuestion();
+    }
+  }, 1400);
+}
+
+function msUntilNextReset(){
+  const now = new Date();
+  const nextMidnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0);
+  return Math.max(0, nextMidnightUtc - now.getTime());
+}
+function formatCountdown(ms){
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+let countdownIntervalId = null;
+function startCountdown(){
+  stopCountdown();
+  const tick = () => { countdownTimerEl.textContent = formatCountdown(msUntilNextReset()); };
+  tick();
+  countdownIntervalId = setInterval(tick, 1000);
+}
+function stopCountdown(){
+  if(countdownIntervalId){ clearInterval(countdownIntervalId); countdownIntervalId = null; }
+}
+
+function resultEmojiRow(){
+  return run.answers.map(a => a.isCorrect ? '✅' : '❌').join('');
+}
+
+function reportStats(){
+  if(window.parent === window) return;
+  const streak = loadStreak();
+  window.parent.postMessage({
+    type: 'brain-buzzer-progress',
+    score: run.score,
+    dayNumber: run.day,
+    streak: streak.current,
+  }, window.location.origin);
+}
+
+function resolveRound(){
+  saveState();
+  const streak = loadStreak();
+  streak.current = (streak.lastPlayedDay === run.day - 1) ? streak.current + 1 : 1;
+  streak.lastPlayedDay = run.day;
+  saveStreak(streak);
+  streakCountEl.textContent = streak.current;
+  reportStats();
+  if(run.score >= 4) playWinSound(); else if(run.score <= 1) playLoseSound();
+  setTimeout(showSummary, 500);
+}
+
+function showSummary(){
+  const streak = loadStreak();
+  summaryTitleEl.textContent = TIER_MESSAGE[run.score] || TIER_MESSAGE[0];
+  summaryScoreEl.textContent = run.score + '/5';
+  summaryMetaEl.textContent = streak.current + (streak.current === 1 ? ' day streak' : ' day streak');
+  reviewListEl.innerHTML = '';
+  run.answers.forEach((a, i) => {
+    const row = document.createElement('div');
+    row.className = 'review-row';
+    const icon = document.createElement('span');
+    icon.className = 'review-icon';
+    icon.textContent = a.isCorrect ? '✅' : '❌';
+    const textWrap = document.createElement('div');
+    textWrap.className = 'review-text';
+    const rq = document.createElement('div');
+    rq.className = 'rq';
+    rq.textContent = (i + 1) + '. ' + a.question;
+    const ra = document.createElement('div');
+    ra.className = 'ra' + (a.isCorrect ? '' : ' wrong-answer');
+    ra.textContent = a.isCorrect ? 'Your answer: ' + a.selected : 'You said ' + a.selected + ' — correct: ' + a.correct;
+    textWrap.appendChild(rq);
+    textWrap.appendChild(ra);
+    row.appendChild(icon);
+    row.appendChild(textWrap);
+    reviewListEl.appendChild(row);
+  });
+  summaryEl.classList.remove('hidden');
+  startCountdown();
+}
+
+copyResultBtn.addEventListener('click', () => {
+  const text = 'Brain Buzzer #' + run.day + ' ' + run.score + '/5\n\n' + resultEmojiRow();
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(() => {
+      const original = copyResultBtn.textContent;
+      copyResultBtn.textContent = 'Copied!';
+      setTimeout(() => { copyResultBtn.textContent = original; }, 1500);
+    });
+  }
+});
+closeSummaryBtn.addEventListener('click', () => {
+  summaryEl.classList.add('hidden');
+  stopCountdown();
+});
+
+function setupRound(){
+  dayLabelEl.textContent = 'Day ' + run.day;
+  streakCountEl.textContent = loadStreak().current;
+  if(run.finished){
+    liveScoreEl.textContent = run.score;
+    renderProgressDots();
+    quizCardEl.style.visibility = 'hidden';
+    showSummary();
+  } else {
+    renderQuestion();
+  }
+}
+setupRound();
+</script>
+</body>
+</html>
