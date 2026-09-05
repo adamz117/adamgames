@@ -539,13 +539,12 @@
 <script>
 const TIER_POINTS = { common: 10, uncommon: 30, rare: 60, ultra: 100, none: 0, invalid: 0 };
 const TIER_LABEL = { common: 'Common find', uncommon: 'Uncommon find', rare: 'Rare find', ultra: 'Ultra-rare find', none: 'No find', invalid: 'Not recognized' };
-const TIER_RANK = { none: 0, invalid: 0, common: 1, uncommon: 2, rare: 3, ultra: 4 };
-const BEST_TIER_KEY = 'deep-cut-best-tier-v1';
-function loadBestTier(){
-  try{ const t = localStorage.getItem(BEST_TIER_KEY); return TIER_RANK[t] !== undefined ? t : 'none'; }catch(e){ return 'none'; }
+const BEST_SCORE_KEY = 'deep-cut-best-score-v1';
+function loadBestScore(){
+  try{ return parseInt(localStorage.getItem(BEST_SCORE_KEY), 10) || 0; }catch(e){ return 0; }
 }
-function saveBestTier(tier){
-  try{ localStorage.setItem(BEST_TIER_KEY, tier); }catch(e){}
+function saveBestScore(n){
+  try{ localStorage.setItem(BEST_SCORE_KEY, String(n)); }catch(e){}
 }
 const ROUNDS_PER_DIG = 7;
 const SECONDS_PER_ROUND = 20;
@@ -1328,10 +1327,8 @@ function showSummary(){
   summaryEl.classList.remove('hidden');
 
   if(run.mode === 'daily'){
-    const dayBestTier = run.answers.reduce((best, a) => TIER_RANK[a.tier] > TIER_RANK[best] ? a.tier : best, 'none');
-    const priorBestTier = loadBestTier();
-    const overallBestTier = TIER_RANK[dayBestTier] > TIER_RANK[priorBestTier] ? dayBestTier : priorBestTier;
-    if(overallBestTier !== priorBestTier) saveBestTier(overallBestTier);
+    const bestScore = Math.max(totalScore(), loadBestScore());
+    saveBestScore(bestScore);
 
     if(window.parent !== window){
       window.parent.postMessage({
@@ -1339,7 +1336,7 @@ function showSummary(){
         score: totalScore(),
         promptsAnswered: run.answers.length,
         totalPrompts: run.promptIds.length,
-        bestTier: overallBestTier,
+        bestScore,
         dayNumber: dayNumber(),
       }, window.location.origin);
     }

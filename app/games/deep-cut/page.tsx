@@ -11,13 +11,13 @@ export default function DeepCutPage() {
       if (event.origin !== window.location.origin) return;
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (event.data?.type !== 'deep-cut-progress') return;
-      const { score, promptsAnswered, totalPrompts, dayNumber, bestTier } = event.data;
+      const { score, promptsAnswered, totalPrompts, dayNumber, bestScore } = event.data;
       if (
         typeof score !== 'number' ||
         typeof promptsAnswered !== 'number' ||
         typeof totalPrompts !== 'number' ||
         typeof dayNumber !== 'number' ||
-        typeof bestTier !== 'string'
+        typeof bestScore !== 'number'
       ) {
         return;
       }
@@ -27,7 +27,7 @@ export default function DeepCutPage() {
         promptsAnswered,
         totalPrompts,
         dayNumber,
-        bestTier,
+        bestScore,
         lastPlayedAt: new Date().toISOString(),
       });
     }

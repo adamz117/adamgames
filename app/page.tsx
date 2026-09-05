@@ -4,13 +4,6 @@ import { GAMES } from '@/lib/games-registry';
 import { getGameStatsServer } from '@/lib/game-stats';
 import { getProfileServer } from '@/lib/profile';
 
-const DEEP_CUT_TIER_LABEL: Record<string, string> = {
-  common: 'Common',
-  uncommon: 'Uncommon',
-  rare: 'Rare',
-  ultra: 'Ultra-rare',
-};
-
 function StatCard({ game, value, metric }: { game: string; value: string; metric: string }) {
   return (
     <div
@@ -70,8 +63,7 @@ export default async function HomePage() {
   const flagCorrectValue = flagStats
     ? `${Number(flagStats.correct ?? 0)} / ${Number(flagStats.totalCountries ?? 188)}`
     : 'Not played yet';
-  const deepCutBestTier = deepCutStats ? String(deepCutStats.bestTier ?? 'none') : 'none';
-  const deepCutValue = DEEP_CUT_TIER_LABEL[deepCutBestTier] ?? 'Not played yet';
+  const deepCutValue = deepCutStats ? `${Number(deepCutStats.bestScore ?? 0)} pts` : 'Not played yet';
   const shapeAtlasValue = shapeStats ? `${Number(shapeStats.lifetimeScore ?? 0)} pts` : 'Not played yet';
 
   return (
@@ -152,7 +144,7 @@ export default async function HomePage() {
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 28 }}>
               <StatCard game="Flag Atlas" value={flagCorrectValue} metric="Countries correct" />
-              <StatCard game="Deep Cut" value={deepCutValue} metric="Deepest dig" />
+              <StatCard game="Deep Cut" value={deepCutValue} metric="Best daily score" />
               <StatCard game="Shape Atlas" value={shapeAtlasValue} metric="Outline Guesser points" />
             </div>
           </>
