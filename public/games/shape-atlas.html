@@ -4169,8 +4169,7 @@ inputEl.addEventListener('keydown', (e) => {
   }
 });
 closeSummaryBtn.addEventListener('click', () => {
-  summaryEl.classList.add('hidden');
-  stopCountdown();
+  window.top.location.href = '/';
 });
 copyResultBtn.addEventListener('click', () => {
   const day = dayNumber();
