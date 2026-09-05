@@ -11,13 +11,14 @@ export default function ShapeAtlasPage() {
       if (event.origin !== window.location.origin) return;
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (event.data?.type !== 'shape-atlas-progress') return;
-      const { solved, guessesUsed, score, dayNumber, collectionSize } = event.data;
+      const { solved, guessesUsed, score, dayNumber, collectionSize, lifetimeScore } = event.data;
       if (
         typeof solved !== 'boolean' ||
         typeof guessesUsed !== 'number' ||
         typeof score !== 'number' ||
         typeof dayNumber !== 'number' ||
-        typeof collectionSize !== 'number'
+        typeof collectionSize !== 'number' ||
+        typeof lifetimeScore !== 'number'
       ) {
         return;
       }
@@ -28,6 +29,7 @@ export default function ShapeAtlasPage() {
         score,
         dayNumber,
         collectionSize,
+        lifetimeScore,
         lastPlayedAt: new Date().toISOString(),
       });
     }

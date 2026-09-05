@@ -3503,6 +3503,7 @@ const byCode = Object.fromEntries(COUNTRIES.map(c => [c.code, c]));
 const STORAGE_KEY = 'shape-atlas-state-v1';
 const COLLECTION_KEY = 'shape-atlas-collection-v1';
 const SOUND_KEY = 'shape-atlas-sound-v1';
+const LIFETIME_SCORE_KEY = 'shape-atlas-lifetime-score-v1';
 const MAX_GUESSES = 6;
 const SCORE_BY_GUESS = [100, 80, 60, 40, 25, 15];
 
@@ -3708,6 +3709,13 @@ function loadCollection(){
 
 function saveCollection(){
   try{ localStorage.setItem(COLLECTION_KEY, JSON.stringify(Array.from(collection))); }catch(e){}
+}
+
+function loadLifetimeScore(){
+  try{ return parseInt(localStorage.getItem(LIFETIME_SCORE_KEY), 10) || 0; }catch(e){ return 0; }
+}
+function saveLifetimeScore(n){
+  try{ localStorage.setItem(LIFETIME_SCORE_KEY, String(n)); }catch(e){}
 }
 
 let soundEnabled = true;
@@ -4027,6 +4035,7 @@ function flyToMap(code, opts){
 
 function resolveRound(){
   saveState();
+  saveLifetimeScore(loadLifetimeScore() + run.score);
   renderAttempts();
   updateGauge();
   inputEl.disabled = true;
@@ -4155,6 +4164,7 @@ function reportStats(){
     score: run.score,
     dayNumber: dayNumber(),
     collectionSize: collection.size,
+    lifetimeScore: loadLifetimeScore(),
   }, window.location.origin);
 }
 

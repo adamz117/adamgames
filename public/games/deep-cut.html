@@ -539,6 +539,14 @@
 <script>
 const TIER_POINTS = { common: 10, uncommon: 30, rare: 60, ultra: 100, none: 0, invalid: 0 };
 const TIER_LABEL = { common: 'Common find', uncommon: 'Uncommon find', rare: 'Rare find', ultra: 'Ultra-rare find', none: 'No find', invalid: 'Not recognized' };
+const TIER_RANK = { none: 0, invalid: 0, common: 1, uncommon: 2, rare: 3, ultra: 4 };
+const BEST_TIER_KEY = 'deep-cut-best-tier-v1';
+function loadBestTier(){
+  try{ const t = localStorage.getItem(BEST_TIER_KEY); return TIER_RANK[t] !== undefined ? t : 'none'; }catch(e){ return 'none'; }
+}
+function saveBestTier(tier){
+  try{ localStorage.setItem(BEST_TIER_KEY, tier); }catch(e){}
+}
 const ROUNDS_PER_DIG = 7;
 const SECONDS_PER_ROUND = 20;
 
@@ -1319,14 +1327,22 @@ function showSummary(){
   dailyNoteEl.textContent = run.mode === 'daily' ? 'Come back tomorrow for a new daily dig, or practice below.' : '';
   summaryEl.classList.remove('hidden');
 
-  if(run.mode === 'daily' && window.parent !== window){
-    window.parent.postMessage({
-      type: 'deep-cut-progress',
-      score: totalScore(),
-      promptsAnswered: run.answers.length,
-      totalPrompts: run.promptIds.length,
-      dayNumber: dayNumber(),
-    }, window.location.origin);
+  if(run.mode === 'daily'){
+    const dayBestTier = run.answers.reduce((best, a) => TIER_RANK[a.tier] > TIER_RANK[best] ? a.tier : best, 'none');
+    const priorBestTier = loadBestTier();
+    const overallBestTier = TIER_RANK[dayBestTier] > TIER_RANK[priorBestTier] ? dayBestTier : priorBestTier;
+    if(overallBestTier !== priorBestTier) saveBestTier(overallBestTier);
+
+    if(window.parent !== window){
+      window.parent.postMessage({
+        type: 'deep-cut-progress',
+        score: totalScore(),
+        promptsAnswered: run.answers.length,
+        totalPrompts: run.promptIds.length,
+        bestTier: overallBestTier,
+        dayNumber: dayNumber(),
+      }, window.location.origin);
+    }
   }
 }
 
