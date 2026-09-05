@@ -306,6 +306,39 @@
   }
   .attempt-tick.spent{background:var(--danger);}
   .attempt-tick.current{background:var(--accent);box-shadow:0 0 8px var(--accent-dim);}
+  .attempt-tick.correct{background:var(--accent);box-shadow:0 0 8px var(--accent-dim);}
+
+  .guess-history{
+    display:flex;
+    flex-direction:column;
+    gap:5px;
+    margin-top:12px;
+    max-height:132px;
+    overflow-y:auto;
+  }
+  .guess-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:10px;
+    padding:6px 10px;
+    border-radius:6px;
+    background:rgba(255,255,255,.03);
+    font-family:var(--font-mono);
+    font-size:11px;
+  }
+  .guess-row .guess-name{
+    color:var(--text);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .guess-row .guess-hint{
+    color:var(--danger);
+    white-space:nowrap;
+    flex:none;
+  }
+  .guess-row.is-correct .guess-hint{color:var(--accent-bright);}
 
   .summary{
     position:absolute;
@@ -380,12 +413,34 @@
   #copyResultBtn{background:transparent;color:var(--accent);border:1px solid var(--accent-dim);}
   #copyResultBtn:hover{border-color:var(--accent);}
   #closeSummaryBtn{background:transparent;color:var(--text-dim);border:1px solid var(--panel-border);}
-  .daily-note{
+  .countdown-block{
+    margin-top:18px;
+    padding-top:16px;
+    border-top:1px solid var(--panel-border);
     text-align:center;
+  }
+  .countdown-label{
     font-family:var(--font-mono);
     font-size:11px;
+    letter-spacing:.04em;
     color:var(--text-dim);
-    margin-top:14px;
+    margin:0 0 8px;
+  }
+  .countdown-timer{
+    font-family:var(--font-mono);
+    font-size:26px;
+    font-weight:600;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:.05em;
+    color:var(--accent-bright);
+    text-shadow:0 0 12px var(--accent-dim);
+    margin:0;
+  }
+  .countdown-sub{
+    font-family:var(--font-mono);
+    font-size:10px;
+    color:var(--text-dim);
+    margin:6px 0 0;
   }
 
   @media (max-width:640px){
@@ -3412,6 +3467,7 @@
       <button type="submit">Guess</button>
     </form>
     <div class="feedback" id="feedback"></div>
+    <div class="guess-history" id="guessHistory"></div>
     <div class="attempts" id="attempts"></div>
   </main>
 
@@ -3432,7 +3488,11 @@
         <button id="copyResultBtn">Copy Result</button>
         <button id="closeSummaryBtn">Close</button>
       </div>
-      <p class="daily-note" id="dailyNote">Come back tomorrow for a new territory.</p>
+      <div class="countdown-block">
+        <p class="countdown-label">You've already played today's territory</p>
+        <p class="countdown-timer" id="countdownTimer">--:--:--</p>
+        <p class="countdown-sub">until the next one unlocks</p>
+      </div>
     </div>
   </div>
 </div>
@@ -3453,6 +3513,7 @@ const feedbackEl = document.getElementById('feedback');
 const formEl = document.getElementById('guessForm');
 const inputEl = document.getElementById('guessInput');
 const attemptsEl = document.getElementById('attempts');
+const guessHistoryEl = document.getElementById('guessHistory');
 const silhouetteWrapEl = document.getElementById('silhouetteWrap');
 const silhouetteSvgEl = document.getElementById('silhouetteSvg');
 const silhouettePathEl = document.getElementById('silhouettePath');
@@ -3473,6 +3534,7 @@ const summaryFlagGroupEl = document.getElementById('summaryFlagGroup');
 const resultGridEl = document.getElementById('resultGrid');
 const copyResultBtn = document.getElementById('copyResultBtn');
 const closeSummaryBtn = document.getElementById('closeSummaryBtn');
+const countdownTimerEl = document.getElementById('countdownTimer');
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -3499,6 +3561,31 @@ function dayNumber(){
   const epoch = Date.UTC(2026, 0, 1);
   const now = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
   return Math.floor((now - epoch) / 86400000) + 1;
+}
+
+function msUntilNextReset(){
+  const now = new Date();
+  const nextMidnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0);
+  return Math.max(0, nextMidnightUtc - now.getTime());
+}
+
+function formatCountdown(ms){
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+let countdownIntervalId = null;
+function startCountdown(){
+  stopCountdown();
+  const tick = () => { countdownTimerEl.textContent = formatCountdown(msUntilNextReset()); };
+  tick();
+  countdownIntervalId = setInterval(tick, 1000);
+}
+function stopCountdown(){
+  if(countdownIntervalId){ clearInterval(countdownIntervalId); countdownIntervalId = null; }
 }
 
 function dailyCountryCode(){
@@ -3760,10 +3847,29 @@ function renderAttempts(){
   for(let i = 0; i < MAX_GUESSES; i++){
     const tick = document.createElement('div');
     tick.className = 'attempt-tick';
-    if(i < run.guesses.length) tick.classList.add('spent');
+    if(run.solved && i === run.guessesUsed - 1) tick.classList.add('correct');
+    else if(i < run.guesses.length) tick.classList.add('spent');
     else if(i === run.guesses.length && !run.finished) tick.classList.add('current');
     attemptsEl.appendChild(tick);
   }
+}
+
+function renderGuessHistory(){
+  guessHistoryEl.innerHTML = '';
+  run.guesses.forEach(g => {
+    const row = document.createElement('div');
+    row.className = 'guess-row' + (g.correct ? ' is-correct' : '');
+    const name = document.createElement('span');
+    name.className = 'guess-name';
+    name.textContent = g.text;
+    const hint = document.createElement('span');
+    hint.className = 'guess-hint';
+    hint.textContent = g.hint;
+    row.appendChild(name);
+    row.appendChild(hint);
+    guessHistoryEl.appendChild(row);
+  });
+  guessHistoryEl.scrollTop = guessHistoryEl.scrollHeight;
 }
 
 function updateGauge(){
@@ -3855,6 +3961,7 @@ function setupRound(){
   renderSilhouette(run.code);
   silhouetteWrapEl.classList.remove('is-wrong');
   renderAttempts();
+  renderGuessHistory();
   updateGauge();
   fileLabelEl.textContent = "Today's Territory · Day " + dayNumber();
   if(run.finished){
@@ -3935,15 +4042,17 @@ function handleGuess(guessRaw){
   const target = byCode[run.code];
 
   if(countryMatchesGuess(norm, target)){
+    run.guessesUsed = run.guesses.length + 1;
+    run.guesses.push({ text: val, correct: true, hint: 'Confirmed!' });
     run.solved = true;
     run.finished = true;
-    run.guessesUsed = run.guesses.length + 1;
     run.score = SCORE_BY_GUESS[run.guessesUsed - 1] || SCORE_BY_GUESS[SCORE_BY_GUESS.length - 1];
     feedbackEl.textContent = 'Confirmed: ' + target.name + '.';
     feedbackEl.className = 'feedback is-correct';
     flashGauge();
     playLockOnSound();
     revealFlagInPedestal();
+    renderGuessHistory();
     resolveRound();
     setTimeout(() => {
       revealMap();
@@ -3962,13 +4071,13 @@ function handleGuess(guessRaw){
   }
 
   playSubmitClick();
-  run.guesses.push(val);
+  const hint = distanceDirectionHint(matchedCountry, target);
+  run.guesses.push({ text: val, correct: false, hint });
   silhouetteWrapEl.classList.remove('is-shaking');
   void silhouetteWrapEl.offsetWidth;
   silhouetteWrapEl.classList.add('is-shaking', 'is-wrong');
   setTimeout(() => silhouetteWrapEl.classList.remove('is-wrong'), 350);
-
-  const hint = distanceDirectionHint(matchedCountry, target);
+  renderGuessHistory();
 
   if(run.guesses.length >= MAX_GUESSES){
     run.solved = false;
@@ -4034,6 +4143,7 @@ async function showSummary(){
   summaryMetaEl.textContent = tierLabel() + ' · ' + run.score + ' pts';
   resultGridEl.textContent = resultGridString();
   summaryEl.classList.remove('hidden');
+  startCountdown();
 }
 
 function reportStats(){
@@ -4058,7 +4168,10 @@ inputEl.addEventListener('keydown', (e) => {
     handleGuess(inputEl.value);
   }
 });
-closeSummaryBtn.addEventListener('click', () => summaryEl.classList.add('hidden'));
+closeSummaryBtn.addEventListener('click', () => {
+  summaryEl.classList.add('hidden');
+  stopCountdown();
+});
 copyResultBtn.addEventListener('click', () => {
   const day = dayNumber();
   const text = 'Shape Atlas #' + day + ' — ' + (run.solved ? run.guessesUsed + '/' + MAX_GUESSES : 'X/' + MAX_GUESSES) + '\n' + resultGridString();
