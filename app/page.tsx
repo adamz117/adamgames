@@ -59,12 +59,14 @@ export default async function HomePage() {
   const flagStats = statsById['flag-atlas'];
   const deepCutStats = statsById['deep-cut'];
   const shapeStats = statsById['shape-atlas'];
+  const guessWordStats = statsById['guess-the-word'];
 
   const flagCorrectValue = flagStats
     ? `${Number(flagStats.correct ?? 0)} / ${Number(flagStats.totalCountries ?? 188)}`
     : 'Not played yet';
   const deepCutValue = deepCutStats ? `${Number(deepCutStats.bestScore ?? 0)} pts` : 'Not played yet';
   const shapeAtlasValue = shapeStats ? `${Number(shapeStats.lifetimeScore ?? 0)} pts` : 'Not played yet';
+  const guessWordValue = guessWordStats ? `${Number(guessWordStats.streak ?? 0)} days` : 'Not played yet';
 
   return (
     <main style={{ position: 'relative', overflow: 'hidden' }}>
@@ -146,6 +148,7 @@ export default async function HomePage() {
               <StatCard game="Flag Atlas" value={flagCorrectValue} metric="Countries correct" />
               <StatCard game="Deep Cut" value={deepCutValue} metric="Best daily score" />
               <StatCard game="Outline Guesser" value={shapeAtlasValue} metric="Lifetime points" />
+              <StatCard game="Guess the Word" value={guessWordValue} metric="Daily streak" />
             </div>
           </>
         ) : (

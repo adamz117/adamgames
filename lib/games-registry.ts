@@ -48,4 +48,18 @@ export const GAMES: GameRegistryEntry[] = [
       return `${collected} collected · solved in ${guesses}/6`;
     },
   },
+  {
+    id: 'guess-the-word',
+    title: 'Guess the Word',
+    description: 'Five letters, six guesses, one word a day.',
+    href: '/games/guess-the-word',
+    summarize: (stats) => {
+      if (!stats) return 'Not played yet';
+      const day = Number(stats.dayNumber ?? 0);
+      const solved = Boolean(stats.solved);
+      const streak = Number(stats.streak ?? 0);
+      if (!day) return 'Not played yet';
+      return solved ? `Day ${day}: solved · ${streak} day streak` : `Day ${day}: missed today`;
+    },
+  },
 ];
