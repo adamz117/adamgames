@@ -145,7 +145,7 @@ export default async function HomePage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 28 }}>
               <StatCard game="Flag Atlas" value={flagCorrectValue} metric="Countries correct" />
               <StatCard game="Deep Cut" value={deepCutValue} metric="Best daily score" />
-              <StatCard game="Shape Atlas" value={shapeAtlasValue} metric="Outline Guesser points" />
+              <StatCard game="Outline Guesser" value={shapeAtlasValue} metric="Lifetime points" />
             </div>
           </>
         ) : (

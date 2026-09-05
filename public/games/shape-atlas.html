@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Shape Atlas</title>
+<title>Outline Guesser</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Chakra+Petch:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
 <style>
@@ -3437,7 +3437,7 @@
   </div>
 
   <div class="masthead">
-    <h1>Shape Atlas</h1>
+    <h1>Outline Guesser</h1>
     <p class="sub" id="fileLabel">Today's Territory</p>
   </div>
 
@@ -3825,7 +3825,7 @@ function loadHiresShape(code){
   if(hiresShapeCache.has(code)) return hiresShapeCache.get(code);
   const promise = fetch('/games/shape-atlas-countries/' + code + '.json')
     .then(res => { if(!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
-    .catch(err => { console.error('Shape Atlas: failed to load hi-res shape for ' + code, err); return null; });
+    .catch(err => { console.error('Outline Guesser: failed to load hi-res shape for ' + code, err); return null; });
   hiresShapeCache.set(code, promise);
   return promise;
 }
@@ -4183,7 +4183,7 @@ closeSummaryBtn.addEventListener('click', () => {
 });
 copyResultBtn.addEventListener('click', () => {
   const day = dayNumber();
-  const text = 'Shape Atlas #' + day + ' — ' + (run.solved ? run.guessesUsed + '/' + MAX_GUESSES : 'X/' + MAX_GUESSES) + '\n' + resultGridString();
+  const text = 'Outline Guesser #' + day + ' — ' + (run.solved ? run.guessesUsed + '/' + MAX_GUESSES : 'X/' + MAX_GUESSES) + '\n' + resultGridString();
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(text).then(() => {
       copyResultBtn.textContent = 'Copied!';

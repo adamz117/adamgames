@@ -35,7 +35,7 @@ export const GAMES: GameRegistryEntry[] = [
   },
   {
     id: 'shape-atlas',
-    title: 'Shape Atlas',
+    title: 'Outline Guesser',
     description: 'Name the country by its outline, then watch it drop into place on the map.',
     href: '/games/shape-atlas',
     summarize: (stats) => {

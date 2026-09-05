@@ -48,7 +48,7 @@ export default function ShapeAtlasPage() {
         height: 'calc(100dvh - 65px)',
         border: 'none',
       }}
-      title="Shape Atlas"
+      title="Outline Guesser"
     />
   );
 }
