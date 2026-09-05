@@ -3659,6 +3659,59 @@ const collection = loadCollection();
 let run = loadState() || freshRun('daily');
 let geometry = null;
 
+const smoothedPathCache = new Map();
+let measurePathEl = null;
+
+// The country outlines are traced for a small world-map thumbnail, so
+// they're low-poly (a Djibouti-sized country is ~15 straight segments).
+// Blown up to fill the guessing pedestal, every facet reads as a visible
+// jagged edge. Resample each subpath into a dense point cloud and round
+// its corners (Chaikin cutting) so it reads as a smooth coastline instead
+// of a low-poly silhouette, without touching the underlying geometry data
+// (position/bbox stay effectively the same, so the map and the fly-to-
+// map landing spot are unaffected).
+function smoothPathData(d){
+  if(smoothedPathCache.has(d)) return smoothedPathCache.get(d);
+
+  if(!measurePathEl){
+    measurePathEl = document.createElementNS(SVG_NS, 'path');
+    measurePathEl.setAttribute('visibility', 'hidden');
+    mapCountriesEl.appendChild(measurePathEl);
+  }
+
+  const subpaths = d.match(/[Mm][^Mm]*/g) || [d];
+  const smoothedSubpaths = subpaths.map(sub => {
+    measurePathEl.setAttribute('d', sub);
+    const len = measurePathEl.getTotalLength();
+    if(!len) return '';
+    const numPoints = Math.max(20, Math.min(240, Math.round(len / 2.5)));
+    let points = [];
+    for(let i = 0; i < numPoints; i++){
+      const p = measurePathEl.getPointAtLength((i / numPoints) * len);
+      points.push([p.x, p.y]);
+    }
+    for(let pass = 0; pass < 2; pass++){
+      const next = [];
+      const n = points.length;
+      for(let i = 0; i < n; i++){
+        const p0 = points[i];
+        const p1 = points[(i + 1) % n];
+        next.push([p0[0] * 0.75 + p1[0] * 0.25, p0[1] * 0.75 + p1[1] * 0.25]);
+        next.push([p0[0] * 0.25 + p1[0] * 0.75, p0[1] * 0.25 + p1[1] * 0.75]);
+      }
+      points = next;
+    }
+    const first = points[0];
+    const rest = points.slice(1);
+    return 'M' + first[0].toFixed(2) + ',' + first[1].toFixed(2) + 'L' +
+      rest.map(p => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join('L') + 'Z';
+  });
+
+  const result = smoothedSubpaths.join(' ');
+  smoothedPathCache.set(d, result);
+  return result;
+}
+
 function computeGeometry(code){
   const country = byCode[code];
   silhouettePathEl.setAttribute('d', country.d);
@@ -3672,8 +3725,10 @@ function computeGeometry(code){
 
 function renderSilhouette(code){
   geometry = computeGeometry(code);
+  const smoothD = smoothPathData(byCode[code].d);
   silhouetteSvgEl.setAttribute('viewBox', geometry.viewBox);
-  silhouetteClipPathEl.setAttribute('d', byCode[code].d);
+  silhouettePathEl.setAttribute('d', smoothD);
+  silhouetteClipPathEl.setAttribute('d', smoothD);
   silhouetteFlagGroupEl.innerHTML = '';
   silhouetteFlagGroupEl.classList.remove('is-visible');
 }
@@ -3716,6 +3771,7 @@ function drawMapBase(){
 function placeFlagOnMap(code, opts){
   opts = opts || {};
   const country = byCode[code];
+  const smoothD = smoothPathData(country.d);
   const existing = document.getElementById('mapflag-' + code);
   if(existing) existing.remove();
 
@@ -3725,13 +3781,13 @@ function placeFlagOnMap(code, opts){
     clip = document.createElementNS(SVG_NS, 'clipPath');
     clip.setAttribute('id', clipId);
     const clipPath = document.createElementNS(SVG_NS, 'path');
-    clipPath.setAttribute('d', country.d);
+    clipPath.setAttribute('d', smoothD);
     clip.appendChild(clipPath);
     document.getElementById('flagDefs').appendChild(clip);
   }
 
   const measurePath = document.createElementNS(SVG_NS, 'path');
-  measurePath.setAttribute('d', country.d);
+  measurePath.setAttribute('d', smoothD);
   measurePath.setAttribute('visibility', 'hidden');
   mapCountriesEl.appendChild(measurePath);
   const bbox = measurePath.getBBox();
@@ -3907,10 +3963,11 @@ function showSummary(){
   const target = byCode[run.code];
   summaryHeadingEl.textContent = run.solved ? 'Country identified' : 'Territory lost';
   const g = computeGeometry(run.code);
+  const smoothD = smoothPathData(target.d);
   const svgEl = summaryPathEl.closest('svg');
   svgEl.setAttribute('viewBox', g.viewBox);
-  summaryClipPathEl.setAttribute('d', target.d);
-  summaryPathEl.setAttribute('d', target.d);
+  summaryClipPathEl.setAttribute('d', smoothD);
+  summaryPathEl.setAttribute('d', smoothD);
   summaryFlagGroupEl.innerHTML = run.solved ? flagUseMarkup(run.code, g.bbox) : '';
   summaryCountryEl.textContent = target.name;
   summaryMetaEl.textContent = tierLabel() + ' · ' + run.score + ' pts';
