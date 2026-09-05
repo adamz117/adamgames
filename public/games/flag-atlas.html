@@ -168,6 +168,24 @@
     100%{box-shadow:0 0 0 rgba(201,154,75,0);}
   }
 
+  .home-btn{
+    position:absolute;
+    bottom:24px;
+    right:28px;
+    z-index:2;
+    width:32px;
+    height:32px;
+    border-radius:50%;
+    border:1.5px solid var(--brass);
+    background:rgba(16,31,44,.82);
+    color:var(--parchment-dim);
+    backdrop-filter:blur(2px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-decoration:none;
+  }
+
   .legend{
     position:absolute;
     bottom:24px;
@@ -428,6 +446,7 @@
     .masthead{left:16px;top:16px;}
     .gauge{right:16px;top:16px;padding:8px 12px;}
     .legend{left:16px;bottom:16px;}
+    .home-btn{right:16px;bottom:16px;}
     .stage{padding:16px;}
   }
 
@@ -4498,6 +4517,10 @@
     <span class="legend-item"><i class="dot dot-wrong"></i>Missed</span>
     <span class="legend-item"><i class="dot dot-unplayed"></i>Uncharted</span>
   </div>
+
+  <a class="home-btn" href="/" target="_top" aria-label="Back to Adam Games home" title="Back to home">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+  </a>
 
   <main class="panel" id="panel">
     <div class="porthole-wrap" id="portholeWrap" title="Drag to move, corner to resize">

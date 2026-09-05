@@ -114,6 +114,19 @@
     align-items:center;
     gap:8px;
   }
+  .home-btn{
+    width:32px;
+    height:32px;
+    flex:none;
+    border-radius:6px;
+    border:1.5px solid var(--panel-border);
+    background:var(--panel);
+    color:var(--text-dim);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-decoration:none;
+  }
   .mute-btn{
     width:32px;
     height:32px;
@@ -3442,6 +3455,9 @@
   </div>
 
   <div class="gauge-cluster">
+    <a class="home-btn" href="/" target="_top" aria-label="Back to Adam Games home" title="Back to home">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+    </a>
     <button class="mute-btn" id="muteBtn" type="button" aria-label="Toggle sound" title="Toggle sound"></button>
     <div class="gauge" id="scoreGauge">
       <div class="gauge-label">Score</div>
@@ -4179,7 +4195,8 @@ inputEl.addEventListener('keydown', (e) => {
   }
 });
 closeSummaryBtn.addEventListener('click', () => {
-  window.top.location.href = '/';
+  summaryEl.classList.add('hidden');
+  stopCountdown();
 });
 copyResultBtn.addEventListener('click', () => {
   const day = dayNumber();
