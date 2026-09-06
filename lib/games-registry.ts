@@ -90,4 +90,18 @@ export const GAMES: GameRegistryEntry[] = [
       return `Day ${day}: ${score}/5 · ${streak} day streak`;
     },
   },
+  {
+    id: 'number-cruncher',
+    title: 'Number Cruncher',
+    description: 'Wordle for math — guess the hidden equation in six tries.',
+    href: '/games/number-cruncher',
+    summarize: (stats) => {
+      if (!stats) return 'Not played yet';
+      const day = Number(stats.dayNumber ?? 0);
+      const solved = Boolean(stats.solved);
+      const streak = Number(stats.streak ?? 0);
+      if (!day) return 'Not played yet';
+      return solved ? `Day ${day}: solved · ${streak} day streak` : `Day ${day}: missed today`;
+    },
+  },
 ];

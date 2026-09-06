@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Number Cruncher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --screen:#0d1f16;
+    --screen-deep:#081209;
+    --panel:#132a1c;
+    --panel-border:#2f5a3d;
+    --lcd:#8affc1;
+    --lcd-bright:#c8ffe0;
+    --lcd-dim:rgba(138,255,193,.16);
+    --text:#dafff0;
+    --text-dim:#6f9880;
+    --present:#e0a83d;
+    --present-bright:#f0c268;
+    --absent:#2a4534;
+    --absent-bright:#3c5c48;
+    --danger:#ff6b6b;
+    --font-display:'VT323',monospace;
+    --font-body:'Space Grotesk','Helvetica Neue',Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:
+      radial-gradient(circle at 15% 0%, rgba(138,255,193,.08) 0%, transparent 45%),
+      var(--screen-deep);
+    color:var(--text);
+    font-family:var(--font-body);
+    -webkit-tap-highlight-color:transparent;
+    user-select:none;
+  }
+  .stage{
+    position:relative;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:14px 12px 10px;
+  }
+  header{
+    width:100%;
+    max-width:460px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:2px solid var(--panel-border);
+    padding-bottom:10px;
+    margin-bottom:6px;
+  }
+  .title-block h1{
+    font-family:var(--font-display);
+    font-size:28px;
+    letter-spacing:.03em;
+    margin:0;
+    color:var(--lcd-bright);
+    text-shadow:0 0 14px rgba(138,255,193,.4);
+  }
+  .title-block p{
+    margin:2px 0 0;
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+  }
+  .header-right{display:flex;align-items:center;gap:8px;}
+  .streak-badge{
+    display:flex;align-items:center;gap:4px;
+    font-weight:700;font-size:13px;
+    color:var(--present-bright);
+    background:rgba(224,168,61,.14);
+    border:1px solid var(--present);
+    border-radius:999px;
+    padding:4px 10px;
+  }
+  .home-btn,.mute-btn{
+    width:32px;height:32px;
+    border-radius:6px;
+    border:1.5px solid var(--panel-border);
+    background:var(--panel);
+    color:var(--text-dim);
+    display:flex;align-items:center;justify-content:center;
+    text-decoration:none;
+    cursor:pointer;
+  }
+  .mute-btn.is-muted::after{content:'\1F507';}
+  .mute-btn::after{content:'\1F50A';}
+
+  .feedback{
+    min-height:20px;
+    font-size:13px;
+    font-weight:700;
+    color:var(--danger);
+    text-align:center;
+    margin:8px 0 2px;
+  }
+
+  .board{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    width:min(420px,96vw);
+    margin:8px auto 14px;
+  }
+  .board-row{
+    display:grid;
+    grid-template-columns:repeat(8,1fr);
+    gap:4px;
+  }
+  .board-row.is-shaking{animation:tileShake 480ms ease;}
+  @keyframes tileShake{
+    10%,90%{transform:translateX(-2px);}
+    20%,80%{transform:translateX(3px);}
+    30%,50%,70%{transform:translateX(-5px);}
+    40%,60%{transform:translateX(5px);}
+  }
+  .tile{
+    aspect-ratio:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:var(--font-display);
+    font-size:clamp(16px,5.6vw,26px);
+    color:var(--text);
+    background:var(--panel);
+    border:2px solid var(--panel-border);
+    border-radius:5px;
+    transition:border-color 120ms ease,transform 80ms ease;
+  }
+  .tile.is-filled{border-color:var(--text-dim);transform:scale(1.03);}
+  .tile.is-flipping{animation:tileFlip 460ms ease;}
+  @keyframes tileFlip{
+    0%{transform:rotateX(0);}
+    50%{transform:rotateX(90deg);}
+    100%{transform:rotateX(0);}
+  }
+  .tile.correct{background:var(--lcd);border-color:var(--lcd);color:#08210f;}
+  .tile.present{background:var(--present);border-color:var(--present);color:#2a1a00;}
+  .tile.absent{background:var(--absent);border-color:var(--absent);color:var(--text-dim);}
+
+  .keyboard{
+    width:100%;
+    max-width:460px;
+    margin-top:auto;
+    padding:6px 0 10px;
+  }
+  .keyboard-row{
+    display:flex;
+    justify-content:center;
+    gap:6px;
+    margin-bottom:7px;
+  }
+  .key{
+    flex:1;
+    max-width:40px;
+    height:46px;
+    border:1.5px solid var(--panel-border);
+    border-radius:5px;
+    background:var(--panel);
+    color:var(--text);
+    font-family:var(--font-display);
+    font-weight:400;
+    font-size:18px;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    transition:background 120ms ease,transform 80ms ease;
+  }
+  .key:active{transform:scale(.92);}
+  .key.key-wide{max-width:64px;font-family:var(--font-body);font-size:11px;font-weight:700;}
+  .key.correct{background:var(--lcd);border-color:var(--lcd);color:#08210f;}
+  .key.present{background:var(--present);border-color:var(--present);color:#2a1a00;}
+  .key.absent{background:var(--absent-bright);border-color:var(--absent-bright);color:var(--text-dim);}
+
+  .summary{
+    position:absolute;
+    inset:0;
+    z-index:5;
+    background:rgba(8,18,9,.85);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .summary.hidden{display:none;}
+  .summary-card{
+    width:min(420px,100%);
+    max-height:88vh;
+    overflow-y:auto;
+    background:var(--panel);
+    border:2px solid var(--lcd);
+    border-radius:10px;
+    padding:26px 28px;
+    text-align:center;
+    box-shadow:0 0 60px -10px rgba(138,255,193,.2);
+  }
+  .summary-card h2{
+    font-family:var(--font-display);
+    font-size:28px;
+    letter-spacing:.02em;
+    margin:0 0 8px;
+    color:var(--lcd-bright);
+  }
+  .summary-word{
+    font-family:var(--font-display);
+    font-size:26px;
+    letter-spacing:.08em;
+    margin:4px 0;
+    color:var(--text);
+  }
+  .summary-meta{font-size:13px;color:var(--text-dim);margin:0 0 14px;}
+  .result-grid{font-family:monospace;font-size:20px;line-height:1.3;white-space:pre;margin:0 0 18px;}
+  .summary-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+  .summary-actions button{
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:13px;
+    border-radius:6px;
+    padding:11px 18px;
+    cursor:pointer;
+  }
+  #copyResultBtn{background:var(--lcd);color:#08210f;border:1px solid var(--lcd);}
+  #copyResultBtn:hover{background:var(--lcd-bright);}
+  #closeSummaryBtn{background:transparent;color:var(--text-dim);border:1px solid var(--panel-border);}
+
+  .countdown-block{
+    margin-top:18px;
+    padding-top:16px;
+    border-top:1px solid var(--panel-border);
+    text-align:center;
+  }
+  .countdown-label{font-size:12px;color:var(--text-dim);margin:0 0 8px;}
+  .countdown-timer{
+    font-family:var(--font-display);
+    font-size:28px;
+    letter-spacing:.05em;
+    color:var(--lcd-bright);
+    margin:0;
+  }
+  .countdown-sub{font-size:10px;color:var(--text-dim);margin:6px 0 0;}
+
+  @media (prefers-reduced-motion: reduce){
+    .tile.is-flipping,.board-row.is-shaking{animation:none!important;}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <header>
+    <div class="title-block">
+      <h1>Number Cruncher</h1>
+      <p id="dayLabel">Day 1</p>
+    </div>
+    <div class="header-right">
+      <a class="home-btn" href="/" target="_top" aria-label="Back to Adam Games home" title="Back to home">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      </a>
+      <div class="streak-badge">🔥 <span id="streakCount">0</span></div>
+      <button class="mute-btn" id="muteBtn" type="button" aria-label="Toggle sound" title="Toggle sound"></button>
+    </div>
+  </header>
+
+  <div class="feedback" id="feedback"></div>
+  <div class="board" id="board"></div>
+  <div class="keyboard" id="keyboard"></div>
+
+  <div class="summary hidden" id="summary">
+    <div class="summary-card">
+      <h2 id="summaryTitle">Solved!</h2>
+      <div class="summary-word" id="summaryWord"></div>
+      <p class="summary-meta" id="summaryMeta"></p>
+      <div class="result-grid" id="resultGrid"></div>
+      <div class="summary-actions">
+        <button id="copyResultBtn">Copy Result</button>
+        <button id="closeSummaryBtn">Close</button>
+      </div>
+      <div class="countdown-block">
+        <p class="countdown-label">You've already crunched today's equation</p>
+        <p class="countdown-timer" id="countdownTimer">--:--:--</p>
+        <p class="countdown-sub">until the next one unlocks</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const WIDTH = 8;
+const MAX_GUESSES = 6;
+const STORAGE_KEY = 'number-cruncher-state-v1';
+const STREAK_KEY = 'number-cruncher-streak-v1';
+const SOUND_KEY = 'number-cruncher-sound-v1';
+const TIER_MESSAGE = {1:'Genius',2:'Magnificent',3:'Impressive',4:'Splendid',5:'Great',6:'Phew'};
+const KEYBOARD_ROWS = [
+  ['1','2','3','4','5'],
+  ['6','7','8','9','0'],
+  ['+','-','*','/','='],
+  ['Enter','Backspace'],
+];
+const KEY_DISPLAY = { '*':'×', '/':'÷' };
+const RANK = {absent:0,present:1,correct:2};
+
+const dayLabelEl = document.getElementById('dayLabel');
+const streakCountEl = document.getElementById('streakCount');
+const feedbackEl = document.getElementById('feedback');
+const boardEl = document.getElementById('board');
+const keyboardEl = document.getElementById('keyboard');
+const muteBtnEl = document.getElementById('muteBtn');
+const summaryEl = document.getElementById('summary');
+const summaryTitleEl = document.getElementById('summaryTitle');
+const summaryWordEl = document.getElementById('summaryWord');
+const summaryMetaEl = document.getElementById('summaryMeta');
+const resultGridEl = document.getElementById('resultGrid');
+const copyResultBtn = document.getElementById('copyResultBtn');
+const closeSummaryBtn = document.getElementById('closeSummaryBtn');
+const countdownTimerEl = document.getElementById('countdownTimer');
+
+function dayNumber(){
+  const epoch = Date.UTC(2026, 0, 1);
+  const now = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
+  return Math.floor((now - epoch) / 86400000) + 1;
+}
+
+function makeRand(seed){
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+function randInt(rand, min, max){
+  return min + Math.floor(rand() * (max - min + 1));
+}
+function digitsOf(n){ return String(Math.abs(n)).length; }
+
+const COMBOS = {
+  '+': [[2,2,3],[1,2,2],[2,1,2],[1,1,1],[2,2,2],[1,3,3],[3,1,3],[1,2,3],[2,1,3],[3,2,4],[2,3,4]],
+  '-': [[2,2,2],[3,2,2],[2,3,2],[1,2,1],[2,1,1],[3,3,3],[2,2,1],[1,1,1],[3,2,3],[3,3,2]],
+  '*': [[1,2,3],[2,1,3],[1,3,3],[3,1,3],[1,1,2],[1,3,4],[3,1,4]],
+  '/': [[3,1,2],[2,1,1],[3,2,1],[2,2,1],[4,1,3],[3,1,3],[4,2,2]],
+};
+function genForLen(rand, len){
+  if(len === 1) return randInt(rand, 1, 9);
+  const min = Math.pow(10, len - 1), max = Math.pow(10, len) - 1;
+  return randInt(rand, min, max);
+}
+function tryCombo(rand, op, lenA, lenB, lenC, attempts){
+  for(let i = 0; i < attempts; i++){
+    let a = genForLen(rand, lenA);
+    let b = genForLen(rand, lenB);
+    let c;
+    if(op === '+'){ c = a + b; }
+    else if(op === '-'){
+      if(a < b){ const t = a; a = b; b = t; }
+      c = a - b;
+    } else if(op === '*'){ c = a * b; }
+    else if(op === '/'){
+      b = genForLen(rand, lenB);
+      c = genForLen(rand, lenC);
+      a = b * c;
+      if(digitsOf(a) !== lenA) continue;
+      const str = a + '/' + b + '=' + c;
+      if(str.length === WIDTH) return { a: a, op: op, b: b, c: c, str: str };
+      continue;
+    }
+    if(digitsOf(a) !== lenA || digitsOf(b) !== lenB || digitsOf(c) !== lenC) continue;
+    if(op === '-' && a === b) continue;
+    const str = a + op + b + '=' + c;
+    if(str.length === WIDTH) return { a: a, op: op, b: b, c: c, str: str };
+  }
+  return null;
+}
+function generateDaily(day){
+  const rand = makeRand((day * 2654435761) >>> 0);
+  const ops = ['+', '-', '*', '/'];
+  const opOrder = ops.slice().sort(() => rand() - 0.5);
+  for(const op of opOrder){
+    const combos = COMBOS[op];
+    for(const combo of combos){
+      const result = tryCombo(rand, op, combo[0], combo[1], combo[2], 60);
+      if(result) return result;
+    }
+  }
+  return { a: 1, op: '+', b: 1, c: 2, str: '0001+1=2' };
+}
+
+function parseEquation(str){
+  const m = str.match(/^(\d+)([+\-*/])(\d+)=(\d+)$/);
+  if(!m) return null;
+  const a = parseInt(m[1], 10), op = m[2], b = parseInt(m[3], 10), c = parseInt(m[4], 10);
+  let computed;
+  if(op === '+') computed = a + b;
+  else if(op === '-') computed = a - b;
+  else if(op === '*') computed = a * b;
+  else if(op === '/') computed = b !== 0 ? a / b : NaN;
+  if(computed !== c) return null;
+  return { a: a, op: op, b: b, c: c };
+}
+
+function freshRun(){
+  const day = dayNumber();
+  const eq = generateDaily(day);
+  return { day: day, target: eq.str, guesses: [], finished: false, solved: false, guessesUsed: 0 };
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return freshRun();
+    const parsed = JSON.parse(raw);
+    if(parsed.day !== dayNumber()) return freshRun();
+    return parsed;
+  }catch(e){ return freshRun(); }
+}
+function saveState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(run)); }catch(e){}
+}
+
+function loadStreak(){
+  try{
+    const parsed = JSON.parse(localStorage.getItem(STREAK_KEY));
+    if(parsed && typeof parsed.current === 'number') return parsed;
+  }catch(e){}
+  return { current: 0, lastSolvedDay: 0 };
+}
+function saveStreak(s){
+  try{ localStorage.setItem(STREAK_KEY, JSON.stringify(s)); }catch(e){}
+}
+
+let soundEnabled = true;
+try{ soundEnabled = localStorage.getItem(SOUND_KEY) !== '0'; }catch(e){}
+let audioCtx = null;
+function ensureAudioCtx(){
+  if(!audioCtx){
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return null;
+    try{ audioCtx = new Ctx(); }catch(e){ return null; }
+  }
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playTone(freq, offset, duration, type, peakVol){
+  if(!soundEnabled) return;
+  const ctx = ensureAudioCtx();
+  if(!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+  const t0 = ctx.currentTime + (offset || 0);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(peakVol != null ? peakVol : 0.16, t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+function playSweep(freqStart, freqEnd, offset, duration, type, peakVol){
+  if(!soundEnabled) return;
+  const ctx = ensureAudioCtx();
+  if(!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sawtooth';
+  const t0 = ctx.currentTime + (offset || 0);
+  osc.frequency.setValueAtTime(freqStart, t0);
+  osc.frequency.exponentialRampToValueAtTime(freqEnd, t0 + duration);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(peakVol != null ? peakVol : 0.14, t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+function playKeySound(){ playTone(500, 0, 0.035, 'square', 0.05); }
+function playInvalidSound(){ playTone(180, 0, 0.15, 'sawtooth', 0.11); }
+function playTileSound(status){
+  if(status === 'correct') playTone(600, 0, 0.09, 'triangle', 0.14);
+  else if(status === 'present') playTone(440, 0, 0.08, 'triangle', 0.12);
+  else playTone(220, 0, 0.06, 'sine', 0.07);
+}
+function playWinSound(){
+  playTone(523, 0, 0.12, 'triangle', 0.16);
+  playTone(659, 0.1, 0.12, 'triangle', 0.16);
+  playTone(784, 0.2, 0.22, 'triangle', 0.18);
+}
+function playLoseSound(){ playSweep(300, 120, 0, 0.4, 'sawtooth', 0.12); }
+function updateMuteButton(){ muteBtnEl.classList.toggle('is-muted', !soundEnabled); }
+muteBtnEl.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  try{ localStorage.setItem(SOUND_KEY, soundEnabled ? '1' : '0'); }catch(e){}
+  updateMuteButton();
+  if(soundEnabled){ ensureAudioCtx(); playKeySound(); }
+});
+updateMuteButton();
+
+function computeFeedback(guess, target){
+  const result = new Array(WIDTH).fill('absent');
+  const counts = {};
+  for(let i = 0; i < WIDTH; i++){
+    const ch = target[i];
+    counts[ch] = (counts[ch] || 0) + 1;
+  }
+  for(let i = 0; i < WIDTH; i++){
+    if(guess[i] === target[i]){ result[i] = 'correct'; counts[guess[i]]--; }
+  }
+  for(let i = 0; i < WIDTH; i++){
+    if(result[i] === 'correct') continue;
+    const ch = guess[i];
+    if(counts[ch] > 0){ result[i] = 'present'; counts[ch]--; }
+  }
+  return result;
+}
+
+let run = loadState();
+let currentGuess = '';
+
+const tileRows = [];
+for(let r = 0; r < MAX_GUESSES; r++){
+  const rowEl = document.createElement('div');
+  rowEl.className = 'board-row';
+  const tiles = [];
+  for(let c = 0; c < WIDTH; c++){
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    rowEl.appendChild(tile);
+    tiles.push(tile);
+  }
+  boardEl.appendChild(rowEl);
+  tileRows.push(tiles);
+}
+
+const keyEls = {};
+KEYBOARD_ROWS.forEach(row => {
+  const rowEl = document.createElement('div');
+  rowEl.className = 'keyboard-row';
+  row.forEach(k => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const isWide = k === 'Enter' || k === 'Backspace';
+    btn.className = 'key' + (isWide ? ' key-wide' : '');
+    btn.textContent = k === 'Backspace' ? '⌫' : (KEY_DISPLAY[k] || k);
+    btn.addEventListener('click', () => handleKey(k));
+    rowEl.appendChild(btn);
+    if(k.length === 1) keyEls[k] = btn;
+  });
+  keyboardEl.appendChild(rowEl);
+});
+
+function renderBoard(){
+  for(let r = 0; r < MAX_GUESSES; r++){
+    const tiles = tileRows[r];
+    if(r < run.guesses.length){
+      const g = run.guesses[r];
+      for(let c = 0; c < WIDTH; c++){
+        tiles[c].textContent = KEY_DISPLAY[g.word[c]] || g.word[c];
+        tiles[c].className = 'tile is-filled ' + g.feedback[c];
+      }
+    } else if(r === run.guesses.length && !run.finished){
+      for(let c = 0; c < WIDTH; c++){
+        const ch = currentGuess[c] || '';
+        tiles[c].textContent = KEY_DISPLAY[ch] || ch;
+        tiles[c].className = 'tile' + (ch ? ' is-filled' : '');
+      }
+    } else {
+      for(let c = 0; c < WIDTH; c++){
+        tiles[c].textContent = '';
+        tiles[c].className = 'tile';
+      }
+    }
+  }
+}
+
+function updateKeyboardColors(word, feedback){
+  const keyState = updateKeyboardColors.state || (updateKeyboardColors.state = {});
+  for(let i = 0; i < word.length; i++){
+    const ch = word[i], status = feedback[i];
+    if(!keyState[ch] || RANK[status] > RANK[keyState[ch]]){
+      keyState[ch] = status;
+      const keyEl = keyEls[ch];
+      if(keyEl) keyEl.className = 'key ' + status;
+    }
+  }
+}
+
+function shakeRow(rowIndex){
+  const rowEl = boardEl.children[rowIndex];
+  rowEl.classList.remove('is-shaking');
+  void rowEl.offsetWidth;
+  rowEl.classList.add('is-shaking');
+  playInvalidSound();
+}
+
+function showMessage(text){
+  feedbackEl.textContent = text;
+  clearTimeout(showMessage.timer);
+  showMessage.timer = setTimeout(() => { feedbackEl.textContent = ''; }, 1800);
+}
+
+function animateRowFlip(rowIndex, word, feedback, onDone){
+  const tiles = tileRows[rowIndex];
+  const FLIP_MS = 460;
+  const STAGGER = 180;
+  tiles.forEach((tile, i) => {
+    setTimeout(() => {
+      tile.classList.add('is-flipping');
+      setTimeout(() => {
+        const ch = word[i];
+        tile.textContent = KEY_DISPLAY[ch] || ch;
+        tile.className = 'tile is-filled is-flipping ' + feedback[i];
+        playTileSound(feedback[i]);
+      }, FLIP_MS / 2);
+      setTimeout(() => { tile.classList.remove('is-flipping'); }, FLIP_MS);
+    }, i * STAGGER);
+  });
+  setTimeout(onDone, (tiles.length - 1) * STAGGER + FLIP_MS + 60);
+}
+
+function submitGuess(){
+  if(run.finished) return;
+  if(currentGuess.length !== WIDTH){
+    showMessage('Not enough characters');
+    shakeRow(run.guesses.length);
+    return;
+  }
+  const parsed = parseEquation(currentGuess);
+  if(!parsed){
+    showMessage('Not a valid equation');
+    shakeRow(run.guesses.length);
+    return;
+  }
+  const word = currentGuess;
+  const feedback = computeFeedback(word, run.target);
+  const rowIndex = run.guesses.length;
+  run.guesses.push({ word: word, feedback: feedback });
+  updateKeyboardColors(word, feedback);
+  currentGuess = '';
+  animateRowFlip(rowIndex, word, feedback, () => {
+    const solved = word === run.target;
+    if(solved || run.guesses.length >= MAX_GUESSES){
+      run.finished = true;
+      run.solved = solved;
+      run.guessesUsed = run.guesses.length;
+      resolveRound();
+    } else {
+      saveState();
+    }
+  });
+}
+
+function handleKey(key){
+  if(run.finished) return;
+  if(key === 'Enter'){ submitGuess(); return; }
+  if(key === 'Backspace'){
+    currentGuess = currentGuess.slice(0, -1);
+    renderBoard();
+    return;
+  }
+  if(/^[0-9+\-*/=]$/.test(key) && currentGuess.length < WIDTH){
+    currentGuess += key;
+    renderBoard();
+    playKeySound();
+  }
+}
+document.addEventListener('keydown', (e) => {
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  if(e.key === 'Enter'){ handleKey('Enter'); return; }
+  if(e.key === 'Backspace'){ handleKey('Backspace'); return; }
+  if(e.key === 'x' || e.key === 'X'){ handleKey('*'); return; }
+  if(/^[0-9+\-*/=]$/.test(e.key)){ handleKey(e.key); }
+});
+
+function msUntilNextReset(){
+  const now = new Date();
+  const nextMidnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0);
+  return Math.max(0, nextMidnightUtc - now.getTime());
+}
+function formatCountdown(ms){
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+let countdownIntervalId = null;
+function startCountdown(){
+  stopCountdown();
+  const tick = () => { countdownTimerEl.textContent = formatCountdown(msUntilNextReset()); };
+  tick();
+  countdownIntervalId = setInterval(tick, 1000);
+}
+function stopCountdown(){
+  if(countdownIntervalId){ clearInterval(countdownIntervalId); countdownIntervalId = null; }
+}
+
+function resultGridString(){
+  return run.guesses.map(g => g.feedback.map(f => f === 'correct' ? '🟩' : f === 'present' ? '🟨' : '⬛').join('')).join('\n');
+}
+
+function reportStats(){
+  if(window.parent === window) return;
+  const streak = loadStreak();
+  window.parent.postMessage({
+    type: 'number-cruncher-progress',
+    solved: run.solved,
+    guessesUsed: run.guessesUsed,
+    dayNumber: run.day,
+    streak: streak.current,
+  }, window.location.origin);
+}
+
+function resolveRound(){
+  saveState();
+  const streak = loadStreak();
+  if(run.solved){
+    streak.current = (streak.lastSolvedDay === run.day - 1) ? streak.current + 1 : 1;
+    streak.lastSolvedDay = run.day;
+  } else {
+    streak.current = 0;
+  }
+  saveStreak(streak);
+  streakCountEl.textContent = streak.current;
+  reportStats();
+  if(run.solved) playWinSound(); else playLoseSound();
+  setTimeout(showSummary, run.solved ? 700 : 400);
+}
+
+function displayEquation(str){
+  return str.split('').map(ch => KEY_DISPLAY[ch] || ch).join('');
+}
+
+function showSummary(){
+  const streak = loadStreak();
+  summaryTitleEl.textContent = run.solved ? (TIER_MESSAGE[run.guessesUsed] || 'Solved!') : 'Out of guesses';
+  summaryWordEl.textContent = displayEquation(run.target);
+  summaryMetaEl.textContent = (run.solved ? 'Solved in ' + run.guessesUsed + '/6' : 'Better luck tomorrow')
+    + ' · ' + streak.current + ' day streak';
+  resultGridEl.textContent = resultGridString();
+  summaryEl.classList.remove('hidden');
+  startCountdown();
+}
+
+copyResultBtn.addEventListener('click', () => {
+  const text = 'Number Cruncher #' + run.day + ' ' + (run.solved ? run.guessesUsed + '/6' : 'X/6') + '\n\n' + resultGridString();
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(() => {
+      const original = copyResultBtn.textContent;
+      copyResultBtn.textContent = 'Copied!';
+      setTimeout(() => { copyResultBtn.textContent = original; }, 1500);
+    });
+  }
+});
+closeSummaryBtn.addEventListener('click', () => {
+  summaryEl.classList.add('hidden');
+  stopCountdown();
+});
+
+function setupRound(){
+  dayLabelEl.textContent = 'Day ' + run.day;
+  streakCountEl.textContent = loadStreak().current;
+  renderBoard();
+  run.guesses.forEach(g => updateKeyboardColors(g.word, g.feedback));
+  if(run.finished){
+    showSummary();
+  }
+}
+setupRound();
+</script>
+</body>
+</html>

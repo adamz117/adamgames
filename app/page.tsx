@@ -62,6 +62,7 @@ export default async function HomePage() {
   const guessWordStats = statsById['guess-the-word'];
   const threadsStats = statsById['common-threads'];
   const buzzerStats = statsById['brain-buzzer'];
+  const cruncherStats = statsById['number-cruncher'];
 
   const flagCorrectValue = flagStats
     ? `${Number(flagStats.correct ?? 0)} / ${Number(flagStats.totalCountries ?? 188)}`
@@ -71,6 +72,7 @@ export default async function HomePage() {
   const guessWordValue = guessWordStats ? `${Number(guessWordStats.streak ?? 0)} days` : 'Not played yet';
   const threadsValue = threadsStats ? `${Number(threadsStats.streak ?? 0)} days` : 'Not played yet';
   const buzzerValue = buzzerStats ? `${Number(buzzerStats.streak ?? 0)} days` : 'Not played yet';
+  const cruncherValue = cruncherStats ? `${Number(cruncherStats.streak ?? 0)} days` : 'Not played yet';
 
   return (
     <main style={{ position: 'relative', overflow: 'hidden' }}>
@@ -155,6 +157,7 @@ export default async function HomePage() {
               <StatCard game="Guess the Word" value={guessWordValue} metric="Daily streak" />
               <StatCard game="Common Threads" value={threadsValue} metric="Daily streak" />
               <StatCard game="Brain Buzzer" value={buzzerValue} metric="Daily streak" />
+              <StatCard game="Number Cruncher" value={cruncherValue} metric="Daily streak" />
             </div>
           </>
         ) : (
