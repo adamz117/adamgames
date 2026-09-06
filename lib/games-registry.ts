@@ -104,4 +104,18 @@ export const GAMES: GameRegistryEntry[] = [
       return solved ? `Day ${day}: solved · ${streak} day streak` : `Day ${day}: missed today`;
     },
   },
+  {
+    id: 'size-up',
+    title: 'Size Up',
+    description: 'Higher or lower? Chain together correct guesses before you break the streak.',
+    href: '/games/size-up',
+    summarize: (stats) => {
+      if (!stats) return 'Not played yet';
+      const day = Number(stats.dayNumber ?? 0);
+      const score = Number(stats.score ?? 0);
+      const streak = Number(stats.streak ?? 0);
+      if (!day) return 'Not played yet';
+      return `Day ${day}: chain of ${score} · ${streak} day streak`;
+    },
+  },
 ];

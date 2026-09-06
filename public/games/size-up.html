@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Size Up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#0a0e12;
+    --bg-deep:#050708;
+    --panel:#12181f;
+    --panel-border:#26313d;
+    --up:#00d97e;
+    --up-bright:#4dffb0;
+    --up-dim:rgba(0,217,126,.16);
+    --down:#ff4757;
+    --down-bright:#ff7a85;
+    --down-dim:rgba(255,71,87,.18);
+    --text:#e8edf2;
+    --text-dim:#7c8a99;
+    --gold:#f0c14b;
+    --gold-dim:rgba(240,193,75,.18);
+    --font-display:'Oswald',sans-serif;
+    --font-body:'Inter','Helvetica Neue',Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:
+      radial-gradient(circle at 15% 0%, rgba(0,217,126,.08) 0%, transparent 45%),
+      radial-gradient(circle at 85% 10%, rgba(255,71,87,.06) 0%, transparent 40%),
+      var(--bg-deep);
+    color:var(--text);
+    font-family:var(--font-body);
+    -webkit-tap-highlight-color:transparent;
+    user-select:none;
+  }
+  .stage{
+    position:relative;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:14px 14px 20px;
+  }
+  header{
+    width:100%;
+    max-width:460px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:2px solid var(--panel-border);
+    padding-bottom:10px;
+    margin-bottom:6px;
+  }
+  .title-block h1{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:26px;
+    letter-spacing:.02em;
+    margin:0;
+    color:var(--text);
+  }
+  .title-block p{
+    margin:2px 0 0;
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+  }
+  .header-right{display:flex;align-items:center;gap:8px;}
+  .streak-badge{
+    display:flex;align-items:center;gap:4px;
+    font-weight:700;font-size:13px;
+    color:var(--gold);
+    background:var(--gold-dim);
+    border:1px solid var(--gold);
+    border-radius:999px;
+    padding:4px 10px;
+  }
+  .home-btn,.mute-btn{
+    width:32px;height:32px;
+    border-radius:6px;
+    border:1.5px solid var(--panel-border);
+    background:var(--panel);
+    color:var(--text-dim);
+    display:flex;align-items:center;justify-content:center;
+    text-decoration:none;
+    cursor:pointer;
+  }
+  .mute-btn.is-muted::after{content:'\1F507';}
+  .mute-btn::after{content:'\1F50A';}
+
+  .category-label{
+    font-family:var(--font-display);
+    font-size:13px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin:14px 0 4px;
+    text-align:center;
+  }
+  .chain-score{
+    font-size:12px;
+    color:var(--text-dim);
+    margin-bottom:14px;
+  }
+  .chain-score span{color:var(--up-bright);font-weight:700;}
+
+  .compare-wrap{width:100%;max-width:420px;display:flex;flex-direction:column;align-items:center;}
+  .compare-card{
+    width:100%;
+    background:var(--panel);
+    border:1.5px solid var(--panel-border);
+    border-radius:12px;
+    padding:20px;
+    text-align:center;
+    transition:border-color 200ms ease,background 200ms ease;
+  }
+  .compare-card.flash-correct{border-color:var(--up);background:var(--up-dim);}
+  .compare-card.flash-wrong{border-color:var(--down);background:var(--down-dim);}
+  .item-name{
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:17px;
+    color:var(--text);
+    margin-bottom:8px;
+  }
+  .item-value{
+    font-family:var(--font-display);
+    font-size:32px;
+    font-weight:600;
+    color:var(--up-bright);
+  }
+  .item-value.is-hidden{color:var(--text-dim);font-size:26px;}
+
+  .vs-divider{
+    font-family:var(--font-display);
+    font-size:13px;
+    letter-spacing:.1em;
+    color:var(--text-dim);
+    margin:10px 0;
+  }
+
+  .guess-buttons{
+    display:flex;
+    gap:12px;
+    width:100%;
+    margin-top:16px;
+  }
+  .guess-btn{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    padding:16px;
+    border-radius:10px;
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:16px;
+    letter-spacing:.03em;
+    cursor:pointer;
+    border:1.5px solid;
+    transition:transform 80ms ease;
+  }
+  .guess-btn:active:not(:disabled){transform:scale(.96);}
+  .guess-btn:disabled{opacity:.5;cursor:default;}
+  .higher-btn{background:var(--up-dim);border-color:var(--up);color:var(--up-bright);}
+  .lower-btn{background:var(--down-dim);border-color:var(--down);color:var(--down-bright);}
+
+  .feedback{
+    min-height:20px;
+    font-size:13px;
+    font-weight:700;
+    color:var(--text-dim);
+    text-align:center;
+    margin-top:14px;
+  }
+
+  .summary{
+    position:absolute;
+    inset:0;
+    z-index:5;
+    background:rgba(5,7,8,.85);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .summary.hidden{display:none;}
+  .summary-card{
+    width:min(420px,100%);
+    max-height:88vh;
+    overflow-y:auto;
+    background:var(--panel);
+    border:1.5px solid var(--gold);
+    border-radius:12px;
+    padding:28px;
+    text-align:center;
+    box-shadow:0 0 60px -10px rgba(240,193,75,.2);
+  }
+  .summary-card h2{
+    font-family:var(--font-display);
+    font-size:26px;
+    letter-spacing:.02em;
+    margin:0 0 8px;
+    color:var(--gold);
+  }
+  .summary-score{font-family:var(--font-display);font-size:22px;color:var(--text);margin:0 0 4px;}
+  .summary-meta{font-size:13px;color:var(--text-dim);margin:0 0 18px;}
+  .result-grid{font-size:22px;line-height:1.4;word-break:break-all;margin:0 0 18px;}
+  .summary-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+  .summary-actions button{
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:13px;
+    border-radius:6px;
+    padding:11px 18px;
+    cursor:pointer;
+  }
+  #copyResultBtn{background:var(--gold);color:#2a1d00;border:1px solid var(--gold);}
+  #copyResultBtn:hover{background:#f5cf6e;}
+  #closeSummaryBtn{background:transparent;color:var(--text-dim);border:1px solid var(--panel-border);}
+
+  .countdown-block{
+    margin-top:18px;
+    padding-top:16px;
+    border-top:1px solid var(--panel-border);
+    text-align:center;
+  }
+  .countdown-label{font-size:12px;color:var(--text-dim);margin:0 0 8px;}
+  .countdown-timer{
+    font-family:var(--font-display);
+    font-size:28px;
+    letter-spacing:.04em;
+    color:var(--gold);
+    margin:0;
+  }
+  .countdown-sub{font-size:10px;color:var(--text-dim);margin:6px 0 0;}
+</style>
+</head>
+<body>
+<div class="stage">
+  <header>
+    <div class="title-block">
+      <h1>Size Up</h1>
+      <p id="dayLabel">Day 1</p>
+    </div>
+    <div class="header-right">
+      <a class="home-btn" href="/" target="_top" aria-label="Back to Adam Games home" title="Back to home">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      </a>
+      <div class="streak-badge">🔥 <span id="streakCount">0</span></div>
+      <button class="mute-btn" id="muteBtn" type="button" aria-label="Toggle sound" title="Toggle sound"></button>
+    </div>
+  </header>
+
+  <div class="category-label" id="categoryLabel"></div>
+  <div class="chain-score">Chain: <span id="chainScore">0</span></div>
+
+  <div class="compare-wrap">
+    <div class="compare-card" id="baselineCard">
+      <div class="item-name" id="baselineName"></div>
+      <div class="item-value" id="baselineValue"></div>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="compare-card" id="challengeCard">
+      <div class="item-name" id="challengeName"></div>
+      <div class="item-value is-hidden" id="challengeValue">?</div>
+    </div>
+    <div class="guess-buttons">
+      <button class="guess-btn higher-btn" id="higherBtn" type="button">▲ Higher</button>
+      <button class="guess-btn lower-btn" id="lowerBtn" type="button">▼ Lower</button>
+    </div>
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <div class="summary hidden" id="summary">
+    <div class="summary-card">
+      <h2 id="summaryTitle">Perfect Chain!</h2>
+      <p class="summary-score" id="summaryScore"></p>
+      <p class="summary-meta" id="summaryMeta"></p>
+      <div class="result-grid" id="resultGrid"></div>
+      <div class="summary-actions">
+        <button id="copyResultBtn">Copy Result</button>
+        <button id="closeSummaryBtn">Close</button>
+      </div>
+      <div class="countdown-block">
+        <p class="countdown-label">You've already played today's chain</p>
+        <p class="countdown-timer" id="countdownTimer">--:--:--</p>
+        <p class="countdown-sub">until the next one unlocks</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CATEGORIES = {
+  'Country land area (km²)': [
+    ['Russia', 17098246], ['Canada', 9984670], ['United States', 9833517], ['China', 9596961],
+    ['Brazil', 8515767], ['Australia', 7692024], ['India', 3287263], ['Argentina', 2780400],
+    ['Kazakhstan', 2724900], ['Algeria', 2381741], ['DR Congo', 2344858], ['Saudi Arabia', 2149690],
+    ['Mexico', 1964375], ['Indonesia', 1904569], ['Sudan', 1861484], ['Libya', 1759540],
+    ['Iran', 1648195], ['Mongolia', 1564110], ['Peru', 1285216], ['Chad', 1284000],
+    ['Niger', 1267000], ['Angola', 1246700], ['Mali', 1240192], ['South Africa', 1221037],
+    ['Colombia', 1141748], ['Ethiopia', 1104300], ['Bolivia', 1098581], ['Mauritania', 1030700],
+    ['Egypt', 1002450], ['Tanzania', 947303], ['Nigeria', 923768], ['Venezuela', 916445],
+    ['Pakistan', 881913], ['Namibia', 825615], ['Mozambique', 799380], ['Turkey', 783562],
+    ['Chile', 756102], ['Zambia', 752618], ['Myanmar', 676578], ['Somalia', 637657],
+    ['Ukraine', 603550], ['Madagascar', 587041], ['Botswana', 581730], ['Kenya', 580367],
+    ['France', 551695], ['Thailand', 513120], ['Spain', 505990], ['Sweden', 450295],
+    ['Japan', 377975], ['Germany', 357114], ['Philippines', 300000], ['Italy', 301340],
+    ['New Zealand', 268021], ['United Kingdom', 243610], ['South Korea', 100210], ['Iceland', 103000],
+  ],
+  'Mountain height (m)': [
+    ['Mount Everest', 8849], ['K2', 8611], ['Kangchenjunga', 8586], ['Lhotse', 8516],
+    ['Makalu', 8485], ['Cho Oyu', 8188], ['Denali', 6190], ['Aconcagua', 6961],
+    ['Kilimanjaro', 5895], ['Mount Elbrus', 5642], ['Mount Kenya', 5199], ['Pikes Peak', 4302],
+    ['Mauna Kea', 4207], ['Mont Blanc', 4808], ['Mount Whitney', 4421], ['Mount Rainier', 4392],
+    ['The Matterhorn', 4478], ['Mount Etna', 3357], ['Mount Fuji', 3776], ['Mount Olympus', 2917],
+    ['Mount Kosciuszko', 2228], ['Mount Washington', 1917], ['Mount Vesuvius', 1281],
+    ['Ben Nevis', 1345], ['Table Mountain', 1085],
+  ],
+  'River length (km)': [
+    ['Nile', 6650], ['Amazon', 6400], ['Yangtze', 6300], ['Mississippi–Missouri', 6275],
+    ['Yenisei', 5539], ['Yellow River', 5464], ['Ob–Irtysh', 5410], ['Congo', 4700],
+    ['Amur', 4444], ['Lena', 4400], ['Mekong', 4350], ['Mackenzie', 4241],
+    ['Niger', 4180], ['Volga', 3531], ['Indus', 3180], ['Euphrates', 2800],
+    ['Danube', 2850], ['Zambezi', 2574], ['Ganges', 2525], ['Rhine', 1233], ['Thames', 346],
+  ],
+  'Famous structure height (m)': [
+    ['Burj Khalifa', 828], ['Shanghai Tower', 632], ['Makkah Royal Clock Tower', 601],
+    ['Ping An Finance Centre', 599], ['Lotte World Tower', 555], ['CN Tower', 553],
+    ['One World Trade Center', 541], ['Taipei 101', 508], ['Petronas Towers', 452],
+    ['Empire State Building', 443], ['Willis Tower', 442], ['Sydney Tower', 309],
+    ['Tokyo Tower', 333], ['Eiffel Tower', 330], ['Gateway Arch', 192],
+    ['Space Needle', 184], ['Great Pyramid of Giza', 146], ['Statue of Liberty', 93],
+    ['Big Ben (Elizabeth Tower)', 96], ['Leaning Tower of Pisa', 57],
+  ],
+  'Planet diameter (km)': [
+    ['Jupiter', 139820], ['Saturn', 116460], ['Uranus', 50724], ['Neptune', 49244],
+    ['Earth', 12742], ['Venus', 12104], ['Mars', 6779], ['Mercury', 4879],
+  ],
+  'Animal lifespan (years)': [
+    ['Greenland Shark', 300], ['Bowhead Whale', 200], ['Galapagos Tortoise', 100],
+    ['Sea Turtle', 80], ['Blue Whale', 70], ['Crocodile', 65], ['Elephant', 60],
+    ['Parrot (Macaw)', 50], ['Gorilla', 35], ['Chimpanzee', 32], ['Horse', 25],
+    ['Giraffe', 24], ['Polar Bear', 23], ['Grizzly Bear', 22], ['Dolphin', 20],
+    ['Eagle', 18], ['Tiger', 16], ['Cat (domestic)', 15], ['Owl', 14],
+    ['Lion', 13], ['Wolf', 12], ['Dog', 11], ['Sheep', 10], ['Cow', 9],
+    ['Kangaroo', 8], ['Rabbit', 7], ['Squirrel', 5], ['Mouse', 2],
+  ],
+  'Animal top speed (km/h)': [
+    ['Peregrine Falcon (dive)', 320], ['Cheetah', 120], ['Pronghorn Antelope', 98],
+    ['Springbok', 88], ['Lion', 80], ['Elk', 72], ['Greyhound', 70], ['Ostrich', 68],
+    ['Coyote', 69], ['Giraffe', 61], ['Hyena', 60], ['Warthog', 48], ['Rabbit', 56],
+    ['Grizzly Bear', 50], ['Cat (domestic)', 46], ['Human (sprinting)', 37],
+    ['Elephant', 32], ['Squirrel', 20], ['Chicken', 14], ['Sloth', 0.3], ['Garden Snail', 0.05],
+  ],
+};
+const CATEGORY_NAMES = Object.keys(CATEGORIES);
+const CHAIN_CAP = 16;
+
+const STORAGE_KEY = 'size-up-state-v1';
+const STREAK_KEY = 'size-up-streak-v1';
+const SOUND_KEY = 'size-up-sound-v1';
+
+const dayLabelEl = document.getElementById('dayLabel');
+const streakCountEl = document.getElementById('streakCount');
+const categoryLabelEl = document.getElementById('categoryLabel');
+const chainScoreEl = document.getElementById('chainScore');
+const baselineNameEl = document.getElementById('baselineName');
+const baselineValueEl = document.getElementById('baselineValue');
+const challengeCardEl = document.getElementById('challengeCard');
+const challengeNameEl = document.getElementById('challengeName');
+const challengeValueEl = document.getElementById('challengeValue');
+const higherBtn = document.getElementById('higherBtn');
+const lowerBtn = document.getElementById('lowerBtn');
+const feedbackEl = document.getElementById('feedback');
+const muteBtnEl = document.getElementById('muteBtn');
+const summaryEl = document.getElementById('summary');
+const summaryTitleEl = document.getElementById('summaryTitle');
+const summaryScoreEl = document.getElementById('summaryScore');
+const summaryMetaEl = document.getElementById('summaryMeta');
+const resultGridEl = document.getElementById('resultGrid');
+const copyResultBtn = document.getElementById('copyResultBtn');
+const closeSummaryBtn = document.getElementById('closeSummaryBtn');
+const countdownTimerEl = document.getElementById('countdownTimer');
+
+function dayNumber(){
+  const epoch = Date.UTC(2026, 0, 1);
+  const now = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
+  return Math.floor((now - epoch) / 86400000) + 1;
+}
+
+function seededShuffle(arr, seed){
+  const a = arr.slice();
+  let s = seed >>> 0;
+  const rand = () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function dailyCategoryIndex(){
+  const n = dayNumber() - 1;
+  const cycleIndex = Math.floor(n / CATEGORY_NAMES.length);
+  const dayInCycle = n % CATEGORY_NAMES.length;
+  const dealt = seededShuffle(CATEGORY_NAMES.map((_, i) => i), cycleIndex + 1);
+  return dealt[dayInCycle];
+}
+
+function buildSequence(day, categoryIndex){
+  const items = CATEGORIES[CATEGORY_NAMES[categoryIndex]].map(pair => ({ name: pair[0], value: pair[1] }));
+  const shuffled = seededShuffle(items, day * 7919 + 31);
+  return shuffled.slice(0, Math.min(CHAIN_CAP, shuffled.length));
+}
+
+function freshRun(){
+  const day = dayNumber();
+  const categoryIndex = dailyCategoryIndex();
+  const sequence = buildSequence(day, categoryIndex);
+  return {
+    day: day,
+    categoryIndex: categoryIndex,
+    sequence: sequence,
+    currentIndex: 1,
+    score: 0,
+    guesses: [],
+    finished: false,
+    solved: false,
+  };
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return freshRun();
+    const parsed = JSON.parse(raw);
+    if(parsed.day !== dayNumber()) return freshRun();
+    return parsed;
+  }catch(e){ return freshRun(); }
+}
+function saveState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(run)); }catch(e){}
+}
+
+function loadStreak(){
+  try{
+    const parsed = JSON.parse(localStorage.getItem(STREAK_KEY));
+    if(parsed && typeof parsed.current === 'number') return parsed;
+  }catch(e){}
+  return { current: 0, lastPlayedDay: 0 };
+}
+function saveStreak(s){
+  try{ localStorage.setItem(STREAK_KEY, JSON.stringify(s)); }catch(e){}
+}
+
+let soundEnabled = true;
+try{ soundEnabled = localStorage.getItem(SOUND_KEY) !== '0'; }catch(e){}
+let audioCtx = null;
+function ensureAudioCtx(){
+  if(!audioCtx){
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return null;
+    try{ audioCtx = new Ctx(); }catch(e){ return null; }
+  }
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playTone(freq, offset, duration, type, peakVol){
+  if(!soundEnabled) return;
+  const ctx = ensureAudioCtx();
+  if(!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+  const t0 = ctx.currentTime + (offset || 0);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(peakVol != null ? peakVol : 0.16, t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+function playSweep(freqStart, freqEnd, offset, duration, type, peakVol){
+  if(!soundEnabled) return;
+  const ctx = ensureAudioCtx();
+  if(!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sawtooth';
+  const t0 = ctx.currentTime + (offset || 0);
+  osc.frequency.setValueAtTime(freqStart, t0);
+  osc.frequency.exponentialRampToValueAtTime(freqEnd, t0 + duration);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(peakVol != null ? peakVol : 0.14, t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+function playCorrectSound(){
+  playTone(600, 0, 0.1, 'triangle', 0.15);
+  playTone(800, 0.08, 0.14, 'triangle', 0.16);
+}
+function playWrongSound(){ playTone(180, 0, 0.18, 'sawtooth', 0.12); }
+function playWinSound(){
+  playTone(523, 0, 0.12, 'triangle', 0.16);
+  playTone(659, 0.1, 0.12, 'triangle', 0.16);
+  playTone(784, 0.2, 0.22, 'triangle', 0.18);
+}
+function playLoseSound(){ playSweep(300, 140, 0, 0.4, 'sawtooth', 0.1); }
+function updateMuteButton(){ muteBtnEl.classList.toggle('is-muted', !soundEnabled); }
+muteBtnEl.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  try{ localStorage.setItem(SOUND_KEY, soundEnabled ? '1' : '0'); }catch(e){}
+  updateMuteButton();
+  if(soundEnabled){ ensureAudioCtx(); playCorrectSound(); }
+});
+updateMuteButton();
+
+let run = loadState();
+
+function formatValue(v){
+  if(v < 1) return v.toString();
+  return Math.round(v).toLocaleString();
+}
+
+function renderRound(){
+  const baseline = run.sequence[run.currentIndex - 1];
+  const challenge = run.sequence[run.currentIndex];
+  baselineNameEl.textContent = baseline.name;
+  baselineValueEl.textContent = formatValue(baseline.value);
+  challengeNameEl.textContent = challenge.name;
+  challengeValueEl.textContent = '?';
+  challengeValueEl.className = 'item-value is-hidden';
+  challengeCardEl.className = 'compare-card';
+  higherBtn.disabled = false;
+  lowerBtn.disabled = false;
+  chainScoreEl.textContent = run.score;
+}
+
+function handleGuess(direction){
+  if(run.finished || higherBtn.disabled) return;
+  higherBtn.disabled = true;
+  lowerBtn.disabled = true;
+  const baseline = run.sequence[run.currentIndex - 1];
+  const challenge = run.sequence[run.currentIndex];
+  const actuallyHigher = challenge.value > baseline.value;
+  const correct = (direction === 'higher') === actuallyHigher;
+
+  challengeValueEl.textContent = formatValue(challenge.value);
+  challengeValueEl.className = 'item-value';
+  challengeCardEl.classList.add(correct ? 'flash-correct' : 'flash-wrong');
+  run.guesses.push({ name: challenge.name, correct: correct });
+  if(correct) playCorrectSound(); else playWrongSound();
+  saveState();
+
+  setTimeout(() => {
+    if(correct){
+      run.score++;
+      if(run.currentIndex + 1 >= run.sequence.length){
+        run.finished = true;
+        run.solved = true;
+        saveState();
+        resolveRound();
+      } else {
+        run.currentIndex++;
+        saveState();
+        renderRound();
+      }
+    } else {
+      run.finished = true;
+      run.solved = false;
+      saveState();
+      resolveRound();
+    }
+  }, 1300);
+}
+higherBtn.addEventListener('click', () => handleGuess('higher'));
+lowerBtn.addEventListener('click', () => handleGuess('lower'));
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'ArrowUp'){ handleGuess('higher'); }
+  else if(e.key === 'ArrowDown'){ handleGuess('lower'); }
+});
+
+function msUntilNextReset(){
+  const now = new Date();
+  const nextMidnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0);
+  return Math.max(0, nextMidnightUtc - now.getTime());
+}
+function formatCountdown(ms){
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+let countdownIntervalId = null;
+function startCountdown(){
+  stopCountdown();
+  const tick = () => { countdownTimerEl.textContent = formatCountdown(msUntilNextReset()); };
+  tick();
+  countdownIntervalId = setInterval(tick, 1000);
+}
+function stopCountdown(){
+  if(countdownIntervalId){ clearInterval(countdownIntervalId); countdownIntervalId = null; }
+}
+
+function reportStats(){
+  if(window.parent === window) return;
+  const streak = loadStreak();
+  window.parent.postMessage({
+    type: 'size-up-progress',
+    score: run.score,
+    dayNumber: run.day,
+    streak: streak.current,
+  }, window.location.origin);
+}
+
+function resolveRound(){
+  saveState();
+  const streak = loadStreak();
+  streak.current = (streak.lastPlayedDay === run.day - 1) ? streak.current + 1 : 1;
+  streak.lastPlayedDay = run.day;
+  saveStreak(streak);
+  streakCountEl.textContent = streak.current;
+  reportStats();
+  if(run.solved) playWinSound(); else if(run.score === 0) playLoseSound();
+  setTimeout(showSummary, run.solved ? 700 : 500);
+}
+
+function showSummary(){
+  const streak = loadStreak();
+  const maxPossible = run.sequence.length - 1;
+  summaryTitleEl.textContent = run.solved ? 'Perfect Chain!' : 'Chain Broken';
+  summaryScoreEl.textContent = run.score + ' / ' + maxPossible + ' correct';
+  summaryMetaEl.textContent = CATEGORY_NAMES[run.categoryIndex] + ' · ' + streak.current + ' day streak';
+  resultGridEl.textContent = run.guesses.map(g => g.correct ? '✅' : '❌').join('');
+  summaryEl.classList.remove('hidden');
+  startCountdown();
+}
+
+copyResultBtn.addEventListener('click', () => {
+  const maxPossible = run.sequence.length - 1;
+  const text = 'Size Up #' + run.day + ' ' + run.score + '/' + maxPossible + '\n\n' + run.guesses.map(g => g.correct ? '✅' : '❌').join('');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(() => {
+      const original = copyResultBtn.textContent;
+      copyResultBtn.textContent = 'Copied!';
+      setTimeout(() => { copyResultBtn.textContent = original; }, 1500);
+    });
+  }
+});
+closeSummaryBtn.addEventListener('click', () => {
+  summaryEl.classList.add('hidden');
+  stopCountdown();
+});
+
+function setupRound(){
+  dayLabelEl.textContent = 'Day ' + run.day;
+  streakCountEl.textContent = loadStreak().current;
+  categoryLabelEl.textContent = CATEGORY_NAMES[run.categoryIndex];
+  if(run.finished){
+    renderRound();
+    higherBtn.disabled = true;
+    lowerBtn.disabled = true;
+    showSummary();
+  } else {
+    renderRound();
+  }
+}
+setupRound();
+</script>
+</body>
+</html>
