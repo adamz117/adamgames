@@ -118,4 +118,22 @@ export const GAMES: GameRegistryEntry[] = [
       return `Day ${day}: chain of ${score} · ${streak} day streak`;
     },
   },
+  {
+    id: 'five-by-five',
+    title: 'Five by Five',
+    description: 'A pocket-sized daily crossword — five across, five down, zero downtime.',
+    href: '/games/five-by-five',
+    summarize: (stats) => {
+      if (!stats) return 'Not played yet';
+      const day = Number(stats.dayNumber ?? 0);
+      const solved = Boolean(stats.solved);
+      const streak = Number(stats.streak ?? 0);
+      const time = Number(stats.timeSeconds ?? 0);
+      if (!day) return 'Not played yet';
+      if (!solved) return `Day ${day}: unsolved`;
+      const mm = Math.floor(time / 60);
+      const ss = String(time % 60).padStart(2, '0');
+      return `Day ${day}: solved in ${mm}:${ss} · ${streak} day streak`;
+    },
+  },
 ];

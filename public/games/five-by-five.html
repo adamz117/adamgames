@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Five by Five</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg-deep:#050b12;
+    --panel:#0c1a22;
+    --panel-border:#1d4438;
+    --signal:#39ff9d;
+    --signal-bright:#c3ffe6;
+    --signal-dim:rgba(57,255,157,.14);
+    --amber:#ffb454;
+    --amber-dim:rgba(255,180,84,.16);
+    --text:#d8fbe8;
+    --text-dim:#5d8677;
+    --black-cell:#02070a;
+    --danger:#ff5f6d;
+    --font-display:'Share Tech Mono',monospace;
+    --font-body:'Space Grotesk','Helvetica Neue',Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:
+      radial-gradient(circle at 20% -10%, rgba(57,255,157,.09) 0%, transparent 45%),
+      radial-gradient(circle at 100% 10%, rgba(255,180,84,.06) 0%, transparent 40%),
+      var(--bg-deep);
+    color:var(--text);
+    font-family:var(--font-body);
+    -webkit-tap-highlight-color:transparent;
+    user-select:none;
+  }
+  .stage{
+    position:relative;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:14px 12px 10px;
+  }
+  header{
+    width:100%;
+    max-width:460px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:2px solid var(--panel-border);
+    padding-bottom:10px;
+    margin-bottom:10px;
+  }
+  .title-block h1{
+    font-family:var(--font-display);
+    font-size:24px;
+    letter-spacing:.06em;
+    margin:0;
+    color:var(--signal-bright);
+    text-shadow:0 0 14px rgba(57,255,157,.4);
+  }
+  .title-block p{
+    margin:2px 0 0;
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+  }
+  .header-right{display:flex;align-items:center;gap:8px;}
+  .streak-badge{
+    display:flex;align-items:center;gap:4px;
+    font-weight:700;font-size:13px;
+    color:var(--amber);
+    background:var(--amber-dim);
+    border:1px solid var(--amber);
+    border-radius:999px;
+    padding:4px 10px;
+  }
+  .home-btn,.mute-btn{
+    width:32px;height:32px;
+    border-radius:6px;
+    border:1.5px solid var(--panel-border);
+    background:var(--panel);
+    color:var(--text-dim);
+    display:flex;align-items:center;justify-content:center;
+    text-decoration:none;
+    cursor:pointer;
+  }
+  .mute-btn.is-muted::after{content:'\1F507';}
+  .mute-btn::after{content:'\1F50A';}
+
+  .clue-banner{
+    width:min(400px,96vw);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:var(--panel);
+    border:1.5px solid var(--panel-border);
+    border-radius:8px;
+    padding:9px 14px;
+    margin-bottom:12px;
+    cursor:pointer;
+    min-height:20px;
+  }
+  .clue-banner .dir-icon{
+    font-family:var(--font-display);
+    font-size:13px;
+    color:var(--bg-deep);
+    background:var(--signal);
+    border-radius:4px;
+    padding:2px 6px;
+    flex-shrink:0;
+  }
+  .clue-banner .clue-text{
+    font-size:14px;
+    color:var(--text);
+    line-height:1.3;
+  }
+  .clue-banner .clue-num{color:var(--signal-bright);font-weight:700;margin-right:4px;}
+
+  .grid-wrap{position:relative;}
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    grid-template-rows:repeat(5,1fr);
+    gap:4px;
+    width:min(320px,80vw);
+    aspect-ratio:1;
+    margin:0 auto 14px;
+  }
+  .cell{
+    position:relative;
+    background:var(--panel);
+    border:1.5px solid var(--panel-border);
+    border-radius:4px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:var(--font-display);
+    font-size:clamp(16px,5vw,24px);
+    color:var(--text);
+    cursor:pointer;
+    transition:background 120ms ease,border-color 120ms ease;
+  }
+  .cell.is-black{
+    background:var(--black-cell);
+    border-color:var(--black-cell);
+    cursor:default;
+  }
+  .cell .cell-num{
+    position:absolute;
+    top:2px;left:3px;
+    font-size:9px;
+    color:var(--text-dim);
+    font-family:var(--font-body);
+    font-weight:700;
+  }
+  .cell.in-word{background:var(--signal-dim);border-color:var(--panel-border);}
+  .cell.is-selected{background:var(--amber-dim);border-color:var(--amber);}
+  .cell.is-wrong{animation:cellShake 380ms ease;border-color:var(--danger);}
+  .cell.is-solved{border-color:var(--signal);color:var(--signal-bright);}
+  @keyframes cellShake{
+    10%,90%{transform:translateX(-2px);}
+    20%,80%{transform:translateX(3px);}
+    30%,50%,70%{transform:translateX(-4px);}
+    40%,60%{transform:translateX(4px);}
+  }
+
+  .clue-lists{
+    width:min(400px,96vw);
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+    margin-bottom:10px;
+  }
+  .clue-col h3{
+    font-family:var(--font-display);
+    font-size:12px;
+    letter-spacing:.1em;
+    color:var(--text-dim);
+    margin:0 0 6px;
+  }
+  .clue-col ul{list-style:none;margin:0;padding:0;}
+  .clue-col li{
+    font-size:12px;
+    color:var(--text-dim);
+    padding:4px 0;
+    cursor:pointer;
+    line-height:1.35;
+  }
+  .clue-col li b{color:var(--text);font-weight:700;margin-right:4px;}
+  .clue-col li.is-active{color:var(--signal-bright);}
+  .clue-col li.is-active b{color:var(--signal-bright);}
+  .clue-col li.is-filled{color:var(--text-dim);opacity:.55;}
+
+  .keyboard{
+    width:100%;
+    max-width:460px;
+    margin-top:auto;
+    padding:6px 0 10px;
+  }
+  .keyboard-row{
+    display:flex;
+    justify-content:center;
+    gap:5px;
+    margin-bottom:6px;
+  }
+  .key{
+    flex:1;
+    max-width:34px;
+    height:42px;
+    border:1.5px solid var(--panel-border);
+    border-radius:5px;
+    background:var(--panel);
+    color:var(--text);
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:14px;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    transition:background 120ms ease,transform 80ms ease;
+  }
+  .key:active{transform:scale(.92);background:var(--signal-dim);}
+  .key.key-wide{max-width:58px;font-size:11px;}
+
+  .summary{
+    position:absolute;
+    inset:0;
+    z-index:5;
+    background:rgba(2,7,10,.88);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .summary.hidden{display:none;}
+  .summary-card{
+    width:min(400px,100%);
+    max-height:88vh;
+    overflow-y:auto;
+    background:var(--panel);
+    border:2px solid var(--signal);
+    border-radius:10px;
+    padding:26px 28px;
+    text-align:center;
+    box-shadow:0 0 60px -10px rgba(57,255,157,.25);
+  }
+  .summary-card h2{
+    font-family:var(--font-display);
+    font-size:26px;
+    letter-spacing:.03em;
+    margin:0 0 10px;
+    color:var(--signal-bright);
+  }
+  .summary-stats{
+    display:flex;
+    justify-content:center;
+    gap:22px;
+    margin:10px 0 16px;
+  }
+  .summary-stat .num{
+    font-family:var(--font-display);
+    font-size:26px;
+    color:var(--signal-bright);
+  }
+  .summary-stat .lbl{
+    font-size:10px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin-top:2px;
+  }
+  .summary-meta{font-size:13px;color:var(--text-dim);margin:0 0 16px;}
+  .summary-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+  .summary-actions button{
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:13px;
+    border-radius:6px;
+    padding:11px 18px;
+    cursor:pointer;
+  }
+  #copyResultBtn{background:var(--signal);color:#03150c;border:1px solid var(--signal);}
+  #copyResultBtn:hover{background:var(--signal-bright);}
+  #closeSummaryBtn{background:transparent;color:var(--text-dim);border:1px solid var(--panel-border);}
+
+  .countdown-block{
+    margin-top:18px;
+    padding-top:16px;
+    border-top:1px solid var(--panel-border);
+    text-align:center;
+  }
+  .countdown-label{font-size:12px;color:var(--text-dim);margin:0 0 8px;}
+  .countdown-timer{
+    font-family:var(--font-display);
+    font-size:28px;
+    letter-spacing:.05em;
+    color:var(--signal-bright);
+    margin:0;
+  }
+  .countdown-sub{font-size:10px;color:var(--text-dim);margin:6px 0 0;}
+
+  @media (prefers-reduced-motion: reduce){
+    .cell.is-wrong{animation:none!important;}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <header>
+    <div class="title-block">
+      <h1>Five by Five</h1>
+      <p id="dayLabel">Day 1</p>
+    </div>
+    <div class="header-right">
+      <a class="home-btn" href="/" target="_top" aria-label="Back to Adam Games home" title="Back to home">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      </a>
+      <div class="streak-badge">🔥 <span id="streakCount">0</span></div>
+      <button class="mute-btn" id="muteBtn" type="button" aria-label="Toggle sound" title="Toggle sound"></button>
+    </div>
+  </header>
+
+  <div class="clue-banner" id="clueBanner">
+    <span class="dir-icon" id="clueDirIcon">→</span>
+    <span class="clue-text"><span class="clue-num" id="clueNum">1</span><span id="clueText">Loading…</span></span>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="clue-lists">
+    <div class="clue-col">
+      <h3>Across</h3>
+      <ul id="acrossList"></ul>
+    </div>
+    <div class="clue-col">
+      <h3>Down</h3>
+      <ul id="downList"></ul>
+    </div>
+  </div>
+
+  <div class="keyboard" id="keyboard"></div>
+
+  <div class="summary hidden" id="summary">
+    <div class="summary-card">
+      <h2 id="summaryTitle">Signal Locked</h2>
+      <div class="summary-stats">
+        <div class="summary-stat"><div class="num" id="summaryTime">0:00</div><div class="lbl">Time</div></div>
+        <div class="summary-stat"><div class="num" id="summaryStreak">0</div><div class="lbl">Day Streak</div></div>
+      </div>
+      <p class="summary-meta" id="summaryMeta"></p>
+      <div class="summary-actions">
+        <button id="copyResultBtn">Copy Result</button>
+        <button id="closeSummaryBtn">Close</button>
+      </div>
+      <div class="countdown-block">
+        <p class="countdown-label">You've already cracked today's grid</p>
+        <p class="countdown-timer" id="countdownTimer">--:--:--</p>
+        <p class="countdown-sub">until the next one unlocks</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SIZE = 5;
+const STORAGE_KEY = 'five-by-five-state-v1';
+const STREAK_KEY = 'five-by-five-streak-v1';
+const SOUND_KEY = 'five-by-five-sound-v1';
+const PUZZLES = [{"blacks":[[0,3],[0,4],[1,4],[3,0],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"ASH","clue":"Cigarette residue"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"ARM","clue":"Bicep's home"},{"number":2,"dir":"down","row":0,"col":1,"length":4,"answer":"SOIL","clue":"Garden dirt"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"HONOR","clue":"Great respect"},{"number":4,"dir":"across","row":1,"col":0,"length":4,"answer":"ROOT","clue":"Plant's underground part"},{"number":5,"dir":"down","row":1,"col":3,"length":4,"answer":"TUNA","clue":"Canned fish"},{"number":6,"dir":"across","row":2,"col":0,"length":5,"answer":"MINUS","clue":"Subtraction sign"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"SEW","clue":"Stitch fabric"},{"number":8,"dir":"across","row":3,"col":1,"length":4,"answer":"LONE","clue":"Solitary"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"RAW","clue":"Uncooked"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"SPA","clue":"Relaxation resort"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"SCORE","clue":"Game's tally"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"PAN","clue":"Frying tool"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"ART","clue":"Museum contents"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"CAR","clue":"Automobile"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"FRONT","clue":"Building's facade"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"FEE","clue":"Charge for service"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"RAY","clue":"Sunbeam"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"EYE","clue":"Vision organ"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"CAP","clue":"Bottle top"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"COT","clue":"Camping bed"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"AIR","clue":"What you're breathing"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"PLATE","clue":"Dinner dish"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"OIL","clue":"Salad dressing base"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"TRASH","clue":"Garbage"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"SEA","clue":"Ocean"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"HAT","clue":"Head covering"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"TEA","clue":"British beverage"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"EAT","clue":"Consume food"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"MUG","clue":"Coffee cup"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"MONEY","clue":"Cash"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"USER","clue":"App account holder"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"GEL","clue":"Hair styling product"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"LOSE","clue":"Not win"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"LAVA","clue":"Molten rock"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"PANEL","clue":"Discussion group, or a wall section"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"POD","clue":"Pea container"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"OVER","clue":"Finished, or above"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"DAY","clue":"24 hours"}]},{"blacks":[[0,3],[0,4],[1,4],[3,0],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"ARC","clue":"Curved path"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"ACE","clue":"Tennis serve no one returns"},{"number":2,"dir":"down","row":0,"col":1,"length":4,"answer":"ROLL","clue":"Dinner bread"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"CABIN","clue":"Woodland cottage"},{"number":4,"dir":"across","row":1,"col":0,"length":4,"answer":"COAT","clue":"Winter garment"},{"number":5,"dir":"down","row":1,"col":3,"length":4,"answer":"TONE","clue":"Voice quality"},{"number":6,"dir":"across","row":2,"col":0,"length":5,"answer":"ELBOW","clue":"Arm's bendable joint"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"WET","clue":"Not dry"},{"number":8,"dir":"across","row":3,"col":1,"length":4,"answer":"LINE","clue":"Queue"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"NET","clue":"Basketball hoop part"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"DIE","clue":"Single dice"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"DRINK","clue":"Beverage"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"ION","clue":"Charged particle"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"EWE","clue":"Female sheep"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"ROW","clue":"Line of seats"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SPINE","clue":"Backbone"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SKI","clue":"Slope glider"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"PIN","clue":"Bowling target"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"KIN","clue":"Relatives"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"INK","clue":"Pen fluid"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"PET","clue":"Household animal"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"POD","clue":"Pea container"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"TRACE","clue":"Faint remnant"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"DRAMA","clue":"Theatrical genre"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"MAY","clue":"Spring month"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"ATE","clue":"Devoured"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"CAT","clue":"House pet that meows"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"EYE","clue":"Vision organ"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"ARM","clue":"Bicep's home"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"ALLOW","clue":"Permit"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"REAL","clue":"Genuine"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"MAD","clue":"Angry"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"FLEA","clue":"Tiny jumping pest"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"FADE","clue":"Gradually disappear"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SALAD","clue":"Bowl of greens"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SIN","clue":"Moral wrong"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"IDOL","clue":"Object of worship"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"NEW","clue":"Brand-new"}]},{"blacks":[[0,3],[0,4],[1,4],[3,0],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"GET","clue":"Obtain"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"GEM","clue":"Precious stone"},{"number":2,"dir":"down","row":0,"col":1,"length":4,"answer":"EXAM","clue":"Test"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"TIGER","clue":"Striped big cat"},{"number":4,"dir":"across","row":1,"col":0,"length":4,"answer":"EXIT","clue":"Way out"},{"number":5,"dir":"down","row":1,"col":3,"length":4,"answer":"TINY","clue":"Very small"},{"number":6,"dir":"across","row":2,"col":0,"length":5,"answer":"MAGIC","clue":"Wizard's craft"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"CUE","clue":"Pool stick"},{"number":8,"dir":"across","row":3,"col":1,"length":4,"answer":"MENU","clue":"Restaurant list"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"RYE","clue":"Bread grain"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"TEA","clue":"British beverage"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"TRADE","clue":"Swap"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"ANT","clue":"Picnic pest"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"RAN","clue":"Did a sprint"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"START","clue":"Begin"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SPA","clue":"Relaxation resort"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"TAG","clue":"Price label"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"PAD","clue":"Notepad"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"AGE","clue":"How many years old"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"GOD","clue":"Deity"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"GAS","clue":"Car fuel"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"OIL","clue":"Salad dressing base"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"DRILL","clue":"Power tool"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"AIR","clue":"What you're breathing"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SLIDE","clue":"Playground equipment"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"DOE","clue":"Female deer"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"EGG","clue":"Breakfast staple"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"LOG","clue":"Chopped wood"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"LEG","clue":"Walking limb"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"SEA","clue":"Ocean"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"STAIR","clue":"Step up or down"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"EAST","clue":"Sunrise direction"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"ART","clue":"Museum contents"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"STAR","clue":"Night sky twinkler"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"SODA","clue":"Fizzy drink"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"BOAST","clue":"Brag"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"BET","clue":"Wager"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"EDIT","clue":"Revise text"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"TAR","clue":"Road paving material"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"FOG","clue":"Low-lying cloud"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"FABLE","clue":"Moral-teaching story"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"OWE","clue":"Be indebted for"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"GEL","clue":"Hair styling product"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"AWE","clue":"Wonder and amazement"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"REBEL","clue":"One who resists authority"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"ROB","clue":"Steal from"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"EWE","clue":"Female sheep"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"OWL","clue":"Nocturnal bird"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"BEE","clue":"Honey maker"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"PET","clue":"Household animal"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"POD","clue":"Pea container"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"TRACE","clue":"Faint remnant"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"DRAMA","clue":"Theatrical genre"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"MAY","clue":"Spring month"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"APE","clue":"Gorilla or chimp"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"CAP","clue":"Bottle top"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"EYE","clue":"Vision organ"}]},{"blacks":[[0,3],[0,4],[1,4],[3,0],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"ATE","clue":"Devoured"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"ALE","clue":"Pub pour"},{"number":2,"dir":"down","row":0,"col":1,"length":4,"answer":"TEAR","clue":"Rip, or a crying drop"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"EAGER","clue":"Enthusiastic"},{"number":4,"dir":"across","row":1,"col":0,"length":4,"answer":"LEAF","clue":"Tree's green part"},{"number":5,"dir":"down","row":1,"col":3,"length":4,"answer":"FLEA","clue":"Tiny jumping pest"},{"number":6,"dir":"across","row":2,"col":0,"length":5,"answer":"EAGLE","clue":"Bald bird of prey"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"ELM","clue":"Shade tree"},{"number":8,"dir":"across","row":3,"col":1,"length":4,"answer":"REEL","clue":"Fishing rod part"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"RAM","clue":"Male sheep"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"SAD","clue":"Feeling blue"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"STAMP","clue":"Postage sticker"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"ARC","clue":"Curved path"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"DYE","clue":"Fabric colorant"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"TRY","clue":"Attempt"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"PEACE","clue":"Absence of conflict"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"PAL","clue":"Buddy"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"ERA","clue":"Historical period"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"ARM","clue":"Bicep's home"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"LAP","clue":"Racetrack circuit"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"CAB","clue":"Taxi"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"CABIN","clue":"Woodland cottage"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"AMID","clue":"In the middle of"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"BET","clue":"Wager"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"FAME","clue":"Celebrity status"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"FACE","clue":"Front of the head"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"HABIT","clue":"Daily routine"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"HAT","clue":"Head covering"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"ACID","clue":"Sour chemical, or lemon's quality"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"TEN","clue":"Perfect score"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"TEA","clue":"British beverage"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"TRIBE","clue":"Indigenous community"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"ANT","clue":"Picnic pest"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"RAN","clue":"Did a sprint"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SHIRT","clue":"Button-up garment"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SPA","clue":"Relaxation resort"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"HUG","clue":"Warm embrace"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"PUB","clue":"British bar"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"AGE","clue":"How many years old"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"FED","clue":"Gave food to"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"FOG","clue":"Low-lying cloud"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"DRAMA","clue":"Theatrical genre"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"GRACE","clue":"Elegant movement"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"CAP","clue":"Bottle top"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"EYE","clue":"Vision organ"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"MAY","clue":"Spring month"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"APE","clue":"Gorilla or chimp"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"BAT","clue":"Baseball swinger"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"BRAND","clue":"Product's label"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"AIRY","clue":"Light and breezy"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"TOE","clue":"Foot digit"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"TRIO","clue":"Group of three"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"TWIN","clue":"Identical sibling"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"AWARE","clue":"Conscious of"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"ATE","clue":"Devoured"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"TINY","clue":"Very small"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"END","clue":"Finish"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"POT","clue":"Cooking vessel"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"PAINT","clue":"Wall color liquid"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"OIL","clue":"Salad dressing base"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"TRY","clue":"Attempt"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"AIR","clue":"What you're breathing"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"DAILY","clue":"Every single day"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"DOG","clue":"Man's best friend"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"AWE","clue":"Wonder and amazement"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"OWN","clue":"Possess"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"GET","clue":"Obtain"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"FOG","clue":"Low-lying cloud"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"FED","clue":"Gave food to"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"GRASP","clue":"Firm grip"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"DRAFT","clue":"Rough version"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"FEE","clue":"Charge for service"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"TAN","clue":"Sunbathed shade"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"SEA","clue":"Ocean"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"PEN","clue":"Ink writer"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"CUT","clue":"Slice"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"CLEAN","clue":"Spotless"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"USER","clue":"App account holder"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"TON","clue":"2,000 pounds"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"ALSO","clue":"In addition"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"AREA","clue":"Region"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"GREEN","clue":"Grass color"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"GYM","clue":"Workout spot"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"YEAR","clue":"365 days"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"MAN","clue":"Adult male"}]},{"blacks":[[0,3],[0,4],[1,4],[3,0],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"ARC","clue":"Curved path"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"AGE","clue":"How many years old"},{"number":2,"dir":"down","row":0,"col":1,"length":4,"answer":"ROLL","clue":"Dinner bread"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"CABIN","clue":"Woodland cottage"},{"number":4,"dir":"across","row":1,"col":0,"length":4,"answer":"GOAT","clue":"Barnyard climber"},{"number":5,"dir":"down","row":1,"col":3,"length":4,"answer":"TONE","clue":"Voice quality"},{"number":6,"dir":"across","row":2,"col":0,"length":5,"answer":"ELBOW","clue":"Arm's bendable joint"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"WET","clue":"Not dry"},{"number":8,"dir":"across","row":3,"col":1,"length":4,"answer":"LINE","clue":"Queue"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"NET","clue":"Basketball hoop part"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"TOE","clue":"Foot digit"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"TRADE","clue":"Swap"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"END","clue":"Finish"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"RAN","clue":"Did a sprint"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"AWARD","clue":"Trophy"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"APE","clue":"Gorilla or chimp"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"WAY","clue":"Route"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"PAD","clue":"Notepad"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"EYE","clue":"Vision organ"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"EWE","clue":"Female sheep"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"EVE","clue":"Night before"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"WAX","clue":"Candle material"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"ENTER","clue":"Come inside"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"VAN","clue":"Cargo vehicle"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"EXTRA","clue":"Additional"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"RAY","clue":"Sunbeam"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"ATE","clue":"Devoured"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"EAT","clue":"Consume food"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"RYE","clue":"Bread grain"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"FED","clue":"Gave food to"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"FRUIT","clue":"Apple or banana"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"EAST","clue":"Sunrise direction"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"DYE","clue":"Fabric colorant"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"GRAY","clue":"Overcast sky color"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"GONE","clue":"Departed"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"HOUSE","clue":"Home"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"HUB","clue":"Central point"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"UNIT","clue":"Single measurable item"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"BET","clue":"Wager"}]},{"blacks":[[0,3],[0,4],[1,4],[3,0],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"ALE","clue":"Pub pour"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"AWE","clue":"Wonder and amazement"},{"number":2,"dir":"down","row":0,"col":1,"length":4,"answer":"LEAF","clue":"Tree's green part"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"EAGLE","clue":"Bald bird of prey"},{"number":4,"dir":"across","row":1,"col":0,"length":4,"answer":"WEAR","clue":"Put on clothes"},{"number":5,"dir":"down","row":1,"col":3,"length":4,"answer":"REEL","clue":"Fishing rod part"},{"number":6,"dir":"across","row":2,"col":0,"length":5,"answer":"EAGER","clue":"Enthusiastic"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"RAM","clue":"Male sheep"},{"number":8,"dir":"across","row":3,"col":1,"length":4,"answer":"FLEA","clue":"Tiny jumping pest"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"ELM","clue":"Shade tree"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"SOB","clue":"Cry loudly"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"START","clue":"Begin"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"OIL","clue":"Salad dressing base"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"BEE","clue":"Honey maker"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"TIE","clue":"Neckwear"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SCALE","clue":"Weight measurer"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SEA","clue":"Ocean"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"CAR","clue":"Automobile"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"ART","clue":"Museum contents"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"FED","clue":"Gave food to"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"FOG","clue":"Low-lying cloud"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"DRAFT","clue":"Rough version"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"GRACE","clue":"Elegant movement"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"CUE","clue":"Pool stick"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"ERA","clue":"Historical period"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"FUR","clue":"Animal coat"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"TEA","clue":"British beverage"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"CUP","clue":"Coffee holder"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"CLEAN","clue":"Spotless"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"USER","clue":"App account holder"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"POT","clue":"Cooking vessel"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"ALSO","clue":"In addition"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"AREA","clue":"Region"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"GREET","clue":"Say hello"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"GYM","clue":"Workout spot"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"YEAR","clue":"365 days"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"MAN","clue":"Adult male"}]},{"blacks":[[0,3],[0,4],[1,4],[3,0],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"ATE","clue":"Devoured"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"ARC","clue":"Curved path"},{"number":2,"dir":"down","row":0,"col":1,"length":4,"answer":"TOAD","clue":"Warty amphibian"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"ELBOW","clue":"Arm's bendable joint"},{"number":4,"dir":"across","row":1,"col":0,"length":4,"answer":"ROLL","clue":"Dinner bread"},{"number":5,"dir":"down","row":1,"col":3,"length":4,"answer":"LIME","clue":"Green citrus"},{"number":6,"dir":"across","row":2,"col":0,"length":5,"answer":"CABIN","clue":"Woodland cottage"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"NET","clue":"Basketball hoop part"},{"number":8,"dir":"across","row":3,"col":1,"length":4,"answer":"DOME","clue":"Rounded roof"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"WET","clue":"Not dry"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"AGE","clue":"How many years old"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"ASIDE","clue":"To one side"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"GEL","clue":"Hair styling product"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"EWE","clue":"Female sheep"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"SEW","clue":"Stitch fabric"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SMILE","clue":"Happy expression"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SPA","clue":"Relaxation resort"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"MOP","clue":"Floor cleaner"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"POD","clue":"Pea container"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"APE","clue":"Gorilla or chimp"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"TAG","clue":"Price label"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"TOP","clue":"Spinning toy"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"AIR","clue":"What you're breathing"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"GLOBE","clue":"World map sphere"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"OIL","clue":"Salad dressing base"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"PROVE","clue":"Show to be true"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"VOW","clue":"Wedding promise"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"EYE","clue":"Vision organ"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"BOY","clue":"Young male"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"EWE","clue":"Female sheep"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"ACE","clue":"Tennis serve no one returns"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"AWAIT","clue":"Wait for"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"CART","clue":"Grocery pusher"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"END","clue":"Finish"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"SWAN","clue":"Graceful lake bird"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"SODA","clue":"Fizzy drink"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"BOARD","clue":"Chess playing surface"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"BEE","clue":"Honey maker"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"EDIT","clue":"Revise text"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"EAT","clue":"Consume food"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"JOB","clue":"Occupation"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"JOINT","clue":"Elbow or knee"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"OWN","clue":"Possess"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"BET","clue":"Wager"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"OWE","clue":"Be indebted for"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"POINT","clue":"Sharp tip, or a score unit"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"PIG","clue":"Oinker"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"ONE","clue":"First number"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"INN","clue":"Small hotel"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"GET","clue":"Obtain"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"BOW","clue":"Violin accessory, or a curtsy"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"BED","clue":"Where you sleep"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"WRIST","clue":"Watch's location"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"DRIFT","clue":"Slow floating movement"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"FEE","clue":"Charge for service"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"TAN","clue":"Sunbathed shade"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"SEA","clue":"Ocean"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"TEN","clue":"Perfect score"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"FAN","clue":"Cooling device, or an admirer"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"FAULT","clue":"One's own mistake"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"ACRE","clue":"Land measurement"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"NET","clue":"Basketball hoop part"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"RACE","clue":"Speed contest"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"ROBE","clue":"Bathrobe"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"COURT","clue":"Basketball venue, or a judge's room"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"CAP","clue":"Bottle top"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"ABLE","clue":"Capable"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"PET","clue":"Household animal"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"PEA","clue":"Tiny green veggie"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"PLACE","clue":"Location"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"EEL","clue":"Slippery fish"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"AGE","clue":"How many years old"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"LEG","clue":"Walking limb"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SCALE","clue":"Weight measurer"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SAD","clue":"Feeling blue"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"CRY","clue":"Shed tears"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"ARC","clue":"Curved path"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"DYE","clue":"Fabric colorant"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"GAP","clue":"Empty space between"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"GAS","clue":"Car fuel"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"AIM","clue":"Point a weapon"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"PRIME","clue":"Number only divisible by one and itself"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"AIR","clue":"What you're breathing"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SMILE","clue":"Happy expression"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"LAW","clue":"Legal rule"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"EYE","clue":"Vision organ"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"MAY","clue":"Spring month"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"EWE","clue":"Female sheep"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"SPA","clue":"Relaxation resort"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"STAND","clue":"Vendor's booth"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"PORK","clue":"Pig meat"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"APE","clue":"Gorilla or chimp"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"STOP","clue":"Halt"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"SWAN","clue":"Graceful lake bird"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"AWARE","clue":"Conscious of"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"ATE","clue":"Devoured"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"TANK","clue":"Fish holder, or army vehicle"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"END","clue":"Finish"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"BIB","clue":"Baby's food shield"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"BOUND","clue":"Tied up, or headed toward"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"INN","clue":"Small hotel"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"BET","clue":"Wager"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"ONE","clue":"First number"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"MOUNT","clue":"Climb aboard"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"MOB","clue":"Angry crowd"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"OWE","clue":"Be indebted for"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"OWN","clue":"Possess"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"BED","clue":"Where you sleep"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"POD","clue":"Pea container"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"PET","clue":"Household animal"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"DRAFT","clue":"Rough version"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"TRADE","clue":"Swap"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"DUE","clue":"Expected to arrive"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"ERA","clue":"Historical period"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"FUR","clue":"Animal coat"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"TEA","clue":"British beverage"}]},{"blacks":[[0,3],[0,4],[1,4],[3,0],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"ASH","clue":"Cigarette residue"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"ARM","clue":"Bicep's home"},{"number":2,"dir":"down","row":0,"col":1,"length":4,"answer":"SOIL","clue":"Garden dirt"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"HONOR","clue":"Great respect"},{"number":4,"dir":"across","row":1,"col":0,"length":4,"answer":"ROOT","clue":"Plant's underground part"},{"number":5,"dir":"down","row":1,"col":3,"length":4,"answer":"TUNA","clue":"Canned fish"},{"number":6,"dir":"across","row":2,"col":0,"length":5,"answer":"MINUS","clue":"Subtraction sign"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"SET","clue":"Complete collection"},{"number":8,"dir":"across","row":3,"col":1,"length":4,"answer":"LONE","clue":"Solitary"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"RAT","clue":"Sewer rodent"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"HEN","clue":"Egg layer"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"HASTE","clue":"Excessive hurry"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"EWE","clue":"Female sheep"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"NET","clue":"Basketball hoop part"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"AWE","clue":"Wonder and amazement"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"ASSET","clue":"Valuable resource"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"ACE","clue":"Tennis serve no one returns"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"SAY","clue":"Speak"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"CAT","clue":"House pet that meows"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"EYE","clue":"Vision organ"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"GAS","clue":"Car fuel"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"GOD","clue":"Deity"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"AIR","clue":"What you're breathing"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"SLEEP","clue":"Nightly rest"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"OIL","clue":"Salad dressing base"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"DRESS","clue":"Formal gown"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"SEA","clue":"Ocean"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"SLY","clue":"Cunning"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"EEL","clue":"Slippery fish"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"PAY","clue":"Compensate"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"SPA","clue":"Relaxation resort"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"SHIRT","clue":"Button-up garment"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"PINE","clue":"Christmas tree type"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"ANT","clue":"Picnic pest"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"THIN","clue":"Not thick"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"TACO","clue":"Folded tortilla dish"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"PAINT","clue":"Wall color liquid"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"PAL","clue":"Buddy"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"ACRE","clue":"Land measurement"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"LOT","clue":"Parking area"}]},{"blacks":[[0,3],[0,4],[1,4],[3,0],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"APE","clue":"Gorilla or chimp"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"ALE","clue":"Pub pour"},{"number":2,"dir":"down","row":0,"col":1,"length":4,"answer":"PEAR","clue":"Teardrop-shaped fruit"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"EAGER","clue":"Enthusiastic"},{"number":4,"dir":"across","row":1,"col":0,"length":4,"answer":"LEAF","clue":"Tree's green part"},{"number":5,"dir":"down","row":1,"col":3,"length":4,"answer":"FLEA","clue":"Tiny jumping pest"},{"number":6,"dir":"across","row":2,"col":0,"length":5,"answer":"EAGLE","clue":"Bald bird of prey"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"ELM","clue":"Shade tree"},{"number":8,"dir":"across","row":3,"col":1,"length":4,"answer":"REEL","clue":"Fishing rod part"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"RAM","clue":"Male sheep"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"ATE","clue":"Devoured"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"ADULT","clue":"Grown-up"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"TEN","clue":"Perfect score"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"END","clue":"Finish"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"DEN","clue":"Cozy living room"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SOUND","clue":"Audible wave"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SOB","clue":"Cry loudly"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"OWE","clue":"Be indebted for"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"OWL","clue":"Nocturnal bird"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"BET","clue":"Wager"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"FED","clue":"Gave food to"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"FOG","clue":"Low-lying cloud"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"DRAFT","clue":"Rough version"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"GRADE","clue":"Report card mark"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"DOE","clue":"Female deer"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"ERA","clue":"Historical period"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"FOR","clue":"In favor of"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"TEA","clue":"British beverage"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"AGE","clue":"How many years old"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"ARISE","clue":"Come into being"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"GAVE","clue":"Handed over"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"EYE","clue":"Vision organ"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"GRAY","clue":"Overcast sky color"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"GLOW","clue":"Soft light"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"OLIVE","clue":"Martini garnish"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"ONE","clue":"First number"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"NOSE","clue":"Smelling organ"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"EWE","clue":"Female sheep"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"SAD","clue":"Feeling blue"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"STATE","clue":"US territory"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"ARC","clue":"Curved path"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"DYE","clue":"Fabric colorant"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"TRY","clue":"Attempt"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"PLACE","clue":"Location"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"PEA","clue":"Tiny green veggie"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"LAW","clue":"Legal rule"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"EAT","clue":"Consume food"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"AWE","clue":"Wonder and amazement"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"SEA","clue":"Ocean"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"STAGE","clue":"Concert platform"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"EASE","clue":"Simplicity"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"ART","clue":"Museum contents"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"STAR","clue":"Night sky twinkler"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"SORE","clue":"Achy"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"COAST","clue":"Shoreline"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"CUB","clue":"Baby bear"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"URGE","clue":"Strong impulse"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"BEE","clue":"Honey maker"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"SPA","clue":"Relaxation resort"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"SPELL","clue":"Wizard's incantation"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"PIE","clue":"Thanksgiving dessert"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"ANT","clue":"Picnic pest"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"PIN","clue":"Bowling target"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"FLEET","clue":"Group of ships"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"FOE","clue":"Enemy"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"LIE","clue":"Untruth"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"OIL","clue":"Salad dressing base"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"EEL","clue":"Slippery fish"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"LEG","clue":"Walking limb"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"LOG","clue":"Chopped wood"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"GRAPE","clue":"Wine's source fruit"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"GRADE","clue":"Report card mark"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"DAY","clue":"24 hours"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"EWE","clue":"Female sheep"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"PAW","clue":"Dog's foot"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"EYE","clue":"Vision organ"}]},{"blacks":[[0,3],[0,4],[1,4],[3,0],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"ALE","clue":"Pub pour"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"AGE","clue":"How many years old"},{"number":2,"dir":"down","row":0,"col":1,"length":4,"answer":"LEAF","clue":"Tree's green part"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"EAGLE","clue":"Bald bird of prey"},{"number":4,"dir":"across","row":1,"col":0,"length":4,"answer":"GEAR","clue":"Equipment"},{"number":5,"dir":"down","row":1,"col":3,"length":4,"answer":"REEL","clue":"Fishing rod part"},{"number":6,"dir":"across","row":2,"col":0,"length":5,"answer":"EAGER","clue":"Enthusiastic"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"RAM","clue":"Male sheep"},{"number":8,"dir":"across","row":3,"col":1,"length":4,"answer":"FLEA","clue":"Tiny jumping pest"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"ELM","clue":"Shade tree"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"GAS","clue":"Car fuel"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"GREEN","clue":"Grass color"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"AID","clue":"Help, as in disaster relief"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"SPY","clue":"Secret agent"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"RIP","clue":"Tear apart"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"NEEDY","clue":"Requiring help"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"NAP","clue":"Short sleep"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"EWE","clue":"Female sheep"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"AWE","clue":"Wonder and amazement"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"PEN","clue":"Ink writer"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"FED","clue":"Gave food to"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"FOG","clue":"Low-lying cloud"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"DRAFT","clue":"Rough version"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"GRADE","clue":"Report card mark"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"DUE","clue":"Expected to arrive"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"ERA","clue":"Historical period"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"FUR","clue":"Animal coat"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"TEA","clue":"British beverage"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"CAR","clue":"Automobile"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"CABIN","clue":"Woodland cottage"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"ACID","clue":"Sour chemical, or lemon's quality"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"ROT","clue":"Decay"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"TACO","clue":"Folded tortilla dish"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"TAME","clue":"Domesticated"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"HABIT","clue":"Daily routine"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"HAT","clue":"Head covering"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"AMID","clue":"In the middle of"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"TEN","clue":"Perfect score"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"TOE","clue":"Foot digit"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"TRADE","clue":"Swap"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"OAK","clue":"Sturdy tree"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"EYE","clue":"Vision organ"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"RAY","clue":"Sunbeam"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SHAKE","clue":"Milkshake"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SPA","clue":"Relaxation resort"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"HOP","clue":"Bunny move"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"POD","clue":"Pea container"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"APE","clue":"Gorilla or chimp"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"LEG","clue":"Walking limb"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"LOG","clue":"Chopped wood"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"GRAPE","clue":"Wine's source fruit"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"GRASP","clue":"Firm grip"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"SEA","clue":"Ocean"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"PAT","clue":"Gentle tap"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"PEA","clue":"Tiny green veggie"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"EAT","clue":"Consume food"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"ALE","clue":"Pub pour"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"ARISE","clue":"Come into being"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"LANE","clue":"Bowling alley path"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"EGG","clue":"Breakfast staple"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"DRAG","clue":"Pull slowly"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"DRAW","clue":"Sketch"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"BRING","clue":"Carry along"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"BEE","clue":"Honey maker"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"EASE","clue":"Simplicity"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"EWE","clue":"Female sheep"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"MOB","clue":"Angry crowd"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"MOUNT","clue":"Climb aboard"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"OWN","clue":"Possess"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"BED","clue":"Where you sleep"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"OWE","clue":"Be indebted for"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SOUND","clue":"Audible wave"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SIN","clue":"Moral wrong"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"ONE","clue":"First number"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"INN","clue":"Small hotel"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"NET","clue":"Basketball hoop part"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"MUG","clue":"Coffee cup"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"MONEY","clue":"Cash"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"USER","clue":"App account holder"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"GEL","clue":"Hair styling product"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"LOSE","clue":"Not win"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"LAVA","clue":"Molten rock"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"PANEL","clue":"Discussion group, or a wall section"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"POP","clue":"Soda, informally"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"OVER","clue":"Finished, or above"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"PAY","clue":"Compensate"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"SKI","clue":"Slope glider"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"START","clue":"Begin"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"KIN","clue":"Relatives"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"INK","clue":"Pen fluid"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"TIN","clue":"Canned metal"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"BLANK","clue":"Empty, unfilled"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"BAG","clue":"Grocery carrier"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"LIE","clue":"Untruth"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"AIR","clue":"What you're breathing"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"GET","clue":"Obtain"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"POD","clue":"Pea container"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"PET","clue":"Household animal"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"DRIVE","clue":"Car trip"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"TRIBE","clue":"Indigenous community"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"BOY","clue":"Young male"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"EWE","clue":"Female sheep"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"VOW","clue":"Wedding promise"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"EYE","clue":"Vision organ"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"MOP","clue":"Floor cleaner"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"MOVIE","clue":"Cinema showing"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"OVEN","clue":"Baking appliance"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"PEN","clue":"Ink writer"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"MOVE","clue":"Change position"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"MEAT","clue":"Butcher's product"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SEVEN","clue":"Lucky number"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SPA","clue":"Relaxation resort"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"PAIN","clue":"Discomfort"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"ATE","clue":"Devoured"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"SAT","clue":"Took a seat"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"SPARE","clue":"Backup, or a bowling frame"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"AIM","clue":"Point a weapon"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"TEA","clue":"British beverage"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"PIE","clue":"Thanksgiving dessert"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"DRAMA","clue":"Theatrical genre"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"DOE","clue":"Female deer"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"RAW","clue":"Uncooked"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"OAR","clue":"Rowboat paddle"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"EWE","clue":"Female sheep"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"GAS","clue":"Car fuel"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"GAP","clue":"Empty space between"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"AIR","clue":"What you're breathing"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"SMILE","clue":"Happy expression"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"AIM","clue":"Point a weapon"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"PRIDE","clue":"Lion group, or self-respect"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"DAY","clue":"24 hours"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"EWE","clue":"Female sheep"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"LAW","clue":"Legal rule"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"EYE","clue":"Vision organ"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"ASH","clue":"Cigarette residue"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"ALLOW","clue":"Permit"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"SELL","clue":"Not buy"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"HAY","clue":"Barn bale"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"FLEA","clue":"Tiny jumping pest"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"FADE","clue":"Gradually disappear"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"RALLY","clue":"Political gathering"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"RID","clue":"Free of"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"IDOL","clue":"Object of worship"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"DEW","clue":"Morning grass moisture"}]},{"blacks":[[0,3],[0,4],[1,4],[3,0],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"APE","clue":"Gorilla or chimp"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"ARM","clue":"Bicep's home"},{"number":2,"dir":"down","row":0,"col":1,"length":4,"answer":"POET","clue":"Verse writer"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"ELDER","clue":"Older family member"},{"number":4,"dir":"across","row":1,"col":0,"length":4,"answer":"ROLL","clue":"Dinner bread"},{"number":5,"dir":"down","row":1,"col":3,"length":4,"answer":"LILY","clue":"Easter flower"},{"number":6,"dir":"across","row":2,"col":0,"length":5,"answer":"MEDIA","clue":"News outlets"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"ALE","clue":"Pub pour"},{"number":8,"dir":"across","row":3,"col":1,"length":4,"answer":"TELL","clue":"Reveal"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"RYE","clue":"Bread grain"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"SAD","clue":"Feeling blue"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"START","clue":"Begin"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"ARC","clue":"Curved path"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"DYE","clue":"Fabric colorant"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"TRY","clue":"Attempt"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SPACE","clue":"Outer void"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SEA","clue":"Ocean"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"PAN","clue":"Frying tool"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"EAR","clue":"Hearing organ"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"ANT","clue":"Picnic pest"}]},{"blacks":[[0,3],[0,4],[1,3],[1,4],[3,0],[3,1],[4,0],[4,1]],"entries":[{"number":1,"dir":"across","row":0,"col":0,"length":3,"answer":"LAP","clue":"Racetrack circuit"},{"number":1,"dir":"down","row":0,"col":0,"length":3,"answer":"LOG","clue":"Chopped wood"},{"number":2,"dir":"down","row":0,"col":1,"length":3,"answer":"AIR","clue":"What you're breathing"},{"number":3,"dir":"down","row":0,"col":2,"length":5,"answer":"PLATE","clue":"Dinner dish"},{"number":4,"dir":"across","row":1,"col":0,"length":3,"answer":"OIL","clue":"Salad dressing base"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"GRAVE","clue":"Burial spot"},{"number":6,"dir":"down","row":2,"col":3,"length":3,"answer":"VOW","clue":"Wedding promise"},{"number":7,"dir":"down","row":2,"col":4,"length":3,"answer":"EYE","clue":"Vision organ"},{"number":8,"dir":"across","row":3,"col":2,"length":3,"answer":"TOY","clue":"Plaything"},{"number":9,"dir":"across","row":4,"col":2,"length":3,"answer":"EWE","clue":"Female sheep"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"SPA","clue":"Relaxation resort"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"STOCK","clue":"Market share"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"PARK","clue":"Green public space"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"ART","clue":"Museum contents"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"STAR","clue":"Night sky twinkler"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"SPIN","clue":"Twirl"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SPORT","clue":"Athletic activity"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SKI","clue":"Slope glider"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"KICK","clue":"Soccer move"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"INK","clue":"Pen fluid"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"FAN","clue":"Cooling device, or an admirer"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"FAULT","clue":"One's own mistake"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"ACRE","clue":"Land measurement"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"NET","clue":"Basketball hoop part"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"RACE","clue":"Speed contest"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"ROBE","clue":"Bathrobe"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"COURT","clue":"Basketball venue, or a judge's room"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"CAB","clue":"Taxi"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"ABLE","clue":"Capable"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"BET","clue":"Wager"}]},{"blacks":[[0,0],[0,1],[1,0],[1,1],[3,3],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"GAS","clue":"Car fuel"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"GRAND","clue":"Impressively large"},{"number":2,"dir":"down","row":0,"col":3,"length":3,"answer":"AID","clue":"Help, as in disaster relief"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"SPY","clue":"Secret agent"},{"number":4,"dir":"across","row":1,"col":2,"length":3,"answer":"RIP","clue":"Tear apart"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"READY","clue":"Prepared"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"ROB","clue":"Steal from"},{"number":6,"dir":"down","row":2,"col":1,"length":3,"answer":"EWE","clue":"Female sheep"},{"number":7,"dir":"across","row":3,"col":0,"length":3,"answer":"OWN","clue":"Possess"},{"number":8,"dir":"across","row":4,"col":0,"length":3,"answer":"BED","clue":"Where you sleep"}]},{"blacks":[[0,0],[0,1],[1,0],[3,4],[4,3],[4,4]],"entries":[{"number":1,"dir":"across","row":0,"col":2,"length":3,"answer":"WAR","clue":"Armed conflict"},{"number":1,"dir":"down","row":0,"col":2,"length":5,"answer":"WRIST","clue":"Watch's location"},{"number":2,"dir":"down","row":0,"col":3,"length":4,"answer":"AIRY","clue":"Light and breezy"},{"number":3,"dir":"down","row":0,"col":4,"length":3,"answer":"ROT","clue":"Decay"},{"number":4,"dir":"across","row":1,"col":1,"length":4,"answer":"TRIO","clue":"Group of three"},{"number":4,"dir":"down","row":1,"col":1,"length":4,"answer":"THAN","clue":"Comparison word"},{"number":5,"dir":"across","row":2,"col":0,"length":5,"answer":"SHIRT","clue":"Button-up garment"},{"number":5,"dir":"down","row":2,"col":0,"length":3,"answer":"SEA","clue":"Ocean"},{"number":6,"dir":"across","row":3,"col":0,"length":4,"answer":"EASY","clue":"Not difficult"},{"number":7,"dir":"across","row":4,"col":0,"length":3,"answer":"ANT","clue":"Picnic pest"}]}];
+const POOL_SIZE = PUZZLES.length;
+
+const dayLabelEl = document.getElementById('dayLabel');
+const streakCountEl = document.getElementById('streakCount');
+const muteBtnEl = document.getElementById('muteBtn');
+const gridEl = document.getElementById('grid');
+const clueBannerEl = document.getElementById('clueBanner');
+const clueDirIconEl = document.getElementById('clueDirIcon');
+const clueNumEl = document.getElementById('clueNum');
+const clueTextEl = document.getElementById('clueText');
+const acrossListEl = document.getElementById('acrossList');
+const downListEl = document.getElementById('downList');
+const keyboardEl = document.getElementById('keyboard');
+const summaryEl = document.getElementById('summary');
+const summaryTitleEl = document.getElementById('summaryTitle');
+const summaryTimeEl = document.getElementById('summaryTime');
+const summaryStreakEl = document.getElementById('summaryStreak');
+const summaryMetaEl = document.getElementById('summaryMeta');
+const copyResultBtn = document.getElementById('copyResultBtn');
+const closeSummaryBtn = document.getElementById('closeSummaryBtn');
+const countdownTimerEl = document.getElementById('countdownTimer');
+
+function dayNumber(){
+  const epoch = Date.UTC(2026, 0, 1);
+  const now = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
+  return Math.floor((now - epoch) / 86400000) + 1;
+}
+function seededShuffle(arr, seed){
+  const a = arr.slice();
+  let s = seed >>> 0;
+  const rand = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function dailyPuzzleIndex(day){
+  const cycleIndex = Math.floor((day - 1) / POOL_SIZE);
+  const dayInCycle = (day - 1) % POOL_SIZE;
+  const order = seededShuffle(Array.from({length: POOL_SIZE}, (_, i) => i), cycleIndex + 1);
+  return order[dayInCycle];
+}
+
+let soundEnabled = true;
+try{ soundEnabled = localStorage.getItem(SOUND_KEY) !== '0'; }catch(e){}
+let audioCtx = null;
+function ensureAudioCtx(){
+  if(!audioCtx){
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return null;
+    try{ audioCtx = new Ctx(); }catch(e){ return null; }
+  }
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playTone(freq, offset, duration, type, peakVol){
+  if(!soundEnabled) return;
+  const ctx = ensureAudioCtx();
+  if(!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+  const t0 = ctx.currentTime + (offset || 0);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(peakVol != null ? peakVol : 0.16, t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+function playSweep(freqStart, freqEnd, offset, duration, type, peakVol){
+  if(!soundEnabled) return;
+  const ctx = ensureAudioCtx();
+  if(!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sawtooth';
+  const t0 = ctx.currentTime + (offset || 0);
+  osc.frequency.setValueAtTime(freqStart, t0);
+  osc.frequency.exponentialRampToValueAtTime(freqEnd, t0 + duration);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(peakVol != null ? peakVol : 0.14, t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+function playKeySound(){ playTone(520, 0, 0.035, 'square', 0.05); }
+function playInvalidSound(){ playTone(180, 0, 0.15, 'sawtooth', 0.11); }
+function playWordSound(){ playTone(660, 0, 0.09, 'triangle', 0.12); }
+function playWinSound(){
+  playTone(523, 0, 0.12, 'triangle', 0.16);
+  playTone(659, 0.1, 0.12, 'triangle', 0.16);
+  playTone(784, 0.2, 0.12, 'triangle', 0.16);
+  playTone(1046, 0.3, 0.22, 'triangle', 0.18);
+}
+function updateMuteButton(){ muteBtnEl.classList.toggle('is-muted', !soundEnabled); }
+muteBtnEl.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  try{ localStorage.setItem(SOUND_KEY, soundEnabled ? '1' : '0'); }catch(e){}
+  updateMuteButton();
+  if(soundEnabled){ ensureAudioCtx(); playKeySound(); }
+});
+updateMuteButton();
+
+function preparePuzzle(raw){
+  const blacks = new Set(raw.blacks.map(([r, c]) => r + ',' + c));
+  const solution = Array.from({length: SIZE}, () => new Array(SIZE).fill(null));
+  const entries = raw.entries.map(e => {
+    const cells = [];
+    for(let i = 0; i < e.length; i++){
+      const r = e.dir === 'across' ? e.row : e.row + i;
+      const c = e.dir === 'across' ? e.col + i : e.col;
+      cells.push([r, c]);
+      solution[r][c] = e.answer[i];
+    }
+    return Object.assign({}, e, { cells });
+  });
+  entries.sort((a, b) => a.number - b.number || (a.dir === 'across' ? -1 : 1));
+  return { blacks, solution, entries };
+}
+
+function freshRun(){
+  const day = dayNumber();
+  const idx = dailyPuzzleIndex(day);
+  return {
+    day: day,
+    puzzleIndex: idx,
+    grid: Array.from({length: SIZE}, () => new Array(SIZE).fill('')),
+    elapsedSeconds: 0,
+    finished: false,
+    solved: false,
+  };
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return freshRun();
+    const parsed = JSON.parse(raw);
+    if(parsed.day !== dayNumber()) return freshRun();
+    return parsed;
+  }catch(e){ return freshRun(); }
+}
+function saveState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(run)); }catch(e){}
+}
+function loadStreak(){
+  try{
+    const parsed = JSON.parse(localStorage.getItem(STREAK_KEY));
+    if(parsed && typeof parsed.current === 'number') return parsed;
+  }catch(e){}
+  return { current: 0, lastSolvedDay: 0 };
+}
+function saveStreak(s){
+  try{ localStorage.setItem(STREAK_KEY, JSON.stringify(s)); }catch(e){}
+}
+
+let run = loadState();
+const puzzle = preparePuzzle(PUZZLES[run.puzzleIndex]);
+let selected = null; // {r, c}
+let direction = 'across';
+let timerIntervalId = null;
+
+function entryAt(r, c, dir){
+  return puzzle.entries.find(e => e.dir === dir && e.cells.some(([cr, cc]) => cr === r && cc === c));
+}
+function bothDirectionsAt(r, c){
+  return { across: entryAt(r, c, 'across'), down: entryAt(r, c, 'down') };
+}
+
+function buildGrid(){
+  gridEl.innerHTML = '';
+  const cellEls = [];
+  for(let r = 0; r < SIZE; r++){
+    const rowEls = [];
+    for(let c = 0; c < SIZE; c++){
+      const cellEl = document.createElement('div');
+      const key = r + ',' + c;
+      if(puzzle.blacks.has(key)){
+        cellEl.className = 'cell is-black';
+      } else {
+        cellEl.className = 'cell';
+        const entry = puzzle.entries.find(e => e.number && e.cells[0][0] === r && e.cells[0][1] === c);
+        if(entry){
+          const num = document.createElement('span');
+          num.className = 'cell-num';
+          num.textContent = entry.number;
+          cellEl.appendChild(num);
+        }
+        const letterSpan = document.createElement('span');
+        letterSpan.className = 'cell-letter';
+        cellEl.appendChild(letterSpan);
+        cellEl.addEventListener('click', () => selectCell(r, c, null));
+      }
+      gridEl.appendChild(cellEl);
+      rowEls.push(cellEl);
+    }
+    cellEls.push(rowEls);
+  }
+  return cellEls;
+}
+const cellEls = buildGrid();
+
+function firstWhiteCell(){
+  for(let r = 0; r < SIZE; r++) for(let c = 0; c < SIZE; c++) if(!puzzle.blacks.has(r + ',' + c)) return [r, c];
+  return [0, 0];
+}
+
+function selectCell(r, c, forceDir){
+  if(puzzle.blacks.has(r + ',' + c)) return;
+  const both = bothDirectionsAt(r, c);
+  if(forceDir){
+    direction = forceDir;
+  } else if(selected && selected.r === r && selected.c === c){
+    if(both.across && both.down) direction = direction === 'across' ? 'down' : 'across';
+  } else if(!both[direction]){
+    direction = direction === 'across' ? 'down' : 'across';
+  }
+  selected = { r, c };
+  render();
+}
+
+function currentEntry(){
+  if(!selected) return null;
+  return entryAt(selected.r, selected.c, direction) || entryAt(selected.r, selected.c, direction === 'across' ? 'down' : 'across');
+}
+
+function render(){
+  const active = currentEntry();
+  const activeCellKeys = new Set(active ? active.cells.map(([r, c]) => r + ',' + c) : []);
+  for(let r = 0; r < SIZE; r++){
+    for(let c = 0; c < SIZE; c++){
+      const el = cellEls[r][c];
+      if(puzzle.blacks.has(r + ',' + c)) continue;
+      const letterSpan = el.querySelector('.cell-letter');
+      letterSpan.textContent = run.grid[r][c] || '';
+      el.classList.toggle('in-word', activeCellKeys.has(r + ',' + c));
+      el.classList.toggle('is-selected', !!selected && selected.r === r && selected.c === c);
+      el.classList.toggle('is-solved', run.finished && run.solved);
+    }
+  }
+  if(active){
+    clueDirIconEl.textContent = active.dir === 'across' ? '→' : '↓';
+    clueNumEl.textContent = active.number;
+    clueTextEl.textContent = active.clue;
+  }
+  renderClueLists(active);
+}
+
+function entryIsFilled(entry){
+  return entry.cells.every(([r, c]) => !!run.grid[r][c]);
+}
+function renderClueLists(active){
+  acrossListEl.innerHTML = '';
+  downListEl.innerHTML = '';
+  puzzle.entries.forEach(e => {
+    const li = document.createElement('li');
+    const b = document.createElement('b');
+    b.textContent = e.number + '.';
+    li.appendChild(b);
+    li.appendChild(document.createTextNode(e.clue));
+    if(active && e === active) li.classList.add('is-active');
+    if(entryIsFilled(e)) li.classList.add('is-filled');
+    li.addEventListener('click', () => {
+      const target = e.cells.find(([r, c]) => !run.grid[r][c]) || e.cells[0];
+      selectCell(target[0], target[1], e.dir);
+    });
+    (e.dir === 'across' ? acrossListEl : downListEl).appendChild(li);
+  });
+}
+
+function advanceAfterType(){
+  const entry = currentEntry();
+  if(!entry) return;
+  const idx = entry.cells.findIndex(([r, c]) => r === selected.r && c === selected.c);
+  if(idx < entry.cells.length - 1){
+    const [nr, nc] = entry.cells[idx + 1];
+    selected = { r: nr, c: nc };
+  } else {
+    if(entryIsFilled(entry)) playWordSound();
+    const order = puzzle.entries;
+    const curIdx = order.indexOf(entry);
+    for(let step = 1; step <= order.length; step++){
+      const next = order[(curIdx + step) % order.length];
+      const emptyCell = next.cells.find(([r, c]) => !run.grid[r][c]);
+      if(emptyCell){ selected = { r: emptyCell[0], c: emptyCell[1] }; direction = next.dir; break; }
+    }
+  }
+}
+function moveBack(){
+  const entry = currentEntry();
+  if(!entry) return;
+  const idx = entry.cells.findIndex(([r, c]) => r === selected.r && c === selected.c);
+  if(run.grid[selected.r][selected.c]){
+    run.grid[selected.r][selected.c] = '';
+  } else if(idx > 0){
+    const [pr, pc] = entry.cells[idx - 1];
+    selected = { r: pr, c: pc };
+    run.grid[pr][pc] = '';
+  }
+}
+
+function isGridFull(){
+  for(let r = 0; r < SIZE; r++) for(let c = 0; c < SIZE; c++){
+    if(!puzzle.blacks.has(r + ',' + c) && !run.grid[r][c]) return false;
+  }
+  return true;
+}
+function isGridCorrect(){
+  for(let r = 0; r < SIZE; r++) for(let c = 0; c < SIZE; c++){
+    if(!puzzle.blacks.has(r + ',' + c) && run.grid[r][c] !== puzzle.solution[r][c]) return false;
+  }
+  return true;
+}
+function flashWrongCells(){
+  for(let r = 0; r < SIZE; r++){
+    for(let c = 0; c < SIZE; c++){
+      if(puzzle.blacks.has(r + ',' + c)) continue;
+      if(run.grid[r][c] && run.grid[r][c] !== puzzle.solution[r][c]){
+        const el = cellEls[r][c];
+        el.classList.remove('is-wrong');
+        void el.offsetWidth;
+        el.classList.add('is-wrong');
+      }
+    }
+  }
+  playInvalidSound();
+}
+
+function typeLetter(letter){
+  if(run.finished || !selected) return;
+  if(puzzle.blacks.has(selected.r + ',' + selected.c)) return;
+  run.grid[selected.r][selected.c] = letter;
+  playKeySound();
+  advanceAfterType();
+  render();
+  saveState();
+  if(isGridFull()){
+    if(isGridCorrect()){
+      finishPuzzle();
+    } else {
+      flashWrongCells();
+    }
+  }
+}
+function backspace(){
+  if(run.finished || !selected) return;
+  moveBack();
+  render();
+  saveState();
+}
+
+function handlePhysicalKey(e){
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  if(run.finished) return;
+  if(/^[a-zA-Z]$/.test(e.key)){ typeLetter(e.key.toUpperCase()); return; }
+  if(e.key === 'Backspace'){ backspace(); return; }
+  if(!selected) return;
+  const { r, c } = selected;
+  if(e.key === 'ArrowRight' && c < SIZE - 1 && !puzzle.blacks.has(r + ',' + (c+1))){ selectCell(r, c+1, 'across'); }
+  else if(e.key === 'ArrowLeft' && c > 0 && !puzzle.blacks.has(r + ',' + (c-1))){ selectCell(r, c-1, 'across'); }
+  else if(e.key === 'ArrowDown' && r < SIZE - 1 && !puzzle.blacks.has((r+1) + ',' + c)){ selectCell(r+1, c, 'down'); }
+  else if(e.key === 'ArrowUp' && r > 0 && !puzzle.blacks.has((r-1) + ',' + c)){ selectCell(r-1, c, 'down'); }
+}
+document.addEventListener('keydown', handlePhysicalKey);
+
+clueBannerEl.addEventListener('click', () => {
+  if(!selected) return;
+  const both = bothDirectionsAt(selected.r, selected.c);
+  if(both.across && both.down){ direction = direction === 'across' ? 'down' : 'across'; render(); }
+});
+
+const KEYBOARD_ROWS = [
+  ['Q','W','E','R','T','Y','U','I','O','P'],
+  ['A','S','D','F','G','H','J','K','L'],
+  ['Z','X','C','V','B','N','M','Backspace'],
+];
+KEYBOARD_ROWS.forEach(row => {
+  const rowEl = document.createElement('div');
+  rowEl.className = 'keyboard-row';
+  row.forEach(k => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const isWide = k === 'Backspace';
+    btn.className = 'key' + (isWide ? ' key-wide' : '');
+    btn.textContent = k === 'Backspace' ? '⌫' : k;
+    btn.addEventListener('click', () => { k === 'Backspace' ? backspace() : typeLetter(k); });
+    rowEl.appendChild(btn);
+  });
+  keyboardEl.appendChild(rowEl);
+});
+
+function msUntilNextReset(){
+  const now = new Date();
+  const nextMidnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0);
+  return Math.max(0, nextMidnightUtc - now.getTime());
+}
+function formatCountdown(ms){
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+let countdownIntervalId = null;
+function startCountdown(){
+  stopCountdown();
+  const tick = () => { countdownTimerEl.textContent = formatCountdown(msUntilNextReset()); };
+  tick();
+  countdownIntervalId = setInterval(tick, 1000);
+}
+function stopCountdown(){
+  if(countdownIntervalId){ clearInterval(countdownIntervalId); countdownIntervalId = null; }
+}
+
+function formatTime(totalSeconds){
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+function startTimer(){
+  stopTimer();
+  timerIntervalId = setInterval(() => {
+    run.elapsedSeconds++;
+    saveState();
+  }, 1000);
+}
+function stopTimer(){
+  if(timerIntervalId){ clearInterval(timerIntervalId); timerIntervalId = null; }
+}
+
+function reportStats(){
+  if(window.parent === window) return;
+  const streak = loadStreak();
+  window.parent.postMessage({
+    type: 'five-by-five-progress',
+    solved: run.solved,
+    dayNumber: run.day,
+    timeSeconds: run.elapsedSeconds,
+    streak: streak.current,
+  }, window.location.origin);
+}
+
+function finishPuzzle(){
+  run.finished = true;
+  run.solved = true;
+  stopTimer();
+  saveState();
+  const streak = loadStreak();
+  streak.current = (streak.lastSolvedDay === run.day - 1) ? streak.current + 1 : 1;
+  streak.lastSolvedDay = run.day;
+  saveStreak(streak);
+  streakCountEl.textContent = streak.current;
+  reportStats();
+  playWinSound();
+  render();
+  setTimeout(showSummary, 500);
+}
+
+function showSummary(){
+  const streak = loadStreak();
+  summaryTitleEl.textContent = 'Signal Locked';
+  summaryTimeEl.textContent = formatTime(run.elapsedSeconds);
+  summaryStreakEl.textContent = streak.current;
+  summaryMetaEl.textContent = 'Day ' + run.day + ' solved';
+  summaryEl.classList.remove('hidden');
+  startCountdown();
+}
+copyResultBtn.addEventListener('click', () => {
+  const text = 'Five by Five #' + run.day + ' — solved in ' + formatTime(run.elapsedSeconds);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(() => {
+      const original = copyResultBtn.textContent;
+      copyResultBtn.textContent = 'Copied!';
+      setTimeout(() => { copyResultBtn.textContent = original; }, 1500);
+    });
+  }
+});
+closeSummaryBtn.addEventListener('click', () => {
+  summaryEl.classList.add('hidden');
+  stopCountdown();
+});
+
+function setupRound(){
+  dayLabelEl.textContent = 'Day ' + run.day;
+  streakCountEl.textContent = loadStreak().current;
+  const start = firstWhiteCell();
+  selected = { r: start[0], c: start[1] };
+  direction = 'across';
+  render();
+  if(run.finished){
+    showSummary();
+  } else {
+    startTimer();
+  }
+}
+setupRound();
+</script>
+</body>
+</html>

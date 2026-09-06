@@ -64,6 +64,7 @@ export default async function HomePage() {
   const buzzerStats = statsById['brain-buzzer'];
   const cruncherStats = statsById['number-cruncher'];
   const sizeUpStats = statsById['size-up'];
+  const fiveByFiveStats = statsById['five-by-five'];
 
   const flagCorrectValue = flagStats
     ? `${Number(flagStats.correct ?? 0)} / ${Number(flagStats.totalCountries ?? 188)}`
@@ -75,6 +76,7 @@ export default async function HomePage() {
   const buzzerValue = buzzerStats ? `${Number(buzzerStats.streak ?? 0)} days` : 'Not played yet';
   const cruncherValue = cruncherStats ? `${Number(cruncherStats.streak ?? 0)} days` : 'Not played yet';
   const sizeUpValue = sizeUpStats ? `${Number(sizeUpStats.streak ?? 0)} days` : 'Not played yet';
+  const fiveByFiveValue = fiveByFiveStats ? `${Number(fiveByFiveStats.streak ?? 0)} days` : 'Not played yet';
 
   return (
     <main style={{ position: 'relative', overflow: 'hidden' }}>
@@ -161,6 +163,7 @@ export default async function HomePage() {
               <StatCard game="Brain Buzzer" value={buzzerValue} metric="Daily streak" />
               <StatCard game="Number Cruncher" value={cruncherValue} metric="Daily streak" />
               <StatCard game="Size Up" value={sizeUpValue} metric="Daily streak" />
+              <StatCard game="Five by Five" value={fiveByFiveValue} metric="Daily streak" />
             </div>
           </>
         ) : (
