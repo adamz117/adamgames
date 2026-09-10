@@ -1,8 +1,10 @@
 import GameCard from '@/components/game-card';
 import UsernameEditor from '@/components/username-editor';
+import AssassinsBlock from '@/components/assassins-block';
 import { GAMES } from '@/lib/games-registry';
 import { getGameStatsServer } from '@/lib/game-stats';
 import { getProfileServer } from '@/lib/profile';
+import { getAssassinsStateServer } from '@/lib/assassins';
 
 function StatCard({ game, value, metric }: { game: string; value: string; metric: string }) {
   return (
@@ -45,7 +47,7 @@ function StatCard({ game, value, metric }: { game: string; value: string; metric
 }
 
 export default async function HomePage() {
-  const [profile, gamesWithStats] = await Promise.all([
+  const [profile, gamesWithStats, assassinsState] = await Promise.all([
     getProfileServer(),
     Promise.all(
       GAMES.map(async (game) => ({
@@ -53,6 +55,7 @@ export default async function HomePage() {
         stats: await getGameStatsServer(game.id),
       }))
     ),
+    getAssassinsStateServer(),
   ]);
 
   const statsById = Object.fromEntries(gamesWithStats.map(({ game, stats }) => [game.id, stats]));
@@ -229,6 +232,10 @@ export default async function HomePage() {
             </span>
           ))}
         </div>
+      </div>
+
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: 1100, margin: '0 auto', padding: '40px 24px 0' }}>
+        <AssassinsBlock state={assassinsState} featured />
       </div>
 
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 1100, margin: '0 auto', padding: '40px 24px 56px' }}>
