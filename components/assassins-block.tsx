@@ -46,6 +46,113 @@ const inputStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
 };
 
+interface Pair {
+  id: string;
+  assassinName: string;
+  targetName: string;
+}
+
+interface Chain {
+  key: string;
+  nodes: string[];
+  edgeIds: string[];
+}
+
+function buildChains(pairs: Pair[]): Chain[] {
+  const byAssassin = new Map<string, Pair>();
+  for (const pair of pairs) byAssassin.set(pair.assassinName, pair);
+  const targets = new Set(pairs.map((p) => p.targetName));
+  const visited = new Set<string>();
+
+  function walk(start: string): Chain {
+    const nodes = [start];
+    const edgeIds: string[] = [];
+    const seen = new Set([start]);
+    let current = start;
+    while (byAssassin.has(current)) {
+      const pair = byAssassin.get(current)!;
+      if (visited.has(pair.id)) break;
+      visited.add(pair.id);
+      edgeIds.push(pair.id);
+      current = pair.targetName;
+      nodes.push(current);
+      if (seen.has(current)) break;
+      seen.add(current);
+    }
+    return { key: start, nodes, edgeIds };
+  }
+
+  const chains: Chain[] = [];
+  const startNames = [...new Set(pairs.map((p) => p.assassinName))].filter((name) => !targets.has(name));
+  for (const start of startNames) {
+    const pair = byAssassin.get(start);
+    if (pair && !visited.has(pair.id)) chains.push(walk(start));
+  }
+  for (const pair of pairs) {
+    if (!visited.has(pair.id)) chains.push(walk(pair.assassinName));
+  }
+  return chains;
+}
+
+const chainNodeStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 14,
+  color: 'var(--text)',
+  background: 'var(--bg)',
+  border: '1px solid var(--border)',
+  borderRadius: 999,
+  padding: '8px 16px',
+  whiteSpace: 'nowrap',
+  flex: 'none',
+};
+
+const chainArrowStyle: React.CSSProperties = {
+  color: 'var(--accent-bright)',
+  fontSize: 16,
+  flex: 'none',
+};
+
+function ChainView({
+  pairs,
+  editable,
+  onRemove,
+}: {
+  pairs: Pair[];
+  editable: boolean;
+  onRemove: (id: string) => void;
+}) {
+  const chains = buildChains(pairs);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {chains.map((chain) => (
+        <div key={chain.key} style={{ overflowX: 'auto', paddingBottom: 4 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            {chain.nodes.map((name, i) => (
+              <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={chainNodeStyle}>{name}</span>
+                {i < chain.nodes.length - 1 &&
+                  (editable ? (
+                    <button
+                      onClick={() => onRemove(chain.edgeIds[i])}
+                      title={`Remove ${name} → ${chain.nodes[i + 1]}`}
+                      style={{ ...chainArrowStyle, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    >
+                      &rarr;
+                    </button>
+                  ) : (
+                    <span style={chainArrowStyle} aria-hidden="true">
+                      &rarr;
+                    </span>
+                  ))}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PairRow({ pair, editable, onRemove }: { pair: { id: string; assassinName: string; targetName: string }; editable: boolean; onRemove: (id: string) => void }) {
   return (
     <div
@@ -92,6 +199,7 @@ export default function AssassinsBlock({ state, featured = false }: { state: Ass
   const [targetDraft, setTargetDraft] = useState('');
   const [addingPair, setAddingPair] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'chain' | 'list'>('chain');
 
   async function handleRequestAccess() {
     setRequesting(true);
@@ -245,16 +353,44 @@ export default function AssassinsBlock({ state, featured = false }: { state: Ass
                 No pairings yet.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {state.pairs.map((pair) => (
-                  <PairRow
-                    key={pair.id}
-                    pair={pair}
-                    editable={state.isAdmin && busyId !== pair.id}
-                    onRemove={handleRemovePair}
-                  />
-                ))}
-              </div>
+              <>
+                <div style={{ display: 'inline-flex', gap: 4, marginBottom: 16, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: 4 }}>
+                  {(['chain', 'list'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setViewMode(mode)}
+                      style={{
+                        background: viewMode === mode ? 'var(--accent)' : 'transparent',
+                        color: viewMode === mode ? 'var(--bg)' : 'var(--text-dim)',
+                        border: 'none',
+                        borderRadius: 5,
+                        padding: '6px 14px',
+                        fontSize: 13,
+                        fontFamily: 'var(--font-mono)',
+                        textTransform: 'capitalize',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+
+                {viewMode === 'chain' ? (
+                  <ChainView pairs={state.pairs} editable={state.isAdmin} onRemove={handleRemovePair} />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {state.pairs.map((pair) => (
+                      <PairRow
+                        key={pair.id}
+                        pair={pair}
+                        editable={state.isAdmin && busyId !== pair.id}
+                        onRemove={handleRemovePair}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
             {state.isAdmin && state.pendingRequests.length > 0 && (
