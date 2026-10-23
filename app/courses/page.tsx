@@ -27,6 +27,13 @@ export default function CoursesPage() {
           </span>
           <span className="club-real-go">See the course</span>
         </Link>
+        <Link href="/courses/tpc-sawgrass" className="club-real" style={{ borderTop: 'none' }}>
+          <span>
+            <span className="club-h2">TPC Sawgrass Stadium Course</span>
+            <span className="club-lede">Ponte Vedra Beach, Florida. Home of THE PLAYERS, with the island green on the 17th, par 72.</span>
+          </span>
+          <span className="club-real-go">See the course</span>
+        </Link>
       </section>
     </main>
   );
