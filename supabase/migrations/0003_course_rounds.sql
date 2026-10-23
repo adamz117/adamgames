@@ -20,10 +20,13 @@ create policy "course_rounds insertable by owner" on public.course_rounds
 
 -- The leaderboard: each player's best round (lowest strokes, earliest first), top 20. It runs with
 -- the owner's rights so it can read every row and every username, and returns only these columns.
+-- A new member's username starts as the part of their email before the @, so until they choose
+-- their own it shows as "Member": the leaderboard never publishes part of an email address.
 create function public.course_leaderboard(p_course text, p_mode text)
 returns table (username text, strokes int, par int, day date)
 language sql stable security definer set search_path = public as $$
-  select p.username, b.strokes, b.par, b.day
+  select case when lower(p.username) = lower(split_part(u.email, '@', 1)) then 'Member' else p.username end,
+         b.strokes, b.par, b.day
   from (
     select distinct on (r.user_id) r.user_id, r.strokes, r.par, r.day, r.created_at
     from public.course_rounds r
@@ -31,6 +34,7 @@ language sql stable security definer set search_path = public as $$
     order by r.user_id, r.strokes, r.created_at
   ) b
   join public.profiles p on p.id = b.user_id
+  join auth.users u on u.id = b.user_id
   order by b.strokes, b.created_at
   limit 20;
 $$;

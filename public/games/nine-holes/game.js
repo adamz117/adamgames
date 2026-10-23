@@ -570,6 +570,8 @@ function heightAt(h, p) {
 }
 // How far a shot plays: about a yard more for every yard the target sits above you.
 const playsLike = (h, from, to) => dist(from, to) + heightAt(h, to) - heightAt(h, from);
+// The whole hole, for the card: its length along the fairway plus the climb from tee to pin.
+const holePlaysLike = h => h.len + heightAt(h, h.pin) - heightAt(h, { x: 0, y: 0 });
 
 function realSurface(h, p) {
   const R = h.real, any = list => list.some(s => inPoly(p, s));
@@ -901,7 +903,7 @@ function nextHole(st) {
 const api = {
   CLUBS, LIE, PURE_LO, PURE_HI, SOLID, METER_MAX, ISLAND_BANK, THEMES, themeFor, inLeafPile,
   carryFactor, powerFor, grade, powerAt, aimAt,
-  makeCourse, makeRealCourse, realSurface, heightAt, playsLike, surfaceAt, resolveShot, rollOut, gustPush, puttRings, puttsFrom, strokeCap,
+  makeCourse, makeRealCourse, realSurface, heightAt, playsLike, holePlaysLike, surfaceAt, resolveShot, rollOut, gustPush, puttRings, puttsFrom, strokeCap,
   millAngle, millBladeOver, millStrike, inMillZone, portalOut, burnCartHit, shoreR, moatR, isleR,
   clubAllowed, autoClub, aimTarget, targetBand,
   newRound, play, nextHole, holeOf,

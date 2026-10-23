@@ -382,10 +382,10 @@ function startHole() {
 function showTeeCard(h) {
   $('teeCard').hidden = !h.real;
   if (!h.real) return;
-  const pl = Math.round(DH.playsLike(h, { x: 0, y: 0 }, h.pin));
+  const pl = Math.round(DH.holePlaysLike(h));
   $('tcNo').textContent = `Hole ${h.index}`;
   $('tcMeta').textContent = `Par ${h.par} · Stroke index ${h.si}`;
-  $('tcYds').innerHTML = `${h.len} yds${Math.abs(pl - Math.round(dist({ x: 0, y: 0 }, h.pin))) >= 3 ? ` · plays <b>${pl}</b>` : ''}`;
+  $('tcYds').innerHTML = `${h.len} yds${Math.abs(pl - h.len) >= 3 ? ` · plays <b>${pl}</b>` : ''}`;
   $('tcNote').textContent = h.note ? h.note[0].toUpperCase() + h.note.slice(1) + '.' : '';
   drawPlan(h, $('teePlan'));
 }
@@ -752,7 +752,7 @@ function drawCorridor(h, close) {
 }
 
 // ── a real course, drawn from its traced shapes ──
-function polyPath(pts, c = ctx) {
+function polyPath(pts, c = G) {
   c.beginPath();
   pts.forEach((p, i) => { const q = TS(p); i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
   c.closePath();
@@ -780,43 +780,82 @@ function canopyOf(h) {
   });
   return h.canopy;
 }
+// The static course goes into an offscreen image 1.6x the stage, drawn at the camera's scale. Each frame
+// just places that image; it is redrawn when the zoom moves 15% or the view nears its edge.
+let G = ctx; // where the course paints: the stage, or the cache while it is being drawn
+const courseCache = { cv: document.createElement('canvas'), fw: { cv: document.createElement('canvas') }, key: null };
+courseCache.ctx = courseCache.cv.getContext('2d'); courseCache.fw.ctx = courseCache.fw.cv.getContext('2d');
 function drawRealCourse(h, close) {
+  const C = courseCache, M = 1.6, cw = Math.ceil(W * M), ch = Math.ceil(H * M);
+  const fits = C.key && C.h === h && C.close === close && C.W === W && C.H === H && C.dpr === DPR && Math.abs(Math.log(view.s / C.s)) < 0.15
+    && Math.abs(view.cx - C.cx) + W / 2 / view.s <= cw / 2 / C.s && Math.abs(view.cy - C.cy) + H / 2 / view.s <= ch / 2 / C.s;
+  if (!fits) {
+    for (const cv of [C.cv, C.fw.cv]) { cv.width = cw * DPR; cv.height = ch * DPR; }
+    const keep = { W, H, cx: view.cx, cy: view.cy };
+    W = cw; H = ch; G = C.ctx; G.setTransform(DPR, 0, 0, DPR, 0, 0); G.clearRect(0, 0, cw, ch);
+    try { paintRealCourse(h, close, C.fw); } finally { G = ctx; W = keep.W; H = keep.H; }
+    Object.assign(C, { key: 1, h, close, W, H, dpr: DPR, s: view.s, cx: view.cx, cy: view.cy });
+  }
+  const k = view.s / C.s, dx = W / 2 - cw / 2 * k + (C.cx - view.cx) * view.s, dy = H / 2 - ch / 2 * k - (C.cy - view.cy) * view.s;
+  ctx.drawImage(C.cv, dx, dy, cw * k, ch * k);
+}
+function paintRealCourse(h, close, RF) {
   const R = h.real, fill = (list, color, edge, lw = 1) => {
-    for (const sh of list) { if (!onScreen(sh.box)) continue; polyPath(sh.pts); ctx.fillStyle = color; ctx.fill(); if (edge) { ctx.lineWidth = lw; ctx.strokeStyle = edge; ctx.stroke(); } }
+    for (const sh of list) { if (!onScreen(sh.box)) continue; polyPath(sh.pts); G.fillStyle = color; G.fill(); if (edge) { G.lineWidth = lw; G.strokeStyle = edge; G.stroke(); } }
   };
-  ctx.fillStyle = PAL.ob; ctx.fillRect(0, 0, W, H); // beyond the boundary
-  const g = ctx.createLinearGradient(0, 0, W * 0.35, H);
+  G.fillStyle = PAL.ob; G.fillRect(0, 0, W, H); // beyond the boundary
+  const g = G.createLinearGradient(0, 0, W * 0.35, H);
   g.addColorStop(0, PAL.g[0]); g.addColorStop(0.55, PAL.g[1]); g.addColorStop(1, PAL.g[2]);
-  polyPath(R.boundary.pts); ctx.fillStyle = g; ctx.fill();
-  ctx.save(); ctx.clip(); ctx.globalAlpha = 0.55; ctx.fillStyle = PAL.rough; ctx.fillRect(0, 0, W, H); ctx.restore();
-  ctx.save(); ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.setLineDash([5, 4]); polyPath(R.boundary.pts); ctx.stroke(); ctx.restore();
+  polyPath(R.boundary.pts); G.fillStyle = g; G.fill();
+  G.save(); G.clip(); G.globalAlpha = 0.55; G.fillStyle = PAL.rough; G.fillRect(0, 0, W, H); G.restore();
+  G.save(); G.lineWidth = 1.4; G.strokeStyle = 'rgba(255,255,255,0.55)'; G.setLineDash([5, 4]); polyPath(R.boundary.pts); G.stroke(); G.restore();
   // fairways, with mowing stripes across the hole, on their own layer so the stripes stay on them
-  fwCtx.setTransform(DPR, 0, 0, DPR, 0, 0); fwCtx.clearRect(0, 0, W, H);
-  for (const fw of R.fairways) { if (!onScreen(fw.box)) continue; polyPath(fw.pts, fwCtx); fwCtx.fillStyle = PAL.fw; fwCtx.fill(); }
+  RF.ctx.setTransform(DPR, 0, 0, DPR, 0, 0); RF.ctx.clearRect(0, 0, W, H);
+  for (const fw of R.fairways) { if (!onScreen(fw.box)) continue; polyPath(fw.pts, RF.ctx); RF.ctx.fillStyle = PAL.fw; RF.ctx.fill(); }
   if (!close) {
-    fwCtx.globalCompositeOperation = 'source-atop';
+    RF.ctx.globalCompositeOperation = 'source-atop';
     const a = fromScreen(0, 0), b = fromScreen(W, H), y0 = Math.floor(Math.min(a.y, b.y) / 12) * 12, y1 = Math.max(a.y, b.y);
     for (let y = y0; y < y1; y += 12) {
       const p = TS({ x: Math.min(a.x, b.x), y: y + 6 }), q = TS({ x: Math.max(a.x, b.x), y: y + 6 });
-      fwCtx.beginPath(); fwCtx.moveTo(p.x, p.y); fwCtx.lineTo(q.x, q.y); fwCtx.lineWidth = Math.max(1, 12 * view.s); fwCtx.lineCap = 'butt';
+      RF.ctx.beginPath(); RF.ctx.moveTo(p.x, p.y); RF.ctx.lineTo(q.x, q.y); RF.ctx.lineWidth = Math.max(1, 12 * view.s); RF.ctx.lineCap = 'butt';
       const band = Math.round(y / 12) & 1;
-      fwCtx.globalAlpha = band ? 0.32 : 0.24; fwCtx.strokeStyle = band ? PAL.stripeA : PAL.stripeB; fwCtx.stroke();
+      RF.ctx.globalAlpha = band ? 0.32 : 0.24; RF.ctx.strokeStyle = band ? PAL.stripeA : PAL.stripeB; RF.ctx.stroke();
     }
-    fwCtx.globalAlpha = 1; fwCtx.globalCompositeOperation = 'source-over';
+    RF.ctx.globalAlpha = 1; RF.ctx.globalCompositeOperation = 'source-over';
   }
-  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.shadowColor = 'rgba(30,60,30,0.30)'; ctx.shadowBlur = Math.max(3, 8 * Math.min(view.s, 2));
-  ctx.drawImage(fwCvs, 0, 0); ctx.restore();
+  G.save(); G.setTransform(1, 0, 0, 1, 0, 0); G.drawImage(RF.cv, 0, 0); G.restore();
+  G.lineWidth = Math.max(1, 0.8 * view.s); G.strokeStyle = PAL.fwEdge; // a crisp edge instead of a blurred shadow, which cost a frame
+  for (const fw of R.fairways) if (onScreen(fw.box)) { polyPath(fw.pts); G.stroke(); }
   fill(R.tees, PAL.tee, PAL.fwEdge, 1);
   fill(R.greens.filter(x => x !== R.ownGreen), PAL.green, PAL.greenEdge, 1.2); // the other holes' greens
-  for (const c of R.cart) strokePath(c, 1.1, PAL.cart);
+  for (const c of R.cart) strokePath(c, 1.1, PAL.cart, G);
   fill(R.water, PAL.water, PAL.waterEdge, 1.6);
   fill(R.bunkers, PAL.sand, PAL.sandEdge, 1.2);
   fill(R.trees, PAL.canopy); // a dark floor under the crowns
-  for (const sh of canopyOf(h)) { if (!onScreen(sh.box)) continue; for (const t of sh.crowns) drawTree(t, t.r); }
+  drawCanopy(h);
   for (const b of R.benches) {
     const p = TS(b), w = Math.max(3, 2 * view.s), hh = Math.max(1.4, 0.7 * view.s);
-    ctx.fillStyle = PAL.bench; ctx.fillRect(p.x - w / 2, p.y - hh / 2, w, hh);
+    G.fillStyle = PAL.bench; G.fillRect(p.x - w / 2, p.y - hh / 2, w, hh);
   }
+}
+
+// Thousands of crowns per hole, so they go down in five batched fills: shadows, three shades, highlights.
+function drawCanopy(h) {
+  const shade = [new Path2D(), new Path2D(), new Path2D()], shadow = new Path2D(), lit = new Path2D();
+  for (const sh of canopyOf(h)) {
+    if (!onScreen(sh.box)) continue;
+    for (const t of sh.crowns) {
+      const p = TS(t), r = Math.max(0.9, t.r * view.s);
+      if (p.x < -20 || p.x > W + 20 || p.y < -20 || p.y > H + 20) continue;
+      const v = ((((t.x * 7349 + t.y * 9137) | 0) >>> 0) % 3);
+      shadow.moveTo(p.x + r * 0.38 + r * 1.05, p.y + r * 0.48); shadow.arc(p.x + r * 0.38, p.y + r * 0.48, r * 1.05, 0, 6.284);
+      shade[v].moveTo(p.x + r, p.y); shade[v].arc(p.x, p.y, r, 0, 6.284);
+      if (r > 1.8) { lit.moveTo(p.x - r * 0.28 + r * 0.6, p.y - r * 0.32); lit.arc(p.x - r * 0.28, p.y - r * 0.32, r * 0.6, 0, 6.284); }
+    }
+  }
+  G.fillStyle = 'rgba(40,60,44,0.26)'; G.fill(shadow);
+  shade.forEach((p, v) => { G.fillStyle = PAL.trees[v]; G.fill(p); });
+  G.fillStyle = PAL.lit; G.fill(lit);
 }
 
 // A tree: round crown in the woods and on the links, a dark conifer in the highlands.
