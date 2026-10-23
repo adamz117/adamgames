@@ -456,17 +456,10 @@ function endRound() {
   setAct('See the card');
   reportRound(strokes, par);
 }
-// Embedded on adamgames, the page around the game saves the round to the player's stats. The
-// stats are replaced whole on each save, so the running record (best, rounds) is kept here.
+// Embedded on adamgames, the page around the game adds the round to the player's record.
 function reportRound(strokes, par) {
   if (window.parent === window) return;
-  let rec = {};
-  try { rec = JSON.parse(localStorage.getItem('nine-holes-record')) || {}; } catch (e) {}
-  const toPar = strokes - par;
-  if (rec.bestToPar == null || toPar < rec.bestToPar) Object.assign(rec, { bestToPar: toPar, bestStrokes: strokes, bestCourse: st.course.name });
-  rec.rounds = (rec.rounds || 0) + 1;
-  try { localStorage.setItem('nine-holes-record', JSON.stringify(rec)); } catch (e) {}
-  window.parent.postMessage({ type: 'nine-holes-progress', ...rec, lastToPar: toPar, lastStrokes: strokes, lastCourse: st.course.name, seed }, location.origin);
+  window.parent.postMessage({ type: 'nine-holes-round', strokes, par, course: st.course.name, seed }, location.origin);
 }
 
 // ── ui ──

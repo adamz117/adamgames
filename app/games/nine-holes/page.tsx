@@ -1,41 +1,33 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { upsertGameStatsClient } from '@/lib/game-stats-client';
+import { getGameStatsClient, upsertGameStatsClient } from '@/lib/game-stats-client';
+import { readStats, recordRound } from '@/lib/nine-holes-stats';
 
 export default function NineHolesPage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
-    function handleMessage(event: MessageEvent) {
+    async function handleMessage(event: MessageEvent) {
       if (event.origin !== window.location.origin) return;
       if (event.source !== iframeRef.current?.contentWindow) return;
-      if (event.data?.type !== 'nine-holes-progress') return;
-      const { bestToPar, bestStrokes, bestCourse, rounds, lastToPar, lastStrokes, lastCourse, seed } = event.data;
+      if (event.data?.type !== 'nine-holes-round') return;
+      const { strokes, par, course, seed } = event.data;
       if (
-        typeof bestToPar !== 'number' ||
-        typeof bestStrokes !== 'number' ||
-        typeof rounds !== 'number' ||
-        typeof lastToPar !== 'number' ||
-        typeof lastStrokes !== 'number' ||
-        typeof bestCourse !== 'string' ||
-        typeof lastCourse !== 'string' ||
+        typeof strokes !== 'number' ||
+        typeof par !== 'number' ||
+        typeof course !== 'string' ||
         typeof seed !== 'string'
       ) {
         return;
       }
 
-      upsertGameStatsClient('nine-holes', {
-        bestToPar,
-        bestStrokes,
-        bestCourse,
-        rounds,
-        lastToPar,
-        lastStrokes,
-        lastCourse,
-        seed,
-        lastPlayedAt: new Date().toISOString(),
-      });
+      // The round is added to what is already stored, so the record is the same on every device.
+      const stored = await getGameStatsClient('nine-holes');
+      if (stored === undefined) return; // signed out: nothing to save
+      const today = new Date().toLocaleDateString('en-CA'); // the same date the game seeds today's course with
+      const next = recordRound(readStats(stored), { seed, course, strokes, par }, today, new Date().toISOString());
+      await upsertGameStatsClient('nine-holes', { ...next });
     }
 
     window.addEventListener('message', handleMessage);

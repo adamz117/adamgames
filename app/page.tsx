@@ -1,235 +1,111 @@
-import GameCard from '@/components/game-card';
-import UsernameEditor from '@/components/username-editor';
-import { GAMES } from '@/lib/games-registry';
-import { getGameStatsServer } from '@/lib/game-stats';
+import type { CSSProperties } from 'react';
+import Link from 'next/link';
+import TodayHero from '@/components/today-hero';
+import MemberCard from '@/components/member-card';
 import { getProfileServer } from '@/lib/profile';
+import { getGameStatsServer } from '@/lib/game-stats';
+import { formatToPar, HANDICAP_MIN, readStats } from '@/lib/nine-holes-stats';
+import { VENUES } from '@/lib/venues';
 
-function StatCard({ game, value, metric }: { game: string; value: string; metric: string }) {
-  return (
-    <div
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 10,
-        padding: '14px 18px',
-        minWidth: 150,
-      }}
-    >
-      <div
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          color: 'var(--text-dim)',
-        }}
-      >
-        {game}
-      </div>
-      <div
-        style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: 28,
-          letterSpacing: '0.01em',
-          color: 'var(--accent-bright)',
-          marginTop: 4,
-        }}
-      >
-        {value}
-      </div>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-        {metric}
-      </div>
-    </div>
-  );
-}
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+// The venue tiles: one tall and wide, then four halves, so five tiles fill the grid exactly.
+const VENUE_SHAPE = ['wide tall', 'wide', 'wide', 'wide', 'wide'];
 
 export default async function HomePage() {
-  const [profile, gamesWithStats] = await Promise.all([
-    getProfileServer(),
-    Promise.all(
-      GAMES.map(async (game) => ({
-        game,
-        stats: await getGameStatsServer(game.id),
-      }))
-    ),
-  ]);
-
-  const statsById = Object.fromEntries(gamesWithStats.map(({ game, stats }) => [game.id, stats]));
-  // Only Nine Holes is on the site for now; the other games' cards come back with their ids
-  // in VISIBLE_GAME_IDS (lib/games-registry.ts) and their StatCards below.
-  const nineHolesStats = statsById['nine-holes'];
-
-  const nineHolesBest = Number(nineHolesStats?.bestToPar);
-  const nineHolesValue = nineHolesStats && Number.isFinite(nineHolesBest)
-    ? `${nineHolesBest === 0 ? 'E' : nineHolesBest > 0 ? `+${nineHolesBest}` : nineHolesBest} (${Number(nineHolesStats.bestStrokes ?? 0)})`
-    : 'Not played yet';
+  const [profile, raw] = await Promise.all([getProfileServer(), getGameStatsServer('nine-holes')]);
+  const stats = readStats(raw);
+  const recent = stats.history.slice(0, 5);
 
   return (
-    <main style={{ position: 'relative', overflow: 'hidden' }}>
-      <div
-        aria-hidden="true"
-        className="hero-glow"
-        style={{
-          position: 'absolute',
-          top: '-160px',
-          left: '-120px',
-          width: 480,
-          height: 480,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, var(--accent) 0%, transparent 70%)',
-          opacity: 0.16,
-          filter: 'blur(40px)',
-          pointerEvents: 'none',
-        }}
-      />
-      <div
-        aria-hidden="true"
-        className="hero-glow-2"
-        style={{
-          position: 'absolute',
-          top: '80px',
-          right: '-160px',
-          width: 420,
-          height: 420,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, var(--accent-bright) 0%, transparent 70%)',
-          opacity: 0.12,
-          filter: 'blur(48px)',
-          pointerEvents: 'none',
-        }}
-      />
-      <div aria-hidden="true" className="arcade-grid" />
+    <main>
+      <div className="club-grain" aria-hidden="true" />
+      <TodayHero signedIn={!!profile} latest={stats.history[0] ?? null} />
 
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 1100, margin: '0 auto', padding: '56px 24px 0' }}>
+      <section className="club-wrap club-section" aria-label="Your member card">
         {profile ? (
-          <>
-            <div
-              className="hero-badge"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 12,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: 'var(--accent-bright)',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 999,
-                padding: '6px 16px',
-              }}
-            >
-              <span className="live-dot" aria-hidden="true" />
-              Player profile
-            </div>
-            <h1
-              className="hero-title"
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 'clamp(40px, 8vw, 76px)',
-                lineHeight: 1.05,
-                letterSpacing: '0.01em',
-                margin: '18px 0 0',
-                color: 'var(--text)',
-              }}
-            >
-              Welcome back,
-              <br />
-              <UsernameEditor initialUsername={profile.username} />
-            </h1>
-            <p className="hero-sub" style={{ color: 'var(--text-dim)', marginTop: 14, maxWidth: 520, fontSize: 17 }}>
-              Your best stats across every game, in one place.
-            </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 28 }}>
-              <StatCard game="Nine Holes" value={nineHolesValue} metric="Best round" />
-            </div>
-          </>
+          <MemberCard name={profile.username} stats={stats} showLink />
         ) : (
-          <>
-            <div
-              className="hero-badge"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 12,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: 'var(--accent-bright)',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 999,
-                padding: '6px 16px',
-              }}
-            >
-              <span className="live-dot" aria-hidden="true" />
-              Insert coin to continue
+          <div className="club-card">
+            <div className="club-card-core">
+              <div>
+                <p className="club-card-name">Keep a handicap</p>
+                <p className="club-card-note">
+                  Sign up and every daily round goes on your card: your streak, your best round, and a
+                  handicap from your best 8 of your last 20.
+                </p>
+                <p style={{ margin: '20px 0 0' }}><Link href="/signup" className="club-button">Sign up</Link></p>
+              </div>
+              {/* What each number on a member's card will mean, rather than empty zeros. */}
+              <div className="club-stats">
+                <div className="club-stat"><b className="word">Streak</b><span>Daily courses finished in a row</span></div>
+                <div className="club-stat"><b className="word">Best</b><span>Your lowest score to par</span></div>
+                <div className="club-stat"><b className="word">Handicap</b><span>Your best 8 of your last 20, from {HANDICAP_MIN} rounds</span></div>
+              </div>
             </div>
-            <h1
-              className="hero-title"
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 'clamp(48px, 9vw, 88px)',
-                lineHeight: 1.02,
-                letterSpacing: '0.01em',
-                margin: '18px 0 0',
-                color: 'var(--text)',
-              }}
-            >
-              Your games.
-              <br />
-              Your stats.
-            </h1>
-            <p className="hero-sub" style={{ color: 'var(--text-dim)', marginTop: 14, maxWidth: 520, fontSize: 17 }}>
-              A personal arcade — every game you play here tracks your progress in
-              one place, once you sign in.
-            </p>
-          </>
+          </div>
         )}
-      </div>
+      </section>
 
-      <div
-        className="marquee"
-        aria-hidden="true"
-        style={{ position: 'relative', zIndex: 1, marginTop: 40 }}
-      >
-        <div className="marquee-track">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <span key={i} style={{ display: 'inline-flex', gap: 24 }}>
-              <span>New high score unlocked</span>
-              <span>•</span>
-              <span>Nine Holes — a new course every day</span>
-              <span>•</span>
-              <span>{profile ? 'Progress synced' : 'Sign in to save your progress'}</span>
-              <span>•</span>
-              <span>More games loading soon</span>
-              <span>•</span>
-            </span>
+      {recent.length > 0 ? (
+        <section className="club-wrap club-section">
+          <h2 className="club-h2">Recent rounds</h2>
+          <div className="club-board">
+            {recent.map((r) => (
+              <div className="club-board-row" key={r.seed}>
+                <span className="club-board-date">{shortDate(r.playedAt)}</span>
+                <span className="club-board-course">{r.course}</span>
+                <span className="club-board-score">{formatToPar(r.toPar)} <span style={{ color: 'var(--text-dim)', fontSize: 18 }}>({r.strokes})</span></span>
+              </div>
+            ))}
+          </div>
+          <p style={{ margin: '18px 0 0' }}><Link href="/account" className="club-link">Every round on your card</Link></p>
+        </section>
+      ) : (
+        <section className="club-wrap club-section club-split">
+          <div>
+            <h2 className="club-h2">How a round plays</h2>
+            <p className="club-lede">Every shot is two well-timed taps. There is no putting to time: where you finish on the green decides it.</p>
+          </div>
+          <ol className="club-steps">
+            <li><div><h3>Set the line</h3><p>The aim sweeps side to side. Tap the course to move it, then lock it in.</p></div></li>
+            <li><div><h3>Time the swing</h3><p>Stop the power needle in the green band. It marks the power that reaches the pin.</p></div></li>
+            <li><div><h3>Read the rings</h3><p>Inside the gold ring is one putt, the pale ring two, anywhere else on the green three.</p></div></li>
+          </ol>
+        </section>
+      )}
+
+      <section className="club-wrap club-section">
+        <h2 className="club-h2">Five venues, one course a day</h2>
+        <p className="club-lede">
+          The course is built from the date, so everyone plays the same nine holes, in the same wind, with the
+          same hazards in the same places.
+        </p>
+        <div className="club-venues">
+          {VENUES.map((v, i) => (
+            <article
+              key={v.id}
+              className={`club-venue ${VENUE_SHAPE[i]}`}
+              style={{
+                // darkened from the venue's tree-line green, so bone lettering reads on every one
+                background: `linear-gradient(160deg, color-mix(in srgb, ${v.colors.deep} 70%, #0b1610) 0%, color-mix(in srgb, ${v.colors.deep} 45%, #0b1610) 100%)`,
+                '--v-rough': v.colors.rough,
+                '--v-fw': v.colors.fw,
+              } as CSSProperties}
+            >
+              <h3>{v.name}</h3>
+              <p>{v.blurb}</p>
+            </article>
           ))}
         </div>
-      </div>
+      </section>
 
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 1100, margin: '0 auto', padding: '40px 24px 56px' }}>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-            gap: 20,
-          }}
-        >
-          {gamesWithStats.map(({ game, stats }, i) => (
-            <GameCard
-              key={game.id}
-              title={game.title}
-              description={game.description}
-              href={game.href}
-              summary={stats === undefined ? undefined : game.summarize(stats)}
-              style={{ animationDelay: `${0.15 + i * 0.06}s` }}
-            />
-          ))}
+      <footer className="club-wrap">
+        <div className="club-footer">
+          <span>A new course every morning, the same for everyone.</span>
+          <span>Adam Games</span>
         </div>
-      </div>
+      </footer>
     </main>
   );
 }

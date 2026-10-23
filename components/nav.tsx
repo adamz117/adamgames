@@ -3,12 +3,14 @@ import { createClient } from '@/lib/supabase/server';
 import SignOutButton from '@/components/sign-out-button';
 import GamesDropdown from '@/components/games-dropdown';
 import { GAMES } from '@/lib/games-registry';
+import { getProfileServer } from '@/lib/profile';
 
 export default async function Nav() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const profile = user ? await getProfileServer() : null;
 
   return (
     <header
@@ -28,48 +30,30 @@ export default async function Nav() {
           justifyContent: 'space-between',
         }}
       >
-        <Link
-          href="/"
-          className="brand-wordmark"
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 28,
-            letterSpacing: '0.02em',
-            color: 'var(--text)',
-            textDecoration: 'none',
-          }}
-        >
-          ADAM GAMES
+        <Link href="/" className="club-wordmark" translate="no">
+          Adam Games
         </Link>
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        <nav className="club-nav">
           <GamesDropdown
             games={GAMES.map(({ id, title, description, href }) => ({ id, title, description, href }))}
           />
           {user ? (
             <>
-              <span style={{ color: 'var(--text-dim)', fontSize: 14 }}>{user.email}</span>
+              <Link href="/account" className="club-link" style={{ fontSize: 14 }}>
+                {profile?.username ?? user.email}
+              </Link>
               <SignOutButton />
             </>
           ) : (
             <>
               <Link
                 href="/signup"
-                style={{ color: 'var(--text-dim)', textDecoration: 'none', fontSize: 14 }}
+                className="club-nav-extra"
+                style={{ color: 'var(--text-dim)', textDecoration: 'none', fontSize: 14, whiteSpace: 'nowrap' }}
               >
                 Sign up
               </Link>
-              <Link
-                href="/login"
-                style={{
-                  color: 'var(--bg)',
-                  background: 'var(--accent)',
-                  textDecoration: 'none',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  padding: '8px 16px',
-                  borderRadius: 6,
-                }}
-              >
+              <Link href="/login" className="club-button" style={{ minHeight: 38, padding: '0 18px', fontSize: 14 }}>
                 Sign in
               </Link>
             </>

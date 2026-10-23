@@ -1,3 +1,5 @@
+import { formatHandicap, formatToPar, readStats } from '@/lib/nine-holes-stats';
+
 export type GameStats = Record<string, unknown> | null;
 
 export interface GameRegistryEntry {
@@ -142,11 +144,10 @@ const ALL_GAMES: GameRegistryEntry[] = [
     description: 'A new nine-hole golf course every day — time the line, time the swing, mind the hazards.',
     href: '/games/nine-holes',
     summarize: (stats) => {
-      if (!stats || typeof stats.bestToPar !== 'number') return 'Not played yet';
-      const best = stats.bestToPar;
-      const toPar = best === 0 ? 'E' : best > 0 ? `+${best}` : String(best);
-      const rounds = Number(stats.rounds ?? 0);
-      return `Best round ${toPar} (${Number(stats.bestStrokes ?? 0)}) · ${rounds} round${rounds === 1 ? '' : 's'}`;
+      const s = readStats(stats);
+      if (!s.best) return 'Not played yet';
+      const hcp = s.handicap === null ? 'no handicap yet' : `handicap ${formatHandicap(s.handicap)}`;
+      return `Best round ${formatToPar(s.best.toPar)} (${s.best.strokes}), ${hcp}`;
     },
   },
 ];

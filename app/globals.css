@@ -1,35 +1,64 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-
 @import "tailwindcss";
 
+/* The clubhouse: deep baize green, bone lettering and one amber accent. The site is dark by
+   design (a lounge, not a page that flips with the system theme), so there is one set of tokens. */
 :root {
-  --bg: #0b0b0e;
-  --surface: #18181f;
-  --surface-2: #232330;
-  --text: #f1eef2;
-  --text-dim: #a3a0ac;
-  --accent: #ef4577;
-  --accent-bright: #ff6d95;
-  --accent-2: #22e0e0;
-  --border: #2c2c38;
-  --font-display: 'Bebas Neue', Impact, sans-serif;
-  --font-body: 'Manrope', -apple-system, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  --bg: #0f2219;          /* baize */
+  --surface: #14291f;     /* the nav and raised panels */
+  --surface-2: #1b3528;   /* inside a panel */
+  --text: #eceadc;        /* bone */
+  --text-dim: #a8ae9d;
+  --accent: #e2aa4e;      /* amber: the one accent, for the main action and gilt details */
+  --accent-bright: #efc274;
+  --accent-2: #8fbaa0;    /* sage, for quiet secondary marks */
+  --border: #2a4436;
+  --danger: #e58f7b;
+  --font-display: var(--font-cormorant), Georgia, 'Times New Roman', serif;
+  --font-body: var(--font-archivo), -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --radius-card: 22px;
+  color-scheme: dark;
 }
 
 body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* A faint grain over the clubhouse pages so the baize reads as cloth, not a flat fill. Placed by
+   those pages themselves, so it never sits over the game. */
+.club-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
 }
 
 .site-header {
   position: relative;
-  box-shadow: 0 16px 32px -20px rgba(239, 69, 119, 0.5);
 }
-.brand-wordmark {
-  text-shadow: 0 0 14px rgba(239, 69, 119, 0.45);
+.club-wordmark {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 5.6vw, 28px);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
 }
+.club-nav { display: flex; align-items: center; gap: 20px; }
+/* On a phone the page's own sign-up card stands in for the nav link, so the wordmark has room. */
+@media (max-width: 480px) { .club-nav { gap: 14px; } .club-nav-extra { display: none; } }
 
 .games-dropdown-item {
   transition: background 0.12s ease;
@@ -40,210 +69,287 @@ body {
 }
 
 @keyframes dropdownIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes driftGlow {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(3%, -4%) scale(1.08);
-  }
-}
-
-@keyframes gridScroll {
-  from {
-    background-position: 0 0, 0 0;
-  }
-  to {
-    background-position: 0 48px, 0 0;
-  }
-}
-
-@keyframes neonFlicker {
-  0%, 100% {
-    text-shadow:
-      0 0 8px rgba(239, 69, 119, 0.6),
-      0 0 26px rgba(239, 69, 119, 0.4),
-      0 0 60px rgba(34, 224, 224, 0.18);
-  }
-  50% {
-    text-shadow:
-      0 0 10px rgba(239, 69, 119, 0.75),
-      0 0 34px rgba(239, 69, 119, 0.5),
-      0 0 74px rgba(34, 224, 224, 0.25);
-  }
-}
-
-@keyframes blink {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.25;
-  }
-}
-
-@keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-.hero-glow {
-  animation: driftGlow 16s ease-in-out infinite;
-}
-.hero-glow-2 {
-  animation: driftGlow 20s ease-in-out infinite reverse;
-}
-
-.arcade-grid {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 360px;
-  background-image:
-    linear-gradient(var(--accent-2) 1px, transparent 1px),
-    linear-gradient(90deg, var(--accent-2) 1px, transparent 1px);
-  background-size: 48px 48px;
-  opacity: 0.14;
-  transform: perspective(300px) rotateX(60deg);
-  transform-origin: bottom;
-  mask-image: linear-gradient(to top, black, transparent);
-  -webkit-mask-image: linear-gradient(to top, black, transparent);
-  animation: gridScroll 6s linear infinite;
-  pointer-events: none;
-}
-
-.hero-badge,
-.hero-title,
-.hero-sub {
-  animation: fadeUp 0.6s ease-out both;
-}
-.hero-title {
-  animation-name: fadeUp, neonFlicker;
-  animation-duration: 0.6s, 4s;
-  animation-timing-function: ease-out, ease-in-out;
-  animation-iteration-count: 1, infinite;
-  animation-delay: 0.05s, 1s;
-  animation-fill-mode: both, none;
-}
-.hero-sub {
-  animation-delay: 0.12s;
-}
-
-.live-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 8px;
-  border-radius: 50%;
-  background: var(--accent-2);
-  box-shadow: 0 0 6px var(--accent-2);
-  animation: blink 1.6s ease-in-out infinite;
-}
-
-.marquee {
-  overflow: hidden;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  white-space: nowrap;
-}
-.marquee-track {
+/* ── buttons ── */
+.club-button {
   display: inline-flex;
-  gap: 24px;
-  padding: 10px 0;
-  width: max-content;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent-bright);
-  animation: marquee 18s linear infinite;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 26px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #14231a;
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 160ms var(--ease-out), background-color 200ms ease;
 }
-.marquee-track span {
-  opacity: 0.85;
+.club-button:active { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
+  .club-button:hover { background: var(--accent-bright); }
+}
+.club-link {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: rgba(226, 170, 78, 0.5);
+  text-underline-offset: 4px;
+  transition: text-decoration-color 200ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .club-link:hover { text-decoration-color: var(--accent); }
 }
 
-.game-card {
+/* ── layout ── */
+.club-wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+.club-section { padding: 96px 0 0; }
+.club-h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(34px, 4.4vw, 52px);
+  line-height: 1.05;
+  letter-spacing: -0.005em;
+  margin: 0;
+}
+.club-lede {
+  color: var(--text-dim);
+  font-size: 17px;
+  line-height: 1.6;
+  max-width: 56ch;
+  margin: 14px 0 0;
+  text-wrap: pretty;
+}
+.club-h2, .club-hero h1, .club-card-name { text-wrap: balance; }
+.club-figure { font-variant-numeric: lining-nums tabular-nums; }
+
+/* ── hero ── */
+.club-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 56px;
+  align-items: center;
+  padding-top: 72px;
+  min-height: min(760px, calc(100dvh - 70px));
+}
+.club-hero h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(64px, 10vw, 132px);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: #f3f1e4;
+}
+.club-hero .club-lede { font-size: 18px; min-height: 3.2em; }
+.club-hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 22px; margin-top: 30px; }
+
+/* The yardage-book plate: today's opening hole, drawn from the real course. */
+.club-plate {
+  padding: 8px;
+  border-radius: calc(var(--radius-card) + 8px);
+  background: rgba(236, 234, 220, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(236, 234, 220, 0.08);
+}
+.club-plate-core {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 40px 80px -40px rgba(3, 12, 8, 0.9);
+}
+.club-plate-core canvas { display: block; width: 100%; height: 100%; }
+.club-plate-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 10px 6px;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+.club-plate-caption strong { color: var(--text); font-weight: 600; }
+
+/* One orchestrated arrival on load: the words settle, then the plate is revealed from the tee. */
+@media (prefers-reduced-motion: no-preference) {
+  .club-arrive { animation: clubArrive 700ms var(--ease-out) both; }
+  .club-arrive-2 { animation-delay: 80ms; }
+  .club-arrive-3 { animation-delay: 160ms; }
+  .club-reveal { animation: clubReveal 1100ms cubic-bezier(0.77, 0, 0.175, 1) 120ms both; }
+}
+@keyframes clubArrive { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes clubReveal { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+/* ── the member card ── */
+.club-card {
+  padding: 8px;
+  border-radius: calc(var(--radius-card) + 8px);
+  background: rgba(226, 170, 78, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(226, 170, 78, 0.22);
+}
+.club-card-core {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 32px;
+  align-items: center;
+  padding: 34px 36px;
+  border-radius: var(--radius-card);
+  background: linear-gradient(155deg, #1d3a2b 0%, #15291f 70%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.club-card-name {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 3.4vw, 40px);
+  font-weight: 600;
+  line-height: 1.05;
+  margin: 0;
+}
+.club-card-note { color: var(--text-dim); font-size: 15px; line-height: 1.55; margin: 10px 0 0; }
+.club-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.club-stat { padding: 4px 22px; border-left: 1px solid rgba(226, 170, 78, 0.24); }
+.club-stat b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(44px, 5vw, 64px);
+  line-height: 1;
+  color: #f3f1e4;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.club-stat b.word { font-size: clamp(30px, 3.2vw, 40px); padding-top: 0.35em; } /* "None" sits on the numerals' baseline without shouting */
+.club-stat span { display: block; margin-top: 8px; color: var(--text-dim); font-size: 14px; }
+.club-stat small { display: block; margin-top: 2px; color: rgba(168, 174, 157, 0.8); font-size: 13px; }
+
+/* ── the rounds board ── */
+.club-board {
+  margin-top: 30px;
+  border-top: 1px solid rgba(226, 170, 78, 0.35);
+  border-bottom: 1px solid rgba(226, 170, 78, 0.35);
+  padding: 8px 0;
+}
+.club-board-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: baseline;
+  padding: 14px 4px;
+}
+.club-board-row + .club-board-row { border-top: 1px solid rgba(236, 234, 220, 0.07); }
+.club-board-date { color: var(--text-dim); font-size: 14px; }
+.club-board-course { font-family: var(--font-display); font-size: 24px; font-weight: 600; }
+.club-board-score { font-family: var(--font-display); font-size: 26px; font-weight: 600; font-variant-numeric: lining-nums tabular-nums; }
+.club-board-score.counts { color: var(--accent); }
+
+/* ── how a round plays ── */
+.club-split { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 56px; }
+.club-steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.club-steps li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 10px;
+  padding: 22px 0;
+}
+.club-steps li + li { border-top: 1px solid rgba(236, 234, 220, 0.08); }
+.club-steps li::before {
+  content: counter(step);
+  font-family: var(--font-display);
+  font-size: 44px;
+  line-height: 0.9;
+  color: var(--accent);
+  font-variant-numeric: lining-nums; /* Cormorant's old-style 1 reads as an I */
+}
+.club-steps h3 { font-family: var(--font-display); font-size: 26px; font-weight: 600; margin: 0; }
+.club-steps p { color: var(--text-dim); margin: 6px 0 0; line-height: 1.55; }
+
+/* ── the five venues ── */
+.club-venues {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-auto-rows: 190px;
+  gap: 14px;
+  margin-top: 34px;
+}
+.club-venue {
   position: relative;
   overflow: hidden;
-  animation: fadeUp 0.5s ease-out both;
-  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  border-radius: var(--radius-card);
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  grid-column: span 2;
+  box-shadow: inset 0 0 0 1px rgba(236, 234, 220, 0.08);
 }
-.game-card::before {
+.club-venue.wide { grid-column: span 3; }
+.club-venue.tall { grid-row: span 2; }
+/* A fairway band crossing each tile, in that venue's own colours. */
+.club-venue::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  inset: 0 0 0 55%; /* the right side only: the lettering sits on the plain left */
+  background: linear-gradient(100deg, transparent 22%, var(--v-rough) 22%, var(--v-rough) 34%, var(--v-fw) 34%, var(--v-fw) 58%, var(--v-rough) 58%, var(--v-rough) 70%, transparent 70%);
+  opacity: 0.5;
 }
-.game-card::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -60%;
-  width: 40%;
-  height: 100%;
-  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.12), transparent);
-  transform: skewX(-20deg);
-  transition: left 0.6s ease;
-  pointer-events: none;
-}
-.game-card:hover,
-.game-card:focus-visible {
-  border-color: var(--accent-bright);
-  transform: translateY(-6px) scale(1.015);
-  box-shadow:
-    0 16px 32px -10px rgba(239, 69, 119, 0.4),
-    0 0 0 1px rgba(34, 224, 224, 0.15),
-    0 20px 48px -16px rgba(34, 224, 224, 0.25);
-}
-.game-card:hover::after,
-.game-card:focus-visible::after {
-  left: 120%;
+.club-venue > * { position: relative; }
+.club-venue h3 { font-family: var(--font-display); font-size: 30px; font-weight: 600; margin: 0; color: var(--v-ink, #f3f1e4); }
+.club-venue p { margin: 6px 0 0; font-size: 14px; line-height: 1.5; color: var(--v-dim, rgba(236, 234, 220, 0.78)); max-width: min(34ch, 54%); text-wrap: pretty; }
+.club-venue .today { margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--accent); }
+
+.club-footer {
+  margin-top: 110px;
+  padding: 30px 0 46px;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .hero-glow,
-  .hero-glow-2,
-  .arcade-grid,
-  .live-dot,
-  .marquee-track,
-  .hero-badge,
-  .hero-title,
-  .hero-sub,
-  .game-card {
-    animation: none !important;
-  }
-  .game-card,
-  .game-card::after {
-    transition: none !important;
-  }
+/* ── the account page ── */
+.club-rounds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 12px;
+  margin-top: 26px;
+}
+.club-round-tile {
+  border-radius: 16px;
+  padding: 16px 18px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px rgba(236, 234, 220, 0.07);
+}
+.club-round-tile.counts { box-shadow: inset 0 0 0 1px rgba(226, 170, 78, 0.55); background: linear-gradient(160deg, #213a2a, #15291f); }
+.club-round-tile .score { font-family: var(--font-display); font-size: 34px; font-weight: 600; line-height: 1; font-variant-numeric: lining-nums tabular-nums; }
+.club-round-tile .course { margin-top: 8px; font-size: 14px; color: var(--text); }
+.club-round-tile .date { margin-top: 2px; font-size: 13px; color: var(--text-dim); }
+
+/* ── small screens: everything stacks ── */
+@media (max-width: 860px) {
+  .club-hero { grid-template-columns: minmax(0, 1fr); gap: 36px; padding-top: 40px; min-height: 0; }
+  .club-card-core { grid-template-columns: minmax(0, 1fr); padding: 26px 22px; }
+  .club-stat { padding: 2px 14px; }
+  .club-stat:first-child { border-left: none; padding-left: 0; }
+  .club-split { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .club-venues { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 180px; }
+  .club-venue, .club-venue.wide { grid-column: auto; }
+  .club-venue.tall { grid-row: auto; grid-column: 1 / -1; }
+  .club-board-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .club-board-date { grid-column: 1 / -1; }
+  .club-section { padding-top: 72px; }
+}
+@media (max-width: 640px) {
+  .club-venues { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
+  .club-venue { min-height: 150px; }
+  .club-venue::before { display: none; }
+  .club-venue p { max-width: 40ch; }
 }
