@@ -31,7 +31,7 @@ export default function VictoriaPage() {
       <h1 className="club-h2" style={{ fontSize: 'clamp(44px, 7vw, 84px)', marginTop: 10 }}>Victoria Country Club</h1>
       <p className="club-lede">
         Pietermaritzburg, KwaZulu-Natal. A parkland course on a steep hillside, traced hole by hole from the
-        real thing: every pond, bunker and stand of trees where it really is. Par 71 from the white tees.
+        real thing: every pond, bunker and stand of trees where it really is. Par 71 from the yellow tees.
       </p>
 
       <section className="club-section" style={{ paddingTop: 40 }} aria-label="Ways to play">
