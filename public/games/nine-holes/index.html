@@ -657,6 +657,11 @@ const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 function updateCamera(now) {
   const h = hole();
   if (view.fly && (now - view.fly.t0 > view.fly.dur || view.manual || phase !== 'aim')) view.fly = null;
+  if (view.follow && !view.manual) { // in flight: keep the zoom, centre on the ball, keep up with it
+    view.tx = view.follow.x; view.ty = view.follow.y; view.ts = view.s;
+    view.cx += (view.tx - view.cx) * 0.35; view.cy += (view.ty - view.cy) * 0.35;
+    return;
+  }
   if (!view.manual) {
     if (view.fly) { // out over the hole and back: 0 at the tee, 1 at the green, then home again
       const u = (now - view.fly.t0) / view.fly.dur, k = easeInOut(u < 0.5 ? u * 2 : 2 - u * 2);
@@ -1405,12 +1410,14 @@ function frame(now) {
 
   // advance whatever is moving, and work out where the ball is drawn
   let ballAt = st.ball, height = 0, puttLabel = null;
+  view.follow = null;
   if (anim && anim.mode === 'shot') {
     const a = anim, r = a.res, t = animClock(a, now);
     if (t < a.dur) {
       const u = t / a.dur, m = 1 - u;
       ballAt = { x: m * m * r.from.x + 2 * m * u * a.ctrl.x + u * u * r.land.x, y: m * m * r.from.y + 2 * m * u * a.ctrl.y + u * u * r.land.y };
       height = Math.sin(Math.PI * u) * a.apex * 46;
+      view.follow = ballAt; // the camera rides with the ball until it lands
     } else if (t < a.dur + a.rollDur) {
       if (!a.landed) {
         const surf = DH.surfaceAt(hole(), r.land);
