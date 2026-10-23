@@ -20,6 +20,13 @@ export default function CoursesPage() {
           </span>
           <span className="club-real-go">See the course</span>
         </Link>
+        <Link href="/courses/gary-player-country-club" className="club-real" style={{ borderTop: 'none' }}>
+          <span>
+            <span className="club-h2">Gary Player Country Club</span>
+            <span className="club-lede">Sun City, North West. Championship bushveld course beside the Sun City lake, par 72.</span>
+          </span>
+          <span className="club-real-go">See the course</span>
+        </Link>
       </section>
     </main>
   );

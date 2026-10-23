@@ -191,7 +191,7 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
   <div class="end" id="turn" hidden>
     <div class="endCard">
       <div class="tag">The halfway house</div>
-      <h2>Through 10</h2>
+      <h2 id="turnThrough">Through 10</h2>
       <div class="endScore" id="turnScore"></div>
       <div class="endStrokes" id="turnOut"></div>
       <button class="btn" id="turnGo" style="margin-top:16px">Play the 11th</button>
@@ -262,6 +262,13 @@ const PALETTES = {
     fwEdge: '#3E623B', fw: '#93B783', stripeA: '#7AA06A', stripeB: '#9FC28E', spine: '#AFCD9E',
     trees: ['#1E3127', '#25382C', '#2C4132'], lit: 'rgba(196,206,240,0.30)',
     water: '#5E7F92', waterEdge: '#3E5868', sand: '#B8AA86', sandEdge: '#8E8062', sea: ['#4E6B7C', '#2E4452'] },
+  // Gary Player Country Club: bright kikuyu fairways cut through dry bushveld in the Pilanesberg crater
+  'gary-player': { name: 'Bushveld', scene: 'parkland', real: true,
+    green: '#CDEFA6', collar: '#93C873', greenEdge: '#3F7F32', close: ['#DDF6BC', '#BFE597', '#9ED374'],
+    g: ['#A89A6A', '#9C8E5F', '#8E8255'], ob: '#B39A78', deep: '#5E6B38', roughSoft: '#8C9450', rough: '#A2A65E',
+    fwEdge: '#4A8A35', fw: '#8FD064', stripeA: '#76BB4E', stripeB: '#A8DC7C', spine: '#BDE596',
+    trees: ['#3E5A2C', '#4B6833', '#56733A'], lit: 'rgba(214,226,160,0.35)', canopy: '#34502A', roof: '#D8C6A6',
+    water: '#5FA3C8', waterEdge: '#357FA6', sand: '#F1E6CC', sandEdge: '#C9B48A', tee: '#B9E390', bench: '#7A4E2A', cart: '#C9AE86', sea: ['#A9D6EA', '#6FAACB'] },
   // Victoria Country Club: a lush parkland, deeper and greener than any daily venue
   victoria: { name: 'Parkland', scene: 'parkland', real: true,
     green: '#CDEFA6', collar: '#93C873', greenEdge: '#3F7F32', close: ['#DDF6BC', '#BFE597', '#9ED374'],
@@ -519,18 +526,19 @@ function finishHole(putts) {
 }
 function nextHoleUI() {
   // On this course the 10th walks back to the clubhouse, so the turn comes after it, not after the 9th.
-  if (REAL && REAL.mode === 'all' && st.holeIdx === 9 && phase === 'holeend') return showTurn();
+  if (REAL && REAL.mode === 'all' && st.holeIdx === st.course.turnAfter - 1 && phase === 'holeend') return showTurn();
   DH.nextHole(st);
   if (st.done) return endRound();
   startHole();
 }
 function showTurn() {
   phase = 'turn';
-  const hs = st.course.holes, played = st.scores.slice(0, 10), par10 = hs.slice(0, 10).reduce((a, h) => a + h.par, 0);
+  const T = st.course.turnAfter, hs = st.course.holes, played = st.scores.slice(0, T), par10 = hs.slice(0, T).reduce((a, h) => a + h.par, 0);
   const out = st.scores.slice(0, 9).reduce((a, b) => a + b, 0), parOut = hs.slice(0, 9).reduce((a, h) => a + h.par, 0);
   $('turnScore').textContent = S2P(played.reduce((a, b) => a + b, 0) - par10);
-  $('turnOut').textContent = `OUT ${out} (${S2P(out - parOut)}) · 10TH ${st.scores[9]}`;
-  $('turn').hidden = false; setAct('Play the 11th');
+  $('turnOut').textContent = T === 9 ? `OUT ${out} (${S2P(out - parOut)})` : `OUT ${out} (${S2P(out - parOut)}) · ${T}TH ${st.scores[T - 1]}`;
+  $('turnThrough').textContent = `Through ${T}`; $('turnGo').textContent = `Play the ${T + 1}th`;
+  $('turn').hidden = false; setAct(`Play the ${T + 1}th`);
 }
 function leaveTurn() { $('turn').hidden = true; DH.nextHole(st); startHole(); }
 function endRound() {
@@ -814,6 +822,7 @@ function paintRealCourse(h, close, RF) {
     for (const sh of list) { if (!onScreen(sh.box)) continue; polyPath(sh.pts); G.fillStyle = color; G.fill(); if (edge) { G.lineWidth = lw; G.strokeStyle = edge; G.stroke(); } }
   };
   G.fillStyle = PAL.ob; G.fillRect(0, 0, W, H); // beyond the boundary
+  drawLandmarks(R); // under the course: inside the boundary the traced shapes win
   const g = G.createLinearGradient(0, 0, W * 0.35, H);
   g.addColorStop(0, PAL.g[0]); g.addColorStop(0.55, PAL.g[1]); g.addColorStop(1, PAL.g[2]);
   polyPath(R.boundary.pts); G.fillStyle = g; G.fill();
@@ -846,6 +855,22 @@ function paintRealCourse(h, close, RF) {
   for (const b of R.benches) {
     const p = TS(b), w = Math.max(3, 2 * view.s), hh = Math.max(1.4, 0.7 * view.s);
     G.fillStyle = PAL.bench; G.fillRect(p.x - w / 2, p.y - hh / 2, w, hh);
+  }
+}
+
+// Landmarks around the course: lakes as water, buildings as roofs with their names.
+function drawLandmarks(R) {
+  for (const l of R.landmarks || []) {
+    if (!onScreen(l.box)) continue;
+    if (l.pts.length > 2) {
+      polyPath(l.pts); G.fillStyle = l.kind === 'water' ? PAL.water : PAL.roof || '#C9B9A2'; G.fill();
+      G.lineWidth = 1.4; G.strokeStyle = l.kind === 'water' ? PAL.waterEdge : '#8F7F69'; G.stroke();
+    } else { const p = TS(l.pts[0]); G.beginPath(); G.arc(p.x, p.y, 5, 0, 6.284); G.fillStyle = PAL.roof || '#C9B9A2'; G.fill(); G.strokeStyle = '#8F7F69'; G.stroke(); }
+    if (view.s > 0.25) {
+      const c = TS({ x: (l.box[0] + l.box[2]) / 2, y: (l.box[1] + l.box[3]) / 2 });
+      G.save(); G.font = "600 11px 'Archivo', Arial, sans-serif"; G.textAlign = 'center'; G.textBaseline = 'middle';
+      G.lineWidth = 3; G.strokeStyle = 'rgba(255,255,255,0.85)'; G.strokeText(l.name, c.x, c.y); G.fillStyle = '#2C3D2F'; G.fillText(l.name, c.x, c.y); G.restore();
+    }
   }
 }
 

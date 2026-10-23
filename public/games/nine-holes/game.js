@@ -546,6 +546,8 @@ function makeRealHole(data, i, day, dayWind, dayGust) {
       greens, ownGreen, tees: polys(data.tees), fairways: polys(data.fairways), bunkers: polys(data.bunkers),
       water: polys(data.water), trees: polys(data.trees), boundary: polyOf(data.boundary, tf),
       cart: data.cart.map(c => c.map(tf)), benches: data.benches.map(tf),
+      lakes: (data.landmarks || []).filter(l => l.kind === 'water' && l.pts.length > 2).map(l => polyOf(l.pts, tf)),
+      landmarks: (data.landmarks || []).map(l => ({ name: l.name, kind: l.kind, ...polyOf(l.pts, tf) })),
       heights: data.heights, T: { ...T }, th, k,
     },
   };
@@ -556,7 +558,7 @@ function makeRealCourse(data, mode, day) {
   const r = rng(hashStr(data.id + '-wind|' + day)), dayWind = r() * Math.PI * 2, dayGust = 4 + r() * 11;
   const holes = [];
   for (let i = a; i < b; i++) holes.push(makeRealHole(data, i, day, dayWind, dayGust));
-  return { seed: `${data.id}|${mode}|${day}`, name: data.name, theme: data.id, real: true, mode, holes, par: holes.reduce((s, h) => s + h.par, 0) };
+  return { seed: `${data.id}|${mode}|${day}`, name: data.name, theme: data.id, real: true, mode, turnAfter: data.turnAfter || 10, holes, par: holes.reduce((s, h) => s + h.par, 0) };
 }
 
 // Ground height in yards (bilinear on the course grid); daily holes are flat.
@@ -575,10 +577,10 @@ const holePlaysLike = h => h.len + heightAt(h, h.pin) - heightAt(h, { x: 0, y: 0
 
 function realSurface(h, p) {
   const R = h.real, any = list => list.some(s => inPoly(p, s));
-  if (!inPoly(p, R.boundary)) return 'ob';
+  if (!inPoly(p, R.boundary)) return any(R.lakes) ? 'water' : 'ob'; // a landmark lake beyond the boundary is still a hazard
+  if (inPoly(p, R.ownGreen)) return 'green'; // before water, so an island green plays as green
   if (any(R.water)) return 'water';
   if (any(R.bunkers)) return 'bunker';
-  if (inPoly(p, R.ownGreen)) return 'green';
   if (any(R.tees)) return 'tee';
   if (any(R.trees)) return 'trees'; // before fairways: a traced fairway's outline can enclose a lone tree
   if (any(R.fairways) || any(R.greens)) return 'fairway'; // another hole's green plays as fairway
