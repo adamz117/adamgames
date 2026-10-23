@@ -112,17 +112,6 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
 .stats b { display: block; font-size: 16px; font-variation-settings: 'wdth' 90, 'wght' 700; }
 .stats span { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--dimmer); }
 .endCard .btn + .btn { margin-top: 8px; }
-/* the yardage-book card on a real course's tee */
-.teeCard { position: absolute; z-index: 5; left: 50%; bottom: 58px; transform: translateX(-50%); width: min(300px, 90%); display: flex; gap: 11px; align-items: center;
-  background: rgba(255,255,255,.96); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px 10px 10px; box-shadow: 0 10px 30px -12px rgba(12,28,20,.35); text-align: left; }
-.teeCard canvas { flex: none; width: 80px; height: 104px; border-radius: 8px; background: #6F955E; }
-.teeCard .no { font-variation-settings: 'wdth' 94, 'wght' 700; font-size: 17px; }
-.teeCard .meta { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--dim); text-transform: uppercase; margin-top: 1px; }
-.teeCard .yds { font-family: var(--mono); font-size: 11px; color: var(--chalk); margin-top: 6px; }
-.teeCard .yds b { font-weight: 500; color: var(--flag); }
-.teeCard p { font-size: 12.5px; line-height: 1.35; margin-top: 5px; color: var(--chalk); }
-.teeCard .close { font-family: var(--mono); font-size: 8.5px; letter-spacing: .12em; color: var(--dimmer); margin-top: 6px; text-transform: uppercase; }
-
 /* bottom panel: clubs, power track, action */
 .panel { flex: none; border-top: 1px solid var(--line-soft); background: #FBFCFA; padding: 9px 0 calc(10px + env(safe-area-inset-bottom)); }
 .clubs { display: flex; gap: 5px; overflow-x: auto; padding: 0 12px 8px; scrollbar-width: none; }
@@ -166,8 +155,6 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
     </div>
     <button class="recenter" id="recenter" hidden>Recenter</button>
     <div class="toast" id="toast" role="status"><div class="big" id="tBig"></div><div class="sub" id="tSub"></div></div>
-    <button class="teeCard" id="teeCard" hidden aria-label="Hole card. Tap to close."><canvas id="teePlan" width="160" height="208"></canvas>
-      <div><div class="no" id="tcNo"></div><div class="meta" id="tcMeta"></div><div class="yds" id="tcYds"></div><p id="tcNote"></p><div class="close">Tap to close</div></div></button>
     <div class="pop" id="help" hidden>
       <b>How to play</b>
       <ol>
@@ -265,7 +252,7 @@ const PALETTES = {
   // Gary Player Country Club: bright kikuyu fairways cut through dry bushveld in the Pilanesberg crater
   'gary-player': { name: 'Bushveld', scene: 'parkland', real: true,
     green: '#CDEFA6', collar: '#93C873', greenEdge: '#3F7F32', close: ['#DDF6BC', '#BFE597', '#9ED374'],
-    g: ['#A89A6A', '#9C8E5F', '#8E8255'], ob: '#B39A78', deep: '#5E6B38', roughSoft: '#8C9450', rough: '#A2A65E',
+    g: ['#86A35E', '#7C9955', '#718D4C'], ob: '#8E9466', deep: '#4F6E33', roughSoft: '#6F9A48', rough: '#7FAA52',
     fwEdge: '#4A8A35', fw: '#8FD064', stripeA: '#76BB4E', stripeB: '#A8DC7C', spine: '#BDE596',
     trees: ['#3E5A2C', '#4B6833', '#56733A'], lit: 'rgba(214,226,160,0.35)', canopy: '#34502A', roof: '#D8C6A6',
     water: '#5FA3C8', waterEdge: '#357FA6', sand: '#F1E6CC', sandEdge: '#C9B48A', tee: '#B9E390', bench: '#7A4E2A', cart: '#C9AE86', sea: ['#A9D6EA', '#6FAACB'] },
@@ -385,34 +372,8 @@ function startHole() {
   view.reveal = h.len > 470 ? performance.now() + 1500 : 0; // a long hole: take it all in first
   clubIdx = DH.autoClub(h, st.ball, st.lie);
   setupAim();
-  showTeeCard(h);
   view.fly = h.signature && st.lie === 'tee' && st.strokes === 0 ? { t0: performance.now(), dur: 2600 } : null;
   wildFor(h);
-}
-function showTeeCard(h) {
-  $('teeCard').hidden = !h.real;
-  if (!h.real) return;
-  const pl = Math.round(DH.holePlaysLike(h));
-  $('tcNo').textContent = `Hole ${h.index}`;
-  $('tcMeta').textContent = `Par ${h.par} · Stroke index ${h.si}`;
-  $('tcYds').innerHTML = `${h.len} yds${Math.abs(pl - h.len) >= 3 ? ` · plays <b>${pl}</b>` : ''}`;
-  $('tcNote').textContent = h.note ? h.note[0].toUpperCase() + h.note.slice(1) + '.' : '';
-  drawPlan(h, $('teePlan'));
-}
-// A small plan of the hole for the card: tee at the bottom, green at the top.
-function drawPlan(h, cv) {
-  const c = cv.getContext('2d'), R = h.real, Wp = cv.width, Hp = cv.height;
-  const xs = h.path.map(p => p.x), ys = h.path.map(p => p.y), pad = 24;
-  const x0 = Math.min(...xs) - pad, x1 = Math.max(...xs) + pad, y0 = Math.min(...ys) - pad, y1 = Math.max(...ys) + pad;
-  const k = Math.min(Wp / (x1 - x0), Hp / (y1 - y0)), ox = (Wp - (x1 - x0) * k) / 2, oy = (Hp - (y1 - y0) * k) / 2;
-  const P = p => [ox + (p.x - x0) * k, Hp - oy - (p.y - y0) * k];
-  const poly = (list, color) => { c.fillStyle = color; for (const sh of list) { c.beginPath(); sh.pts.forEach((p, i) => { const [x, y] = P(p); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath(); c.fill(); } };
-  c.clearRect(0, 0, Wp, Hp); c.fillStyle = PAL.g[1]; c.fillRect(0, 0, Wp, Hp);
-  poly(R.fairways, PAL.fw); poly(R.tees, PAL.tee); poly(R.greens, PAL.green);
-  poly(R.water, PAL.water); poly(R.bunkers, PAL.sand); poly(R.trees, PAL.trees[1]);
-  c.setLineDash([3, 3]); c.strokeStyle = 'rgba(255,255,255,0.9)'; c.lineWidth = 1.6; c.beginPath();
-  h.path.forEach((p, i) => { const [x, y] = P(p); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.stroke(); c.setLineDash([]);
-  if (!h.hidden) { const [x, y] = P(h.pin); c.fillStyle = '#C2401F'; c.beginPath(); c.arc(x, y, 3, 0, 6.284); c.fill(); }
 }
 function setupAim(keepAim) {
   const h = hole(), c = club();
@@ -428,7 +389,6 @@ function setupAim(keepAim) {
   hud(); renderClubs(); renderCard();
 }
 function lockAim() {
-  $('teeCard').hidden = true;
   locked = true; phase = 'power'; tPow = performance.now();
   $('track').classList.remove('idle');
   setAct('Swing'); $('hint').textContent = 'Stop just under 100';
@@ -1534,7 +1494,6 @@ function tapAt(x, y) {
 }
 
 $('act').addEventListener('click', act);
-$('teeCard').addEventListener('click', () => { $('teeCard').hidden = true; });
 $('turnGo').addEventListener('click', leaveTurn);
 $('clubRail').addEventListener('click', e => { const b = e.target.closest('button'); if (b) pickClub(+b.dataset.i); });
 $('recenter').addEventListener('click', () => { view.manual = false; $('recenter').hidden = true; });
