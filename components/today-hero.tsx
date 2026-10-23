@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { venueById, type Venue } from '@/lib/venues';
 import { formatToPar } from '@/lib/nine-holes-stats';
 
-// The parts of the game's sim (public/games/nine-holes/game.js) this plate reads.
+// The parts of the game's sim (public/games/nine-holes/game.js) these plates read.
 type Pt = { x: number; y: number };
 type Ellipse = Pt & { rx: number; ry: number; rot: number; kind?: string };
 type Hole = {
@@ -19,7 +19,7 @@ declare global {
   interface Window { DH?: { makeCourse(seed: string): Course } }
 }
 
-// Today's opening hole as a yardage-book plate, in the venue's own colours.
+// One hole as a yardage-book plate, in the venue's own colours.
 function drawPlate(canvas: HTMLCanvasElement, h: Hole, v: Venue) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2), W = canvas.clientWidth, H = canvas.clientHeight;
   if (!W || !H) return;
@@ -67,34 +67,43 @@ function drawPlate(canvas: HTMLCanvasElement, h: Hole, v: Venue) {
   disc(h.green, h.gr + 1.6, c.collar);
   disc(h.green, h.gr, c.green);
 
-  // the tee and the flag
-  const t = h.path[0];
-  ctx.strokeStyle = 'rgba(30,40,32,.65)'; ctx.lineWidth = 1.4;
+  // the tee and the flag, sized to the plate so they read on the small ones too
+  const k = Math.min(1, W / 220), t = h.path[0];
+  ctx.strokeStyle = 'rgba(30,40,32,.65)'; ctx.lineWidth = 1.2;
   ctx.strokeRect(X(t) - 4.5 * s, Y(t) - 2.5 * s, 9 * s, 5 * s);
   const px = X(h.pin), py = Y(h.pin);
-  ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fillStyle = '#1B241D'; ctx.fill();
-  ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, py - 22); ctx.lineWidth = 2; ctx.strokeStyle = '#22301F'; ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(px, py - 22); ctx.lineTo(px + 13, py - 17); ctx.lineTo(px, py - 12); ctx.closePath(); ctx.fillStyle = '#C2401F'; ctx.fill();
+  ctx.beginPath(); ctx.arc(px, py, 2.6 * k + 0.6, 0, Math.PI * 2); ctx.fillStyle = '#1B241D'; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, py - 20 * k); ctx.lineWidth = 1.6; ctx.strokeStyle = '#22301F'; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(px, py - 20 * k); ctx.lineTo(px + 11 * k, py - 15.5 * k); ctx.lineTo(px, py - 11 * k); ctx.closePath(); ctx.fillStyle = '#C2401F'; ctx.fill();
 }
 
-// latest: the newest round on the member's card, so the hero can tell them today's is already in.
-export default function TodayHero({ signedIn, latest }: { signedIn: boolean; latest: { seed: string; toPar: number; strokes: number } | null }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [course, setCourse] = useState<Course | null>(null);
-  const [today, setToday] = useState<string | null>(null);
-  const playedToday = !!latest && latest.seed === today;
-  const venue = course ? venueById(course.theme) : null;
-  const first = course?.holes[0];
-
+function HolePlate({ hole, venue, i }: { hole: Hole; venue: Venue; i: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !first || !venue) return;
-    const draw = () => drawPlate(canvas, first, venue);
+    const canvas = ref.current;
+    if (!canvas) return;
+    const draw = () => drawPlate(canvas, hole, venue);
     draw();
     const ro = new ResizeObserver(draw);
     ro.observe(canvas);
     return () => ro.disconnect();
-  }, [first, venue]);
+  }, [hole, venue]);
+  return (
+    <figure className="club-hole">
+      <div className="club-hole-core club-reveal" style={{ animationDelay: `${120 + i * 60}ms` }}>
+        <canvas ref={ref} role="img" aria-label={`Hole ${hole.index}: par ${hole.par}, ${hole.len} yards`} />
+      </div>
+      <figcaption><strong>{hole.index}</strong><span>Par {hole.par}, {hole.len} yd</span></figcaption>
+    </figure>
+  );
+}
+
+// latest: the newest round on the member's card, so the hero can tell them today's is already in.
+export default function TodayHero({ signedIn, latest }: { signedIn: boolean; latest: { seed: string; toPar: number; strokes: number } | null }) {
+  const [course, setCourse] = useState<Course | null>(null);
+  const [today, setToday] = useState<string | null>(null);
+  const venue = course ? venueById(course.theme) : null;
+  const playedToday = !!latest && latest.seed === today;
 
   return (
     <section className="club-wrap club-hero">
@@ -122,20 +131,19 @@ export default function TodayHero({ signedIn, latest }: { signedIn: boolean; lat
           {!signedIn && <Link href="/login" className="club-link">Sign in to keep a handicap</Link>}
         </div>
       </div>
-      <figure style={{ margin: 0 }}>
-        <div className="club-plate">
-          <div className="club-plate-core club-reveal">
-            <canvas
-              ref={canvasRef}
-              role="img"
-              aria-label={first ? `Plan of today's first hole: par ${first.par}, ${first.len} yards` : "Plan of today's first hole"}
-            />
-          </div>
+      <div className="club-plate">
+        {/* nine slots held open while the course loads, so nothing shifts when the holes arrive */}
+        <div className="club-holes">
+          {course && venue
+            ? course.holes.map((h, i) => <HolePlate key={h.index} hole={h} venue={venue} i={i} />)
+            : Array.from({ length: 9 }, (_, i) => (
+              <figure className="club-hole" key={i} aria-hidden="true">
+                <div className="club-hole-core" />
+                <figcaption>&nbsp;</figcaption>
+              </figure>
+            ))}
         </div>
-        <figcaption className="club-plate-caption">
-          {first ? (<><strong>Hole 1</strong><span>Par {first.par}, {first.len} yards</span></>) : <span>&nbsp;</span>}
-        </figcaption>
-      </figure>
+      </div>
     </section>
   );
 }
