@@ -280,9 +280,9 @@ let W = 0, H = 0, DPR = 1;
 const view = { cx: 0, cy: 0, s: 1, tx: 0, ty: 0, ts: 1, ready: false, manual: false, reveal: 0 };
 const QS = new URLSearchParams(location.search);
 let seed = QS.get('seed') || todayKey();
-// ?course=victoria&holes=front|back|all plays a real course; anything else is the daily nine
-const REAL_IDS = ['victoria'], MODE_NAME = { front: 'Front 9', back: 'Back 9', all: '18 holes' };
-const REAL = REAL_IDS.includes(QS.get('course')) ? { id: QS.get('course'), mode: MODE_NAME[QS.get('holes')] ? QS.get('holes') : 'all', data: null } : null;
+// ?course=<id>&holes=front|back|all plays a real course from courses/<id>/<id>.json; anything else is the daily nine
+const MODE_NAME = { front: 'Front 9', back: 'Back 9', all: '18 holes' };
+const REAL = /^[a-z0-9-]{2,40}$/.test(QS.get('course') || '') ? { id: QS.get('course'), mode: MODE_NAME[QS.get('holes')] ? QS.get('holes') : 'all', data: null } : null;
 let st, phase, clubIdx, aimCenter, aimAngle, manualAim, locked, tAim, tPow, power = 0, anim = null, trail = [], fx = [], trapped = null, tickEnd = null;
 
 const hole = () => DH.holeOf(st);
@@ -360,7 +360,7 @@ function startRound(newSeed) {
   if (REAL) {
     const course = DH.makeRealCourse(REAL.data, REAL.mode, todayKey());
     st = DH.newRound(course.seed, course);
-    PAL = PALETTES[course.theme];
+    PAL = PALETTES[course.theme] || PALETTES.victoria; // a new course gets the parkland look until it has its own
     $('courseName').textContent = `${course.name} · ${MODE_NAME[REAL.mode]}`;
   } else {
     if (newSeed) { seed = newSeed; history.replaceState(null, '', '?seed=' + encodeURIComponent(seed)); }

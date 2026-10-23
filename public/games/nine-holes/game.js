@@ -528,13 +528,13 @@ function makeRealHole(data, i, day, dayWind, dayGust) {
   const path = d.path.map(tf), green = path[path.length - 1];
   const gr = Math.sqrt(polyArea(ownGreen.pts) / Math.PI);
   // the pin: on the green, at least 3 yards from its edge, moved every day
-  const r = rng(hashStr(`victoria-pin|${day}|${d.n}`));
+  const r = rng(hashStr(`${data.id}-pin|${day}|${d.n}`));
   let pin = { ...green };
   for (let t = 0; t < 60; t++) {
     const a = r() * Math.PI * 2, q = { x: green.x + Math.cos(a) * gr * r(), y: green.y + Math.sin(a) * gr * r() };
     if (inPoly(q, ownGreen) && edgeDist(q, ownGreen.pts) >= 3) { pin = q; break; }
   }
-  const hr = rng(hashStr(`victoria-hole|${day}|${d.n}`));
+  const hr = rng(hashStr(`${data.id}-hole|${day}|${d.n}`));
   return {
     index: d.n, par: d.par, si: d.si, note: d.note, hidden: !!d.hidden, signature: !!d.signature,
     len: d.cardYds, total: d.cardYds, path, fw: 14, rgh: 34, deep: 50, green, gr, pin,
@@ -553,7 +553,7 @@ function makeRealHole(data, i, day, dayWind, dayGust) {
 
 function makeRealCourse(data, mode, day) {
   const [a, b] = REAL_MODES[mode];
-  const r = rng(hashStr('victoria-wind|' + day)), dayWind = r() * Math.PI * 2, dayGust = 4 + r() * 11;
+  const r = rng(hashStr(data.id + '-wind|' + day)), dayWind = r() * Math.PI * 2, dayGust = 4 + r() * 11;
   const holes = [];
   for (let i = a; i < b; i++) holes.push(makeRealHole(data, i, day, dayWind, dayGust));
   return { seed: `${data.id}|${mode}|${day}`, name: data.name, theme: data.id, real: true, mode, holes, par: holes.reduce((s, h) => s + h.par, 0) };
