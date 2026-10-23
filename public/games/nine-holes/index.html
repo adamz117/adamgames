@@ -37,6 +37,10 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
 .card { display: grid; grid-template-columns: repeat(9, 1fr); flex: none; border-bottom: 1px solid var(--line-soft); background: #FBFCFA; }
 .cell { padding: 5px 0 6px; text-align: center; border-right: 1px solid #E8EDE8; font-family: var(--mono); font-size: 10px; color: var(--dimmer); position: relative; }
 .cell:last-child { border-right: none; }
+.card.c10 { grid-template-columns: repeat(10, 1fr); }
+.card.c10 .cell:nth-child(10) { border-right: none; }
+.cell.sum { background: #F2F6F1; color: var(--dim); } .cell.sum s { color: var(--chalk); font-weight: 600; }
+.card.c10 .cell:nth-child(-n+10) { border-bottom: 1px solid var(--line-soft); }
 .cell b { display: block; font-weight: 400; font-size: 9px; letter-spacing: .05em; }
 .cell s { display: block; text-decoration: none; font-size: 13px; line-height: 1.2; }
 .cell u { display: block; text-decoration: none; font-size: 8.5px; line-height: 1.3; margin-top: 2px; padding-top: 2px; border-top: 1px solid #EDF1EC; }
@@ -106,6 +110,16 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
 .stats b { display: block; font-size: 16px; font-variation-settings: 'wdth' 90, 'wght' 700; }
 .stats span { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--dimmer); }
 .endCard .btn + .btn { margin-top: 8px; }
+/* the yardage-book card on a real course's tee */
+.teeCard { position: absolute; z-index: 5; left: 50%; bottom: 58px; transform: translateX(-50%); width: min(300px, 90%); display: flex; gap: 11px; align-items: center;
+  background: rgba(255,255,255,.96); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px 10px 10px; box-shadow: 0 10px 30px -12px rgba(12,28,20,.35); text-align: left; }
+.teeCard canvas { flex: none; width: 80px; height: 104px; border-radius: 8px; background: #6F955E; }
+.teeCard .no { font-variation-settings: 'wdth' 94, 'wght' 700; font-size: 17px; }
+.teeCard .meta { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--dim); text-transform: uppercase; margin-top: 1px; }
+.teeCard .yds { font-family: var(--mono); font-size: 11px; color: var(--chalk); margin-top: 6px; }
+.teeCard .yds b { font-weight: 500; color: var(--flag); }
+.teeCard p { font-size: 12.5px; line-height: 1.35; margin-top: 5px; color: var(--chalk); }
+.teeCard .close { font-family: var(--mono); font-size: 8.5px; letter-spacing: .12em; color: var(--dimmer); margin-top: 6px; text-transform: uppercase; }
 
 /* bottom panel: clubs, power track, action */
 .panel { flex: none; border-top: 1px solid var(--line-soft); background: #FBFCFA; padding: 9px 0 calc(10px + env(safe-area-inset-bottom)); }
@@ -150,6 +164,8 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
     </div>
     <button class="recenter" id="recenter" hidden>Recenter</button>
     <div class="toast" id="toast" role="status"><div class="big" id="tBig"></div><div class="sub" id="tSub"></div></div>
+    <button class="teeCard" id="teeCard" hidden aria-label="Hole card. Tap to close."><canvas id="teePlan" width="160" height="208"></canvas>
+      <div><div class="no" id="tcNo"></div><div class="meta" id="tcMeta"></div><div class="yds" id="tcYds"></div><p id="tcNote"></p><div class="close">Tap to close</div></div></button>
     <div class="pop" id="help" hidden>
       <b>How to play</b>
       <ol>
@@ -167,6 +183,15 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
         <button class="btn ghost" id="mToday">Today's course</button>
         <button class="btn ghost" id="mNew">New random course</button>
         <button class="btn" id="mClose">Back to the hole</button>
+      </div>
+    </div>
+    <div class="end" id="turn" hidden>
+      <div class="endCard">
+        <div class="tag">The halfway house</div>
+        <h2>Through 10</h2>
+        <div class="endScore" id="turnScore"></div>
+        <div class="endStrokes" id="turnOut"></div>
+        <button class="btn" id="turnGo" style="margin-top:16px">Play the 11th</button>
       </div>
     </div>
     <div class="end" id="end" hidden>
@@ -234,16 +259,27 @@ const PALETTES = {
     fwEdge: '#3E623B', fw: '#93B783', stripeA: '#7AA06A', stripeB: '#9FC28E', spine: '#AFCD9E',
     trees: ['#1E3127', '#25382C', '#2C4132'], lit: 'rgba(196,206,240,0.30)',
     water: '#5E7F92', waterEdge: '#3E5868', sand: '#B8AA86', sandEdge: '#8E8062', sea: ['#4E6B7C', '#2E4452'] },
+  // Victoria Country Club: a lush parkland, deeper and greener than any daily venue
+  victoria: { name: 'Parkland', scene: 'parkland', real: true,
+    green: '#CDEFA6', collar: '#93C873', greenEdge: '#3F7F32', close: ['#DDF6BC', '#BFE597', '#9ED374'],
+    g: ['#7FA36C', '#6F955E', '#5F8751'], ob: '#8C9886', deep: '#2E5A2A', roughSoft: '#558A43', rough: '#6CA154',
+    fwEdge: '#3F7F32', fw: '#9AD26E', stripeA: '#7EBE57', stripeB: '#B2DF86', spine: '#C3E79E',
+    trees: ['#1F4A24', '#285A2B', '#326933'], lit: 'rgba(196,232,160,0.38)', canopy: '#1A3F1F',
+    water: '#6FAFD2', waterEdge: '#3F82A8', sand: '#EADBB0', sandEdge: '#BFA36A', tee: '#B9E390', bench: '#7A4E2A', cart: '#C9BC98', sea: ['#A9D6EA', '#6FAACB'] },
 };
 let PAL = PALETTES.forest;
 const ROCK_NAME = { granite: 'MOUNTAIN ROCK', lava: 'BASALT', pumpkin: 'PUMPKIN' };
-const FX_TINT = { green: '#4E8A3E', fairway: '#5E9A48', tee: '#5E9A48', rough: '#4C7A3E', deep: '#3C6633', bunker: '#A98A4E', water: '#4C86A8', ob: '#8A8F86' };
+const FX_TINT = { trees: '#2E5A2A', green: '#4E8A3E', fairway: '#5E9A48', tee: '#5E9A48', rough: '#4C7A3E', deep: '#3C6633', bunker: '#A98A4E', water: '#4C86A8', ob: '#8A8F86' };
 
 const cvs = $('board'), ctx = cvs.getContext('2d');
 const fwCvs = document.createElement('canvas'), fwCtx = fwCvs.getContext('2d'); // fairway layer, so stripes stay on the fairway
 let W = 0, H = 0, DPR = 1;
 const view = { cx: 0, cy: 0, s: 1, tx: 0, ty: 0, ts: 1, ready: false, manual: false, reveal: 0 };
-let seed = new URLSearchParams(location.search).get('seed') || todayKey();
+const QS = new URLSearchParams(location.search);
+let seed = QS.get('seed') || todayKey();
+// ?course=victoria&holes=front|back|all plays a real course; anything else is the daily nine
+const REAL_IDS = ['victoria'], MODE_NAME = { front: 'Front 9', back: 'Back 9', all: '18 holes' };
+const REAL = REAL_IDS.includes(QS.get('course')) ? { id: QS.get('course'), mode: MODE_NAME[QS.get('holes')] ? QS.get('holes') : 'all', data: null } : null;
 let st, phase, clubIdx, aimCenter, aimAngle, manualAim, locked, tAim, tPow, power = 0, anim = null, trail = [], fx = [], trapped = null, tickEnd = null;
 
 const hole = () => DH.holeOf(st);
@@ -298,6 +334,7 @@ const Snd = (() => {
     land(surf) {
       if (surf === 'water') return this.splash();
       if (surf === 'cart' || surf === 'bridge') return this.knock();
+      if (surf === 'trees') return noise({ t: 0.24, g: 0.08, f: 3400, q: 0.5 });
       if (surf === 'bunker' || surf === 'leaves') return noise({ t: 0.18, g: 0.09, f: 2400, q: 0.7 });
       if (surf === 'green') { tone({ f: 300, to: 200, t: 0.06, g: 0.06 }); noise({ t: 0.04, g: 0.04, f: 1200, q: 1 }); return; }
       if (surf === 'rough' || surf === 'deep') return noise({ t: 0.1, g: 0.07, f: 420, q: 0.8 });
@@ -308,16 +345,26 @@ const Snd = (() => {
     putt() { tone({ f: 360, to: 250, t: 0.07, type: 'triangle', g: 0.18 }); noise({ t: 0.03, g: 0.06, f: 1400, q: 1 }); },
     drop() { tone({ f: 880, t: 0.07, g: 0.16 }); tone({ f: 1320, t: 0.10, g: 0.13, delay: 0.06 }); noise({ t: 0.06, g: 0.05, f: 300, q: 2 }); },
     arm() { tone({ f: 520, to: 110, t: 0.32, type: 'sawtooth', g: 0.14 }); },
+    // a hadeda's "haa-haa-haa": falling and nasal
+    hadeda() { for (let i = 0; i < 3; i++) { tone({ f: 640, to: 410, t: 0.26, type: 'sawtooth', g: 0.035, delay: i * 0.34 }); tone({ f: 1280, to: 820, t: 0.22, type: 'triangle', g: 0.015, delay: i * 0.34 }); } },
+    cluck() { for (let i = 0; i < 4; i++) tone({ f: 980 + (i % 2) * 140, to: 760, t: 0.05, type: 'square', g: 0.012, delay: i * 0.12 }); },
     portal() { tone({ f: 330, to: 990, t: 0.35, g: 0.08 }); tone({ f: 660, to: 1320, t: 0.3, type: 'triangle', g: 0.05, delay: 0.12 }); },
   };
 })();
 
 // ── round flow ──
 function startRound(newSeed) {
-  if (newSeed) { seed = newSeed; history.replaceState(null, '', '?seed=' + encodeURIComponent(seed)); }
-  st = DH.newRound(seed);
-  PAL = PALETTES[st.course.theme];
-  $('courseName').textContent = `${st.course.name} · ${PAL.name}`;
+  if (REAL) {
+    const course = DH.makeRealCourse(REAL.data, REAL.mode, todayKey());
+    st = DH.newRound(course.seed, course);
+    PAL = PALETTES[course.theme];
+    $('courseName').textContent = `${course.name} · ${MODE_NAME[REAL.mode]}`;
+  } else {
+    if (newSeed) { seed = newSeed; history.replaceState(null, '', '?seed=' + encodeURIComponent(seed)); }
+    st = DH.newRound(seed);
+    PAL = PALETTES[st.course.theme];
+    $('courseName').textContent = `${st.course.name} · ${PAL.name}`;
+  }
   $('end').hidden = true;
   startHole();
 }
@@ -328,6 +375,34 @@ function startHole() {
   view.reveal = h.len > 470 ? performance.now() + 1500 : 0; // a long hole: take it all in first
   clubIdx = DH.autoClub(h, st.ball, st.lie);
   setupAim();
+  showTeeCard(h);
+  view.fly = h.signature && st.lie === 'tee' && st.strokes === 0 ? { t0: performance.now(), dur: 2600 } : null;
+  wildFor(h);
+}
+function showTeeCard(h) {
+  $('teeCard').hidden = !h.real;
+  if (!h.real) return;
+  const pl = Math.round(DH.playsLike(h, { x: 0, y: 0 }, h.pin));
+  $('tcNo').textContent = `Hole ${h.index}`;
+  $('tcMeta').textContent = `Par ${h.par} · Stroke index ${h.si}`;
+  $('tcYds').innerHTML = `${h.len} yds${Math.abs(pl - Math.round(dist({ x: 0, y: 0 }, h.pin))) >= 3 ? ` · plays <b>${pl}</b>` : ''}`;
+  $('tcNote').textContent = h.note ? h.note[0].toUpperCase() + h.note.slice(1) + '.' : '';
+  drawPlan(h, $('teePlan'));
+}
+// A small plan of the hole for the card: tee at the bottom, green at the top.
+function drawPlan(h, cv) {
+  const c = cv.getContext('2d'), R = h.real, Wp = cv.width, Hp = cv.height;
+  const xs = h.path.map(p => p.x), ys = h.path.map(p => p.y), pad = 24;
+  const x0 = Math.min(...xs) - pad, x1 = Math.max(...xs) + pad, y0 = Math.min(...ys) - pad, y1 = Math.max(...ys) + pad;
+  const k = Math.min(Wp / (x1 - x0), Hp / (y1 - y0)), ox = (Wp - (x1 - x0) * k) / 2, oy = (Hp - (y1 - y0) * k) / 2;
+  const P = p => [ox + (p.x - x0) * k, Hp - oy - (p.y - y0) * k];
+  const poly = (list, color) => { c.fillStyle = color; for (const sh of list) { c.beginPath(); sh.pts.forEach((p, i) => { const [x, y] = P(p); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath(); c.fill(); } };
+  c.clearRect(0, 0, Wp, Hp); c.fillStyle = PAL.g[1]; c.fillRect(0, 0, Wp, Hp);
+  poly(R.fairways, PAL.fw); poly(R.tees, PAL.tee); poly(R.greens, PAL.green);
+  poly(R.water, PAL.water); poly(R.bunkers, PAL.sand); poly(R.trees, PAL.trees[1]);
+  c.setLineDash([3, 3]); c.strokeStyle = 'rgba(255,255,255,0.9)'; c.lineWidth = 1.6; c.beginPath();
+  h.path.forEach((p, i) => { const [x, y] = P(p); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.stroke(); c.setLineDash([]);
+  if (!h.hidden) { const [x, y] = P(h.pin); c.fillStyle = '#C2401F'; c.beginPath(); c.arc(x, y, 3, 0, 6.284); c.fill(); }
 }
 function setupAim(keepAim) {
   const h = hole(), c = club();
@@ -343,6 +418,7 @@ function setupAim(keepAim) {
   hud(); renderClubs(); renderCard();
 }
 function lockAim() {
+  $('teeCard').hidden = true;
   locked = true; phase = 'power'; tPow = performance.now();
   $('track').classList.remove('idle');
   setAct('Swing'); $('hint').textContent = 'Stop just under 100';
@@ -437,14 +513,25 @@ function finishHole(putts) {
   renderCard();
 }
 function nextHoleUI() {
+  // On this course the 10th walks back to the clubhouse, so the turn comes after it, not after the 9th.
+  if (REAL && REAL.mode === 'all' && st.holeIdx === 9 && phase === 'holeend') return showTurn();
   DH.nextHole(st);
   if (st.done) return endRound();
   startHole();
 }
+function showTurn() {
+  phase = 'turn';
+  const hs = st.course.holes, played = st.scores.slice(0, 10), par10 = hs.slice(0, 10).reduce((a, h) => a + h.par, 0);
+  const out = st.scores.slice(0, 9).reduce((a, b) => a + b, 0), parOut = hs.slice(0, 9).reduce((a, h) => a + h.par, 0);
+  $('turnScore').textContent = S2P(played.reduce((a, b) => a + b, 0) - par10);
+  $('turnOut').textContent = `OUT ${out} (${S2P(out - parOut)}) · 10TH ${st.scores[9]}`;
+  $('turn').hidden = false; setAct('Play the 11th');
+}
+function leaveTurn() { $('turn').hidden = true; DH.nextHole(st); startHole(); }
 function endRound() {
   phase = 'done';
   const strokes = st.scores.reduce((a, b) => a + b, 0), par = st.course.par;
-  $('endTag').textContent = seed === todayKey() ? 'Today\'s nine' : 'Course · ' + seed;
+  $('endTag').textContent = REAL ? MODE_NAME[REAL.mode] : seed === todayKey() ? 'Today\'s nine' : 'Course · ' + seed;
   $('endName').textContent = st.course.name;
   $('endScore').textContent = S2P(strokes - par);
   $('endStrokes').textContent = `${strokes} STROKES · PAR ${par}`;
@@ -459,15 +546,18 @@ function endRound() {
 // Embedded on adamgames, the page around the game adds the round to the player's record.
 function reportRound(strokes, par) {
   if (window.parent === window) return;
+  if (REAL) return window.parent.postMessage({ type: 'nine-holes-real-round', course: REAL.id, mode: REAL.mode, strokes, par, day: todayKey() }, location.origin);
   window.parent.postMessage({ type: 'nine-holes-round', strokes, par, course: st.course.name, seed }, location.origin);
 }
 
 // ── ui ──
 function setAct(text, wait) { const b = $('act'); b.textContent = text; b.classList.toggle('wait', !!wait); }
 function act() {
+  if (view.fly) { view.fly = null; return; }
   if (phase === 'aim') lockAim();
   else if (phase === 'power') fireShot();
   else if (phase === 'holeend') nextHoleUI();
+  else if (phase === 'turn') leaveTurn();
   else if (phase === 'done') $('end').hidden = false;
 }
 function toast(big, sub, color) {
@@ -483,6 +573,10 @@ function hud() {
   $('wind').innerHTML = `${'↑↗→↘↓↙←↖'[oct]} ${Math.round(h.wspd)} <small>MPH</small>`;
   $('lie').textContent = `${(LIE[st.lie] || LIE.fairway).label} · SHOT ${st.strokes + 1}`;
   $('pin').innerHTML = fmtDist(dist(st.ball, h.pin)) + ' <small>TO PIN</small>';
+  if (h.real && st.lie !== 'green') {
+    const d = dist(st.ball, h.pin), pl = DH.playsLike(h, st.ball, h.pin);
+    if (d >= 12 && Math.abs(pl - d) >= 3) $('pin').innerHTML += ` <small>· PLAYS ${Math.round(pl)}</small>`;
+  }
   const tags = [];
   if (h.island) tags.push(['ISLAND', '#5FAAD0']);
   if (h.arch) tags.push(['CROSSING', '#3E8FB5']);
@@ -495,15 +589,21 @@ function hud() {
 }
 const scoreClass = d => d <= -2 ? 'eagle' : d === -1 ? 'bird' : d === 0 ? 'parred' : d === 1 ? 'bog' : 'dbl';
 function cardCells(live) {
-  return st.course.holes.map((h, i) => {
+  const cells = st.course.holes.map((h, i) => {
     const s = st.scores[i];
     let cls = 'cell' + (live && i === st.holeIdx && phase !== 'done' ? ' now' : '');
     if (s != null) cls += ' done ' + scoreClass(s - h.par);
     if (st.aces.includes(i)) cls += ' ace';
-    return `<div class="${cls}"><b>${i + 1}</b><s>${s != null ? s : '·'}</s><u>${h.par}</u></div>`;
-  }).join('');
+    return `<div class="${cls}"><b>${h.index}</b><s>${s != null ? s : '·'}</s><u>${h.par}</u></div>`;
+  });
+  if (st.course.holes.length !== 18) return cells.join('');
+  const sum = (a, b, name) => { const hs = st.course.holes.slice(a, b), sc = st.scores.slice(a, b).filter(x => x != null);
+    return `<div class="cell sum"><b>${name}</b><s>${sc.length ? sc.reduce((x, y) => x + y, 0) : '·'}</s><u>${hs.reduce((x, h) => x + h.par, 0)}</u></div>`; };
+  return [...cells.slice(0, 9), sum(0, 9, 'OUT'), ...cells.slice(9), sum(9, 18, 'IN')].join('');
 }
 function renderCard() {
+  $('card').classList.toggle('c10', st.course.holes.length === 18);
+  $('endCard').classList.toggle('c10', st.course.holes.length === 18);
   $('card').innerHTML = cardCells(true);
   const played = st.scores.reduce((a, s, i) => s != null ? a + s - st.course.holes[i].par : a, 0);
   $('total').textContent = S2P(played);
@@ -553,10 +653,16 @@ function playFocus(h) {
   if (h.portal && st.lie === 'tee') f.push(h.portal);
   return f;
 }
+const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 function updateCamera(now) {
   const h = hole();
+  if (view.fly && (now - view.fly.t0 > view.fly.dur || view.manual || phase !== 'aim')) view.fly = null;
   if (!view.manual) {
-    if (anim && anim.mode === 'putts') fitView(boxOf([anim.from, h.pin], h.gr + 6, h.gr * 2.6));
+    if (view.fly) { // out over the hole and back: 0 at the tee, 1 at the green, then home again
+      const u = (now - view.fly.t0) / view.fly.dur, k = easeInOut(u < 0.5 ? u * 2 : 2 - u * 2);
+      const c = { x: h.green.x * k, y: h.green.y * k };
+      fitView(boxOf([c, ...greenBox(h).map(p => ({ x: p.x - h.green.x + c.x, y: p.y - h.green.y + c.y }))], 40, 150));
+    } else if (anim && anim.mode === 'putts') fitView(boxOf([anim.from, h.pin], h.gr + 6, h.gr * 2.6));
     else if (now < view.reveal) fitView(boxOf([...h.path, ...greenBox(h), ...(h.portal ? [h.portal, h.portal.mark] : [])], 30, 80));
     else fitView(boxOf(playFocus(h), 24, 80));
   }
@@ -590,6 +696,7 @@ function label(text, p, color, size) {
 function drawCourse(h, now) {
   const close = view.s > 6; // zoomed in to putting range
   if (h.arch) drawCrossing(h);
+  else if (h.real) drawRealCourse(h, close);
   else drawCorridor(h, close);
   if (h.island) drawIslandLake(h);
   if (h.burn) drawBurn(h);
@@ -642,6 +749,74 @@ function drawCorridor(h, close) {
 
   for (const t of h.trees) drawTree(t, t.r);
   for (const q of sceneOf(h).props) drawProp(q);
+}
+
+// ── a real course, drawn from its traced shapes ──
+function polyPath(pts, c = ctx) {
+  c.beginPath();
+  pts.forEach((p, i) => { const q = TS(p); i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
+  c.closePath();
+}
+const onScreen = box => { const a = TS({ x: box[0], y: box[3] }), b = TS({ x: box[2], y: box[1] }); return b.x > -20 && a.x < W + 20 && b.y > -20 && a.y < H + 20; };
+function inStand(p, t) {
+  let c = false;
+  for (let i = 0, j = t.pts.length - 1; i < t.pts.length; j = i++) {
+    const a = t.pts[i], b = t.pts[j];
+    if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) c = !c;
+  }
+  return c;
+}
+// The crowns inside each stand, worked out once per hole: a loose grid, jittered, about 4.5 yards apart.
+function canopyOf(h) {
+  if (h.canopy) return h.canopy;
+  h.canopy = h.real.trees.map((t, k) => {
+    const r = DH.rng(DH.hashStr(`canopy|${h.index}|${k}`)), [x0, y0, x1, y1] = t.box, crowns = [];
+    for (let y = y0 + 1.5; y <= y1; y += 4.2) for (let x = x0 + 1.5; x <= x1; x += 4.6) {
+      const p = { x: x + (r() - 0.5) * 3, y: y + (r() - 0.5) * 3, r: 2.4 + r() * 1.9 };
+      if (inStand(p, t)) crowns.push(p);
+    }
+    if (!crowns.length) crowns.push({ x: (x0 + x1) / 2, y: (y0 + y1) / 2, r: Math.max(2, Math.min(x1 - x0, y1 - y0) / 2) });
+    return { box: t.box, crowns };
+  });
+  return h.canopy;
+}
+function drawRealCourse(h, close) {
+  const R = h.real, fill = (list, color, edge, lw = 1) => {
+    for (const sh of list) { if (!onScreen(sh.box)) continue; polyPath(sh.pts); ctx.fillStyle = color; ctx.fill(); if (edge) { ctx.lineWidth = lw; ctx.strokeStyle = edge; ctx.stroke(); } }
+  };
+  ctx.fillStyle = PAL.ob; ctx.fillRect(0, 0, W, H); // beyond the boundary
+  const g = ctx.createLinearGradient(0, 0, W * 0.35, H);
+  g.addColorStop(0, PAL.g[0]); g.addColorStop(0.55, PAL.g[1]); g.addColorStop(1, PAL.g[2]);
+  polyPath(R.boundary.pts); ctx.fillStyle = g; ctx.fill();
+  ctx.save(); ctx.clip(); ctx.globalAlpha = 0.55; ctx.fillStyle = PAL.rough; ctx.fillRect(0, 0, W, H); ctx.restore();
+  ctx.save(); ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.setLineDash([5, 4]); polyPath(R.boundary.pts); ctx.stroke(); ctx.restore();
+  // fairways, with mowing stripes across the hole, on their own layer so the stripes stay on them
+  fwCtx.setTransform(DPR, 0, 0, DPR, 0, 0); fwCtx.clearRect(0, 0, W, H);
+  for (const fw of R.fairways) { if (!onScreen(fw.box)) continue; polyPath(fw.pts, fwCtx); fwCtx.fillStyle = PAL.fw; fwCtx.fill(); }
+  if (!close) {
+    fwCtx.globalCompositeOperation = 'source-atop';
+    const a = fromScreen(0, 0), b = fromScreen(W, H), y0 = Math.floor(Math.min(a.y, b.y) / 12) * 12, y1 = Math.max(a.y, b.y);
+    for (let y = y0; y < y1; y += 12) {
+      const p = TS({ x: Math.min(a.x, b.x), y: y + 6 }), q = TS({ x: Math.max(a.x, b.x), y: y + 6 });
+      fwCtx.beginPath(); fwCtx.moveTo(p.x, p.y); fwCtx.lineTo(q.x, q.y); fwCtx.lineWidth = Math.max(1, 12 * view.s); fwCtx.lineCap = 'butt';
+      const band = Math.round(y / 12) & 1;
+      fwCtx.globalAlpha = band ? 0.32 : 0.24; fwCtx.strokeStyle = band ? PAL.stripeA : PAL.stripeB; fwCtx.stroke();
+    }
+    fwCtx.globalAlpha = 1; fwCtx.globalCompositeOperation = 'source-over';
+  }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.shadowColor = 'rgba(30,60,30,0.30)'; ctx.shadowBlur = Math.max(3, 8 * Math.min(view.s, 2));
+  ctx.drawImage(fwCvs, 0, 0); ctx.restore();
+  fill(R.tees, PAL.tee, PAL.fwEdge, 1);
+  fill(R.greens.filter(x => x !== R.ownGreen), PAL.green, PAL.greenEdge, 1.2); // the other holes' greens
+  for (const c of R.cart) strokePath(c, 1.1, PAL.cart);
+  fill(R.water, PAL.water, PAL.waterEdge, 1.6);
+  fill(R.bunkers, PAL.sand, PAL.sandEdge, 1.2);
+  fill(R.trees, PAL.canopy); // a dark floor under the crowns
+  for (const sh of canopyOf(h)) { if (!onScreen(sh.box)) continue; for (const t of sh.crowns) drawTree(t, t.r); }
+  for (const b of R.benches) {
+    const p = TS(b), w = Math.max(3, 2 * view.s), hh = Math.max(1.4, 0.7 * view.s);
+    ctx.fillStyle = PAL.bench; ctx.fillRect(p.x - w / 2, p.y - hh / 2, w, hh);
+  }
 }
 
 // A tree: round crown in the woods and on the links, a dark conifer in the highlands.
@@ -933,7 +1108,21 @@ function drawMill(m, now) {
   ctx.restore();
 }
 
+const greenHidden = h => h.hidden && dist(st.ball, h.green) > 150;
+function drawAimingPost(h) {
+  const p = TS(h.green);
+  ctx.save(); ctx.shadowColor = 'rgba(30,40,30,0.4)'; ctx.shadowBlur = 4;
+  ctx.fillStyle = '#fff'; ctx.fillRect(p.x - 2, p.y - 24, 4, 12); ctx.fillStyle = '#1B241D'; ctx.fillRect(p.x - 2, p.y - 12, 4, 12);
+  ctx.restore(); ctx.strokeStyle = '#1B241D'; ctx.lineWidth = 1; ctx.strokeRect(p.x - 2, p.y - 24, 4, 24);
+  if (view.s > 0.4) label('GREEN HIDDEN', { x: p.x, y: p.y + 10 }, '#1B241DB0', 9);
+}
 function drawGreenAndPin(h, now, close) {
+  if (greenHidden(h)) { // over the crest: no green, no flag, no rings, just the post to aim at
+    const t0 = TS(h.path[0]);
+    ctx.strokeStyle = '#2C3D2F99'; ctx.lineWidth = 1.4; ctx.strokeRect(t0.x - 4.5 * view.s, t0.y - 2.5 * view.s, 9 * view.s, 5 * view.s);
+    drawAimingPost(h); drawTrail();
+    return;
+  }
   // yardage rings measured back from the pin
   if (!close) {
     ctx.save(); ctx.setLineDash([2, 9]); ctx.lineWidth = 1; ctx.strokeStyle = '#2C3D2F1C';
@@ -948,9 +1137,12 @@ function drawGreenAndPin(h, now, close) {
 
   // the green, its collar, the putt rings and the fall line
   const gc = TS(h.green), gR = h.gr * view.s, fall = dirOf(h.slopeDir);
+  const greenPath = () => { if (h.real) polyPath(h.real.ownGreen.pts); else { ctx.beginPath(); ctx.arc(gc.x, gc.y, gR, 0, 6.284); } };
   ctx.save(); ctx.shadowColor = 'rgba(70,95,72,0.24)'; ctx.shadowBlur = Math.max(5, 9 * Math.min(view.s, 2));
-  ctx.beginPath(); ctx.arc(gc.x, gc.y, gR + Math.max(2, 2.2 * view.s), 0, 6.284); ctx.fillStyle = PAL.collar; ctx.fill(); ctx.restore();
-  ctx.beginPath(); ctx.arc(gc.x, gc.y, gR, 0, 6.284);
+  if (h.real) { greenPath(); ctx.lineWidth = Math.max(4, 4.4 * view.s); ctx.lineJoin = 'round'; ctx.strokeStyle = PAL.collar; ctx.stroke(); ctx.fillStyle = PAL.collar; ctx.fill(); }
+  else { ctx.beginPath(); ctx.arc(gc.x, gc.y, gR + Math.max(2, 2.2 * view.s), 0, 6.284); ctx.fillStyle = PAL.collar; ctx.fill(); }
+  ctx.restore();
+  greenPath();
   if (close) {
     const hi = TS(add(h.green, fall, -h.gr)), lo = TS(add(h.green, fall, h.gr));
     const gg = ctx.createLinearGradient(hi.x, hi.y, lo.x, lo.y);
@@ -958,7 +1150,7 @@ function drawGreenAndPin(h, now, close) {
     ctx.fillStyle = gg;
   } else ctx.fillStyle = PAL.green;
   ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = PAL.greenEdge; ctx.stroke();
-  ctx.save(); ctx.beginPath(); ctx.arc(gc.x, gc.y, gR, 0, 6.284); ctx.clip();
+  ctx.save(); greenPath(); ctx.clip();
   const rr = DH.puttRings(h), pc = TS(h.pin);
   ctx.beginPath(); ctx.arc(pc.x, pc.y, rr.two * view.s, 0, 6.284); ctx.fillStyle = 'rgba(255,255,255,0.62)'; ctx.fill();
   ctx.beginPath(); ctx.arc(pc.x, pc.y, rr.one * view.s, 0, 6.284); ctx.fillStyle = 'rgba(192,138,46,0.26)'; ctx.fill();
@@ -993,7 +1185,11 @@ function drawGreenAndPin(h, now, close) {
 
   if (h.mill) drawMill(h.mill, now);
 
-  // shots already played this hole
+  drawTrail();
+  drawPin(h);
+}
+// shots already played this hole
+function drawTrail() {
   ctx.save(); ctx.lineWidth = 1.6;
   for (const seg of trail) {
     const a = TS(seg.a), b = TS(seg.b);
@@ -1002,7 +1198,6 @@ function drawGreenAndPin(h, now, close) {
     ctx.setLineDash([]); ctx.beginPath(); ctx.arc(b.x, b.y, 2.4, 0, 6.284); ctx.fillStyle = '#8E2E16B0'; ctx.fill();
   }
   ctx.restore();
-  drawPin(h);
 }
 
 // The light over the map: a soft vignette by day; at the Spooky Forest, dusk with a moon top right.
@@ -1105,6 +1300,57 @@ function alongTrace(tr, f) {
   return tr[tr.length - 1];
 }
 
+// ── local life on a real course: scenery only, never in the way of a shot ──
+const wild = { nextBirds: 0, birds: null, fowl: null, nextCluck: 0 };
+function wildFor(h) {
+  wild.fowl = null;
+  if (!h.real) return;
+  if (!wild.nextBirds) wild.nextBirds = performance.now() + 8000 + Math.random() * 12000;
+  // one hole in three has guinea fowl crossing a fairway, well off the line of play
+  const r = DH.rng(DH.hashStr(`fowl|${todayKey()}|${h.index}`));
+  if (r() > 1 / 3) return;
+  const fws = h.real.fairways.filter(fw => fw.hole === h.index);
+  for (let t = 0; t < 40 && fws.length && !wild.fowl; t++) {
+    const fw = fws[(r() * fws.length) | 0], [x0, y0, x1, y1] = fw.box, p = { x: x0 + r() * (x1 - x0), y: y0 + r() * (y1 - y0) };
+    if (Math.abs(p.x) < 18 || p.y < 40 || p.y > h.total - 40 || !inStand(p, fw)) continue;
+    const n = 3 + ((r() * 4) | 0), dir = p.x > 0 ? 1 : -1, birds = [];
+    for (let i = 0; i < n; i++) birds.push({ dx: (r() - 0.5) * 5, dy: (r() - 0.5) * 4, ph: r() * 6 });
+    wild.fowl = { p, dir, birds, t0: performance.now() };
+  }
+  wild.nextCluck = performance.now() + 1500;
+}
+function drawFowl(now) {
+  const F = wild.fowl; if (!F) return;
+  const t = (now - F.t0) / 1000, x = F.p.x + F.dir * Math.min(t * 0.7, 26); // they amble outwards, away from play, then pick at the grass
+  for (const b of F.birds) {
+    const q = TS({ x: x + b.dx, y: F.p.y + b.dy + Math.sin(t * 1.3 + b.ph) * 0.6 }), r = Math.max(1.6, 0.75 * view.s);
+    ctx.beginPath(); ctx.ellipse(q.x, q.y, r * 1.3, r, 0, 0, 6.284); ctx.fillStyle = '#3B3F46'; ctx.fill();
+    ctx.beginPath(); ctx.arc(q.x + F.dir * r * 1.2, q.y - r * 0.5, r * 0.45, 0, 6.284); ctx.fillStyle = '#6FA1C9'; ctx.fill(); // the blue head
+    if (r > 2.5) { ctx.fillStyle = 'rgba(255,255,255,0.7)'; for (const [a, c] of [[-0.4, 0.2], [0.2, -0.3], [0.5, 0.3]]) { ctx.beginPath(); ctx.arc(q.x + a * r, q.y + c * r, r * 0.16, 0, 6.284); ctx.fill(); } }
+  }
+  if (now > wild.nextCluck) { Snd.cluck(); wild.nextCluck = now + 7000 + Math.random() * 6000; }
+}
+function drawBirds(now) {
+  if (!hole().real) return;
+  const flying = anim && anim.mode === 'shot';
+  if (!wild.birds && now > wild.nextBirds && !flying) {
+    const left = Math.random() < 0.5, n = 2 + ((Math.random() * 3) | 0), y = H * (0.15 + Math.random() * 0.5);
+    wild.birds = { t0: now, dur: 4000 + Math.random() * 2000, left, y, dy: (Math.random() - 0.5) * H * 0.25, flock: Array.from({ length: n }, (_, i) => ({ ox: -i * 26 - Math.random() * 10, oy: (Math.random() - 0.5) * 30, ph: Math.random() * 6 })) };
+    Snd.hadeda();
+  }
+  const B = wild.birds; if (!B) return;
+  const u = (now - B.t0) / B.dur;
+  if (u >= 1) { wild.birds = null; wild.nextBirds = now + 25000 + Math.random() * 35000; return; }
+  if (flying) return; // out of the way while the ball is in the air
+  ctx.save(); ctx.strokeStyle = 'rgba(52,48,44,0.85)'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+  for (const b of B.flock) {
+    const x = B.left ? -40 + u * (W + 120) + b.ox : W + 40 - u * (W + 120) - b.ox, y = B.y + B.dy * u + b.oy, flap = Math.sin(now / 90 + b.ph) * 5, s = B.left ? 1 : -1;
+    ctx.beginPath(); ctx.moveTo(x - 9, y - flap); ctx.quadraticCurveTo(x - 4, y - 2, x, y); ctx.quadraticCurveTo(x + 4, y - 2, x + 9, y - flap); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + s * 7, y + 2.5); ctx.stroke(); // the long curved bill
+  }
+  ctx.restore();
+}
+
 // ── main loop ──
 function frame(now) {
   requestAnimationFrame(frame);
@@ -1157,12 +1403,14 @@ function frame(now) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   const h = hole();
   drawCourse(h, now);
+  if (h.real) drawFowl(now);
   drawFrame();
   if (phase === 'aim' || phase === 'power') drawAimFan(h);
   drawFx(now);
   const sunk = !anim && (phase === 'holeend' || phase === 'done') && dist(st.ball, h.pin) < 0.5;
   if (!sunk) drawBall(ballAt, height);
   if (puttLabel && anim) drawPuttCount(puttLabel.p, anim.n);
+  drawBirds(now);
 }
 
 // ── input: tap to aim, drag to pan, pinch or wheel to zoom ──
@@ -1200,6 +1448,7 @@ cvs.addEventListener('wheel', e => {
   view.cx = view.tx = view.cx + before.x - after.x; view.cy = view.ty = view.cy + before.y - after.y;
 }, { passive: false });
 function tapAt(x, y) {
+  if (view.fly) { view.fly = null; return; } // a tap skips the view
   if (phase === 'aim' && !locked) {
     const p = fromScreen(x, y);
     if (dist(p, st.ball) < 1) return;
@@ -1209,6 +1458,8 @@ function tapAt(x, y) {
 }
 
 $('act').addEventListener('click', act);
+$('teeCard').addEventListener('click', () => { $('teeCard').hidden = true; });
+$('turnGo').addEventListener('click', leaveTurn);
 $('clubRail').addEventListener('click', e => { const b = e.target.closest('button'); if (b) pickClub(+b.dataset.i); });
 $('recenter').addEventListener('click', () => { view.manual = false; $('recenter').hidden = true; });
 const showSound = () => { $('soundBtn').classList.toggle('muted', !Snd.on); $('soundBtn').setAttribute('aria-pressed', Snd.on); };
@@ -1232,7 +1483,11 @@ addEventListener('keydown', e => {
 addEventListener('resize', resize);
 
 resize();
-startRound();
+if (REAL) {
+  for (const id of ['mToday', 'mNew', 'newBtn']) $(id).hidden = true;
+  fetch(`courses/${REAL.id}/${REAL.id}.json`).then(r => r.json()).then(d => { REAL.data = d; startRound(); })
+    .catch(() => { $('courseName').textContent = 'Could not load the course. Reload to try again.'; });
+} else startRound();
 requestAnimationFrame(frame);
 </script>
 </body>

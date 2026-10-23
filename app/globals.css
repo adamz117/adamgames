@@ -265,6 +265,35 @@ body {
   .club-real:hover .club-real-go { text-decoration-color: var(--accent); }
 }
 
+/* ── a real course's page ── */
+.club-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.club-mode {
+  display: flex; flex-direction: column; gap: 6px; padding: 22px 22px 20px; border-radius: var(--radius-card);
+  background: linear-gradient(155deg, #1d3a2b 0%, #15291f 70%); box-shadow: inset 0 0 0 1px rgba(226, 170, 78, 0.28);
+  color: var(--text); text-decoration: none; transition: transform 160ms var(--ease-out), box-shadow 200ms ease;
+}
+.club-mode strong { font-family: var(--font-display); font-size: 30px; font-weight: 600; line-height: 1.05; }
+.club-mode span { color: var(--text-dim); font-size: 14px; }
+.club-mode:active { transform: scale(0.98); }
+@media (hover: hover) and (pointer: fine) { .club-mode:hover { box-shadow: inset 0 0 0 1px var(--accent); } }
+.club-plan-wrap { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+.club-plan { width: 100%; height: auto; border-radius: var(--radius-card); background: #0c1c14; box-shadow: inset 0 0 0 1px rgba(236, 234, 220, 0.08); }
+.club-scorecard { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: lining-nums tabular-nums; }
+.club-scorecard th { text-align: right; font-weight: 500; color: var(--text-dim); padding: 0 10px 8px; border-bottom: 1px solid var(--border); }
+.club-scorecard td { text-align: right; padding: 5px 10px; border-bottom: 1px solid rgba(42, 68, 54, 0.6); }
+.club-scorecard th:first-child, .club-scorecard td:first-child { text-align: left; }
+.club-scorecard tr.turn td { border-top: 1px solid rgba(226, 170, 78, 0.45); }
+.club-boards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.club-board { padding: 18px 20px; border-radius: 16px; background: var(--surface); box-shadow: inset 0 0 0 1px rgba(236, 234, 220, 0.07); }
+.club-board h3 { font-family: var(--font-display); font-size: 24px; font-weight: 600; margin: 0 0 6px; }
+.club-board ol { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 4px; font-size: 14px; }
+.club-board li span { display: inline-block; min-width: 9ch; color: var(--text); }
+.club-board li b { float: right; font-weight: 600; }
+@media (max-width: 860px) {
+  .club-modes { grid-template-columns: minmax(0, 1fr); }
+  .club-plan-wrap { grid-template-columns: minmax(0, 1fr); }
+}
+
 .club-footer {
   margin-top: 110px;
   padding: 30px 0 46px;

@@ -57,10 +57,11 @@ const LIE = {
   cart:    { dist: 0.92, acc: 1.55, roll: 1.00, label: 'CART PATH' },
   bridge:  { dist: 0.94, acc: 1.45, roll: 1.00, label: 'THE BRIDGE' },
   portal:  { dist: 1.00, acc: 1.00, roll: 1.00, label: 'PORTAL GREEN' },
+  trees:   { dist: 0.62, acc: 2.45, roll: 0.60, label: 'TREES' },
 };
 // How far a ball runs over each surface, relative to its budget (fairway = baseline 1.45).
 const SURF_ROLL = { tee: 1.25, fairway: 1.45, green: 2.10, rough: 0.30, deep: 0.14, bunker: 0.07, leaves: 0.07, water: 0, ob: 0.5,
-                    cart: 3.0, bridge: 5.2, portal: 0.18 };
+                    cart: 3.0, bridge: 5.2, portal: 0.18, trees: 0.14 };
 
 const PURE_LO = 0.945, PURE_HI = 1.0, SOLID = 0.72, METER_MAX = 1.15;
 const HOLE_R = 0.36;        // cup capture radius for a running ball, yards
@@ -483,7 +484,107 @@ function makeCourse(seed, theme = themeFor(seed)) {
   return { seed, name, theme, holes, par: holes.reduce((a, h) => a + h.par, 0) };
 }
 
+// ── real courses ──
+// A real course is one shared map (course yards: x east, y north, from courses/<id>/<id>.json).
+// Each hole sees it in its own frame: tee at the origin, the tee-to-green line along +y, scaled so
+// the hole plays its card length. Other holes' shapes stay in play.
+const REAL_MODES = { front: [0, 9], back: [9, 18], all: [0, 18] };
+
+function polyOf(pts, tf) {
+  const out = pts.map(tf);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of out) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }
+  return { pts: out, box: [x0, y0, x1, y1] };
+}
+function inPoly(p, poly) {
+  const b = poly.box;
+  if (p.x < b[0] || p.x > b[2] || p.y < b[1] || p.y > b[3]) return false;
+  let c = false;
+  const pts = poly.pts;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const a = pts[i], q = pts[j];
+    if ((a.y > p.y) !== (q.y > p.y) && p.x < (q.x - a.x) * (p.y - a.y) / (q.y - a.y) + a.x) c = !c;
+  }
+  return c;
+}
+const polyArea = pts => Math.abs(pts.reduce((a, q, i) => { const r = pts[(i + 1) % pts.length]; return a + q.x * r.y - r.x * q.y; }, 0) / 2);
+function edgeDist(p, pts) {
+  let best = Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length], dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy || 1;
+    const t = clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / L2, 0, 1);
+    best = Math.min(best, Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy));
+  }
+  return best;
+}
+
+function makeRealHole(data, i, day, dayWind, dayGust) {
+  const d = data.holes[i], P = d.path.map(([x, y]) => ({ x, y })), T = P[0], G = P[P.length - 1];
+  const th = Math.atan2(G.x - T.x, G.y - T.y), cs = Math.cos(th), sn = Math.sin(th);
+  const traced = P.slice(1).reduce((a, p, j) => a + dist(P[j], p), 0), k = d.cardYds / traced;
+  const tf = ([x, y]) => { const dx = x - T.x, dy = y - T.y; return { x: (dx * cs - dy * sn) * k, y: (dx * sn + dy * cs) * k }; };
+  const polys = (list, keep = () => true) => list.filter(keep).map(s => ({ ...polyOf(s.pts, tf), ...(s.hole ? { hole: s.hole } : {}) }));
+  const greens = polys(data.greens), ownGreen = greens.find(g => g.hole === d.n);
+  const path = d.path.map(tf), green = path[path.length - 1];
+  const gr = Math.sqrt(polyArea(ownGreen.pts) / Math.PI);
+  // the pin: on the green, at least 3 yards from its edge, moved every day
+  const r = rng(hashStr(`victoria-pin|${day}|${d.n}`));
+  let pin = { ...green };
+  for (let t = 0; t < 60; t++) {
+    const a = r() * Math.PI * 2, q = { x: green.x + Math.cos(a) * gr * r(), y: green.y + Math.sin(a) * gr * r() };
+    if (inPoly(q, ownGreen) && edgeDist(q, ownGreen.pts) >= 3) { pin = q; break; }
+  }
+  const hr = rng(hashStr(`victoria-hole|${day}|${d.n}`));
+  return {
+    index: d.n, par: d.par, si: d.si, note: d.note, hidden: !!d.hidden, signature: !!d.signature,
+    len: d.cardYds, total: d.cardYds, path, fw: 14, rgh: 34, deep: 50, green, gr, pin,
+    bunkers: [], water: [], trees: [], leafPiles: [], boulders: [], lavaRocks: [],
+    // the day's wind blows one way over the whole course; each hole feels it at its own angle
+    wind: dayWind - th + (hr() - 0.5) * 0.4, wspd: Math.max(1, dayGust + (hr() - 0.5) * 5),
+    slopeDir: hr() * Math.PI * 2, slopePct: 0.010 + hr() * 0.034,
+    real: {
+      greens, ownGreen, tees: polys(data.tees), fairways: polys(data.fairways), bunkers: polys(data.bunkers),
+      water: polys(data.water), trees: polys(data.trees), boundary: polyOf(data.boundary, tf),
+      cart: data.cart.map(c => c.map(tf)), benches: data.benches.map(tf),
+      heights: data.heights, T: { ...T }, th, k,
+    },
+  };
+}
+
+function makeRealCourse(data, mode, day) {
+  const [a, b] = REAL_MODES[mode];
+  const r = rng(hashStr('victoria-wind|' + day)), dayWind = r() * Math.PI * 2, dayGust = 4 + r() * 11;
+  const holes = [];
+  for (let i = a; i < b; i++) holes.push(makeRealHole(data, i, day, dayWind, dayGust));
+  return { seed: `${data.id}|${mode}|${day}`, name: data.name, theme: data.id, real: true, mode, holes, par: holes.reduce((s, h) => s + h.par, 0) };
+}
+
+// Ground height in yards (bilinear on the course grid); daily holes are flat.
+function heightAt(h, p) {
+  const R = h.real; if (!R || !R.heights) return 0;
+  const g = R.heights, cs = Math.cos(R.th), sn = Math.sin(R.th), x = p.x / R.k, y = p.y / R.k;
+  const cx = R.T.x + x * cs + y * sn, cy = R.T.y - x * sn + y * cs; // back into course yards
+  const c = clamp((cx - g.x0) / g.step, 0, g.cols - 1.001), r = clamp((g.y0 - cy) / g.step, 0, g.rows - 1.001);
+  const c0 = Math.floor(c), r0 = Math.floor(r), fc = c - c0, fr = r - r0, z = (i, j) => g.z[j * g.cols + i];
+  return lerp(lerp(z(c0, r0), z(c0 + 1, r0), fc), lerp(z(c0, r0 + 1), z(c0 + 1, r0 + 1), fc), fr);
+}
+// How far a shot plays: about a yard more for every yard the target sits above you.
+const playsLike = (h, from, to) => dist(from, to) + heightAt(h, to) - heightAt(h, from);
+
+function realSurface(h, p) {
+  const R = h.real, any = list => list.some(s => inPoly(p, s));
+  if (!inPoly(p, R.boundary)) return 'ob';
+  if (any(R.water)) return 'water';
+  if (any(R.bunkers)) return 'bunker';
+  if (inPoly(p, R.ownGreen)) return 'green';
+  if (any(R.tees)) return 'tee';
+  if (any(R.trees)) return 'trees'; // before fairways: a traced fairway's outline can enclose a lone tree
+  if (any(R.fairways) || any(R.greens)) return 'fairway'; // another hole's green plays as fairway
+  return 'rough';
+}
+
 function surfaceAt(h, p) {
+  if (h.real) return realSurface(h, p);
   const dg = dist(p, h.green);
   if (dg <= h.gr) return 'green';
   if (h.arch) { // open water: islands only, no rough, no trees, no out of bounds
@@ -542,6 +643,7 @@ function rollOut(h, from, dir, base) {
       continue;
     }
     const sf = surfaceAt(h, q);
+    if (sf === 'trees' && surfaceAt(h, p) !== 'trees') break; // a rolling ball stops at the edge of a stand
     if (sf === 'water') return { point: q, surf: 'water', trace, rockHit };
     if (sf === 'ob') return { point: last, surf: 'ob', trace, rockHit };
     // A ball with pace skids across the green; once the pace bleeds off the turf grabs it.
@@ -569,8 +671,12 @@ function dropFromWater(h, ball, land) {
   const L = dist(ball, land) || 1, u = { x: (ball.x - land.x) / L, y: (ball.y - land.y) / L };
   for (let s = 2; s < L; s += 2) {
     const q = add(land, u, s), sf = surfaceAt(h, q);
-    if (sf !== 'water' && sf !== 'ob') return add(q, u, 2);
+    if (sf !== 'water' && sf !== 'ob' && sf !== 'trees') {
+      const q2 = add(q, u, 2), s2 = surfaceAt(h, q2);
+      if (!h.real || (s2 !== 'water' && s2 !== 'ob' && s2 !== 'trees')) return q2;
+    }
   }
+  if (h.real) return { ...ball }; // real ponds sit off the line of the hole: replay it
   const n = nearest(land, h.path);
   return surfaceAt(h, n.point) === 'water' ? { ...ball } : n.point;
 }
@@ -601,6 +707,7 @@ function resolveShot(h, ball, lie, club, aim, v, r) {
   const w = dirOf(h.wind);
   const head = (w.x * fd.x + w.y * fd.y) * h.wspd, cross = (w.x * fr.x + w.y * fr.y) * h.wspd;
   carry *= 1 + head * 0.0042;
+  if (h.real) carry -= clamp(heightAt(h, add(ball, fd, carry)) - heightAt(h, ball), -0.25 * carry, 0.25 * carry); // uphill comes up short
   const drift = cross * carry * 0.0032;
 
   // Contact adds an absolute miss. Off the tee it is a plain scatter; elsewhere it shrinks for
@@ -721,7 +828,7 @@ const clubAllowed = (c, lie) => c.carry <= ((LIE[lie] || {}).maxCarry || Infinit
 const reachOf = (c, lm) => c.carry * lm.dist + c.roll * lm.roll * 0.55;
 // The shortest club that gets there, else the longest one allowed.
 function autoClub(h, ball, lie) {
-  const d = dist(ball, h.pin), lm = LIE[lie] || LIE.fairway;
+  const d = h.real ? playsLike(h, ball, h.pin) : dist(ball, h.pin), lm = LIE[lie] || LIE.fairway;
   for (let i = CLUBS.length - 1; i >= 0; i--) if (clubAllowed(CLUBS[i], lie) && reachOf(CLUBS[i], lm) >= d * 0.99) return i;
   for (let i = 0; i < CLUBS.length; i++) if (clubAllowed(CLUBS[i], lie)) return i;
   return CLUBS.length - 1;
@@ -736,14 +843,14 @@ function aimTarget(h, ball, lie, club) {
 // number it slides down to the power that lands it pin-high; beyond it, it is the pure band.
 function targetBand(h, ball, lie, club) {
   const lm = LIE[lie] || LIE.fairway, full = club.carry * lm.dist;
-  const need = Math.max(2, dist(ball, h.pin) - club.roll * lm.roll * 0.5);
+  const need = Math.max(2, (h.real ? playsLike(h, ball, h.pin) : dist(ball, h.pin)) - club.roll * lm.roll * 0.5);
   if (need < full * 1.05) return { lo: powerFor(need * 0.96 / full) / METER_MAX, hi: powerFor(need * 1.04 / full) / METER_MAX, label: 'PIN' };
   return { lo: PURE_LO / METER_MAX, hi: PURE_HI / METER_MAX, label: '100' };
 }
 
 // ── round state ──
-function newRound(seed) {
-  const course = makeCourse(seed);
+function newRound(seed, real) {
+  const course = real || makeCourse(seed);
   return { seed, course, holeIdx: 0, ball: { x: 0, y: 0 }, lie: 'tee', strokes: 0, shotIdx: 0,
            scores: [], log: [], done: false, longest: 0, pured: 0, shots: 0, aces: [] };
 }
@@ -794,7 +901,7 @@ function nextHole(st) {
 const api = {
   CLUBS, LIE, PURE_LO, PURE_HI, SOLID, METER_MAX, ISLAND_BANK, THEMES, themeFor, inLeafPile,
   carryFactor, powerFor, grade, powerAt, aimAt,
-  makeCourse, surfaceAt, resolveShot, rollOut, gustPush, puttRings, puttsFrom, strokeCap,
+  makeCourse, makeRealCourse, realSurface, heightAt, playsLike, surfaceAt, resolveShot, rollOut, gustPush, puttRings, puttsFrom, strokeCap,
   millAngle, millBladeOver, millStrike, inMillZone, portalOut, burnCartHit, shoreR, moatR, isleR,
   clubAllowed, autoClub, aimTarget, targetBand,
   newRound, play, nextHole, holeOf,
