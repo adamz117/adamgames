@@ -98,7 +98,9 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
 .btn { width: 100%; min-height: 46px; border-radius: 10px; background: var(--flag); color: #fff; font-variation-settings: 'wdth' 98, 'wght' 700; font-size: 14.5px; }
 .btn.ghost { background: #EDF2ED; color: var(--chalk); }
 .btn:hover { filter: brightness(1.06); }
-.end { position: absolute; inset: 0; z-index: 7; background: rgba(255,255,255,.88); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; }
+.end { position: absolute; inset: 0; z-index: 7; background: rgba(255,255,255,.9); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; overflow-y: auto; }
+.endCard .card.c10 .cell { padding: 4px 0 5px; }
+.endCard .card.c10 .cell s { font-size: 12px; }
 .endCard { width: min(360px, 100%); background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 20px 16px 16px; text-align: center; box-shadow: 0 16px 50px -20px rgba(12,28,20,.3); }
 .endCard .tag { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
 .endCard h2 { font-variation-settings: 'wdth' 96, 'wght' 700; font-size: 18px; margin-top: 2px; }
@@ -185,30 +187,31 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
         <button class="btn" id="mClose">Back to the hole</button>
       </div>
     </div>
-    <div class="end" id="turn" hidden>
-      <div class="endCard">
-        <div class="tag">The halfway house</div>
-        <h2>Through 10</h2>
-        <div class="endScore" id="turnScore"></div>
-        <div class="endStrokes" id="turnOut"></div>
-        <button class="btn" id="turnGo" style="margin-top:16px">Play the 11th</button>
-      </div>
+  </div>
+  <div class="end" id="turn" hidden>
+    <div class="endCard">
+      <div class="tag">The halfway house</div>
+      <h2>Through 10</h2>
+      <div class="endScore" id="turnScore"></div>
+      <div class="endStrokes" id="turnOut"></div>
+      <button class="btn" id="turnGo" style="margin-top:16px">Play the 11th</button>
     </div>
-    <div class="end" id="end" hidden>
-      <div class="endCard">
-        <div class="tag" id="endTag"></div>
-        <h2 id="endName"></h2>
-        <div class="endScore" id="endScore"></div>
-        <div class="endStrokes" id="endStrokes"></div>
-        <div class="card" id="endCard"></div>
-        <div class="stats">
-          <div><b id="sLong"></b><span>Longest</span></div>
-          <div><b id="sPure"></b><span>Pured</span></div>
-          <div><b id="sAces"></b><span>Aces</span></div>
-        </div>
-        <button class="btn" id="againBtn">Play again</button>
-        <button class="btn ghost" id="newBtn">New course</button>
+  </div>
+  <div class="end" id="end" hidden>
+    <div class="endCard">
+      <div class="tag" id="endTag"></div>
+      <h2 id="endName"></h2>
+      <div class="endScore" id="endScore"></div>
+      <div class="endStrokes" id="endStrokes"></div>
+      <div class="card" id="endCard"></div>
+      <div class="stats">
+        <div><b id="sLong"></b><span>Longest</span></div>
+        <div><b id="sPure"></b><span>Pured</span></div>
+        <div><b id="sAces"></b><span>Aces</span></div>
       </div>
+      <button class="btn" id="againBtn">Play again</button>
+      <button class="btn ghost" id="newBtn">New course</button>
+      <button class="btn ghost" id="homeBtn">Back to home</button>
     </div>
   </div>
   <div class="panel" id="panel">
@@ -508,7 +511,9 @@ function finishHole(putts) {
   if (ace) toast(name, `HOLE ${h.index} · ${h.len} YDS, ONE SWING`, 'var(--amber)');
   else toast(name, `HOLE ${h.index} IN ${score}${tail}`, d < 0 ? 'var(--gold)' : d === 0 ? 'var(--chalk)' : 'var(--flag)');
   phase = 'holeend';
-  setAct(st.holeIdx >= st.course.holes.length - 1 ? 'See the card' : 'Next hole');
+  const last = st.holeIdx >= st.course.holes.length - 1;
+  setAct(last ? 'Finishing…' : 'Next hole', last);
+  if (last) setTimeout(() => { if (phase === 'holeend') nextHoleUI(); }, 1900);
   $('hint').textContent = '';
   renderCard();
 }
@@ -540,7 +545,7 @@ function endRound() {
   $('sPure').textContent = `${st.pured}/${st.shots}`;
   $('sAces').textContent = st.aces.length;
   $('end').hidden = false;
-  setAct('See the card');
+  setAct('Play again');
   reportRound(strokes, par);
 }
 // Embedded on adamgames, the page around the game adds the round to the player's record.
@@ -1521,6 +1526,7 @@ $('mToday').addEventListener('click', () => { $('menu').hidden = true; startRoun
 $('mNew').addEventListener('click', () => { $('menu').hidden = true; startRound(Math.random().toString(36).slice(2, 8)); });
 $('againBtn').addEventListener('click', () => startRound());
 $('newBtn').addEventListener('click', () => startRound(Math.random().toString(36).slice(2, 8)));
+$('homeBtn').addEventListener('click', () => { try { window.top.location.href = '/'; } catch (e) { location.href = '/'; } });
 addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('button') && (e.key === ' ' || e.key === 'Enter')) return; // let buttons click themselves
   if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); act(); }
