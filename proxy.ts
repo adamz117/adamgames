@@ -1,7 +1,16 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { GAMES } from '@/lib/games-registry';
+
+const VISIBLE_GAME_HREFS = new Set(GAMES.map((game) => game.href));
 
 export async function proxy(request: NextRequest) {
+  // A hidden game's page sends you to the homepage rather than loading.
+  const { pathname } = request.nextUrl;
+  if (/^\/games\/[^/]+\/?$/.test(pathname) && !VISIBLE_GAME_HREFS.has(pathname.replace(/\/$/, ''))) {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

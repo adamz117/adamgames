@@ -8,7 +8,7 @@ export interface GameRegistryEntry {
   summarize: (stats: GameStats) => string;
 }
 
-export const GAMES: GameRegistryEntry[] = [
+const ALL_GAMES: GameRegistryEntry[] = [
   {
     id: 'flag-atlas',
     title: 'Flag Atlas',
@@ -136,4 +136,23 @@ export const GAMES: GameRegistryEntry[] = [
       return `Day ${day}: solved in ${mm}:${ss} · ${streak} day streak`;
     },
   },
+  {
+    id: 'nine-holes',
+    title: 'Nine Holes',
+    description: 'A new nine-hole golf course every day — time the line, time the swing, mind the hazards.',
+    href: '/games/nine-holes',
+    summarize: (stats) => {
+      if (!stats || typeof stats.bestToPar !== 'number') return 'Not played yet';
+      const best = stats.bestToPar;
+      const toPar = best === 0 ? 'E' : best > 0 ? `+${best}` : String(best);
+      const rounds = Number(stats.rounds ?? 0);
+      return `Best round ${toPar} (${Number(stats.bestStrokes ?? 0)}) · ${rounds} round${rounds === 1 ? '' : 's'}`;
+    },
+  },
 ];
+
+// The site is just Nine Holes for now. The other games are hidden, not deleted: add an id
+// back here to show that game again in the nav and on the homepage (proxy.ts uses this too).
+const VISIBLE_GAME_IDS = ['nine-holes'];
+
+export const GAMES: GameRegistryEntry[] = ALL_GAMES.filter((game) => VISIBLE_GAME_IDS.includes(game.id));

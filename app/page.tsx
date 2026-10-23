@@ -56,27 +56,14 @@ export default async function HomePage() {
   ]);
 
   const statsById = Object.fromEntries(gamesWithStats.map(({ game, stats }) => [game.id, stats]));
-  const flagStats = statsById['flag-atlas'];
-  const deepCutStats = statsById['deep-cut'];
-  const shapeStats = statsById['shape-atlas'];
-  const guessWordStats = statsById['guess-the-word'];
-  const threadsStats = statsById['common-threads'];
-  const buzzerStats = statsById['brain-buzzer'];
-  const cruncherStats = statsById['number-cruncher'];
-  const sizeUpStats = statsById['size-up'];
-  const fiveByFiveStats = statsById['five-by-five'];
+  // Only Nine Holes is on the site for now; the other games' cards come back with their ids
+  // in VISIBLE_GAME_IDS (lib/games-registry.ts) and their StatCards below.
+  const nineHolesStats = statsById['nine-holes'];
 
-  const flagCorrectValue = flagStats
-    ? `${Number(flagStats.correct ?? 0)} / ${Number(flagStats.totalCountries ?? 188)}`
+  const nineHolesBest = Number(nineHolesStats?.bestToPar);
+  const nineHolesValue = nineHolesStats && Number.isFinite(nineHolesBest)
+    ? `${nineHolesBest === 0 ? 'E' : nineHolesBest > 0 ? `+${nineHolesBest}` : nineHolesBest} (${Number(nineHolesStats.bestStrokes ?? 0)})`
     : 'Not played yet';
-  const deepCutValue = deepCutStats ? `${Number(deepCutStats.bestScore ?? 0)} pts` : 'Not played yet';
-  const shapeAtlasValue = shapeStats ? `${Number(shapeStats.lifetimeScore ?? 0)} pts` : 'Not played yet';
-  const guessWordValue = guessWordStats ? `${Number(guessWordStats.streak ?? 0)} days` : 'Not played yet';
-  const threadsValue = threadsStats ? `${Number(threadsStats.streak ?? 0)} days` : 'Not played yet';
-  const buzzerValue = buzzerStats ? `${Number(buzzerStats.streak ?? 0)} days` : 'Not played yet';
-  const cruncherValue = cruncherStats ? `${Number(cruncherStats.streak ?? 0)} days` : 'Not played yet';
-  const sizeUpValue = sizeUpStats ? `${Number(sizeUpStats.streak ?? 0)} days` : 'Not played yet';
-  const fiveByFiveValue = fiveByFiveStats ? `${Number(fiveByFiveStats.streak ?? 0)} days` : 'Not played yet';
 
   return (
     <main style={{ position: 'relative', overflow: 'hidden' }}>
@@ -155,15 +142,7 @@ export default async function HomePage() {
               Your best stats across every game, in one place.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 28 }}>
-              <StatCard game="Flag Atlas" value={flagCorrectValue} metric="Countries correct" />
-              <StatCard game="Deep Cut" value={deepCutValue} metric="Best daily score" />
-              <StatCard game="Outline Guesser" value={shapeAtlasValue} metric="Lifetime points" />
-              <StatCard game="Guess the Word" value={guessWordValue} metric="Daily streak" />
-              <StatCard game="Common Threads" value={threadsValue} metric="Daily streak" />
-              <StatCard game="Brain Buzzer" value={buzzerValue} metric="Daily streak" />
-              <StatCard game="Number Cruncher" value={cruncherValue} metric="Daily streak" />
-              <StatCard game="Size Up" value={sizeUpValue} metric="Daily streak" />
-              <StatCard game="Five by Five" value={fiveByFiveValue} metric="Daily streak" />
+              <StatCard game="Nine Holes" value={nineHolesValue} metric="Best round" />
             </div>
           </>
         ) : (
@@ -220,7 +199,7 @@ export default async function HomePage() {
             <span key={i} style={{ display: 'inline-flex', gap: 24 }}>
               <span>New high score unlocked</span>
               <span>•</span>
-              <span>Flag Atlas — 188 countries charted</span>
+              <span>Nine Holes — a new course every day</span>
               <span>•</span>
               <span>{profile ? 'Progress synced' : 'Sign in to save your progress'}</span>
               <span>•</span>
