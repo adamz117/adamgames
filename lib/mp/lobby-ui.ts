@@ -1,8 +1,8 @@
 // What the lobby pages show and build: default settings, course choices, labels and error text.
 // Pure (no Supabase, no DOM).
-import { COURSE_PAR, MODE_LABEL } from '../course-rounds';
+import { COURSE_PAR } from '../course-rounds';
 import type { CourseMode } from '../course-rounds';
-import { courseLabel } from './finish-core';
+import { COURSE_NAME, courseLabel } from './finish-core';
 import type { CourseSpec, Format, LobbySettings, Pace } from './protocol';
 
 // The same day key the game seeds today's nine with.
@@ -13,18 +13,15 @@ export const defaultSettings = (day: string): LobbySettings => ({
 });
 
 // The real courses a lobby can pick, in the game's own ids, named as on the results.
-export const REAL_COURSES = Object.keys(COURSE_PAR).map((id) => ({
-  id, name: courseLabel({ kind: 'real', id, mode: 'all', day: '' }).split(' · ')[0],
-}));
+export const REAL_COURSES = Object.keys(COURSE_PAR).map((id) => ({ id, name: COURSE_NAME[id] ?? id }));
 
-// 'daily', 'random' or a real course id: the course picker's value for a spec.
-export type CourseChoice = string;
-export const courseChoice = (spec: CourseSpec): CourseChoice => (spec.kind === 'real' ? spec.id : spec.kind);
+// The course picker's value for a spec: 'daily', 'random' or a real course id.
+export const courseChoice = (spec: CourseSpec): string => (spec.kind === 'real' ? spec.id : spec.kind);
 
 const randomSeed = () => 'r' + Math.floor(Math.random() * 36 ** 6).toString(36);
 
 // The spec for a picked course. A random nine gets a fresh seed; real courses play today's pins.
-export function specFor(choice: CourseChoice, mode: CourseMode, day: string): CourseSpec {
+export function specFor(choice: string, mode: CourseMode, day: string): CourseSpec {
   if (choice === 'daily') return { kind: 'daily', seed: day };
   if (choice === 'random') return { kind: 'random', seed: randomSeed() };
   return { kind: 'real', id: choice, mode, day };
@@ -36,7 +33,6 @@ export function courseText(spec: CourseSpec, today: string): string {
 }
 export const FORMAT_LABEL: Record<Format, string> = { stroke: 'Stroke play', match: 'Match play' };
 export const PACE_LABEL: Record<Pace, string> = { own: 'Own pace', turns: 'Take turns' };
-export { MODE_LABEL };
 
 // Plain words for the lobby functions' error codes.
 const ERRORS: Record<string, string> = {
@@ -45,6 +41,7 @@ const ERRORS: Record<string, string> = {
   not_open: 'This game has already started without you.',
   closed: 'This lobby has closed.',
   left: 'You left this game, so it went to your opponent.',
+  over: 'This game is over.',
   bad_name: 'Pick a name of 2 to 20 letters.',
   bad_code: 'Lobby codes are 6 letters and numbers.',
   sign_in_failed: 'We couldn’t sign you in to play. Try again in a moment.',

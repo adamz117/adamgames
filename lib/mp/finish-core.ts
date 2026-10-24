@@ -33,7 +33,7 @@ export const DROP_MS = 60_000; // a player not seen for this long has left
 const TIMEOUTS_TO_LEAVE = 3;
 
 // Names for course_label (ids as in COURSE_PAR and public/games/nine-holes/courses/<id>/<id>.json).
-const COURSE_NAME: Record<string, string> = {
+export const COURSE_NAME: Record<string, string> = {
   victoria: 'Victoria Country Club',
   'gary-player': 'Gary Player Country Club',
   'tpc-sawgrass': 'TPC Sawgrass Stadium Course',

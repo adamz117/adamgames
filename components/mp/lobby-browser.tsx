@@ -9,7 +9,7 @@ import { parseCode } from '@/lib/mp/protocol';
 import { courseText, defaultSettings, errorText, FORMAT_LABEL, PACE_LABEL, todayKey } from '@/lib/mp/lobby-ui';
 import type { Viewer } from '@/lib/mp/viewer';
 
-// Public lobbies (refreshed every 10 s), creating a lobby and joining by code. Browsing never
+// Public lobbies (refreshed every 10 s while the tab shows), creating a lobby and joining by code. Browsing never
 // signs anyone in; creating does (as a guest, after asking for a name).
 export default function LobbyBrowser({ viewer }: { viewer: Viewer }) {
   const router = useRouter();
@@ -24,7 +24,7 @@ export default function LobbyBrowser({ viewer }: { viewer: Viewer }) {
     let alive = true;
     const load = () => listPublicLobbies().then((rows) => alive && setLobbies(rows));
     void load();
-    const t = setInterval(load, 10_000);
+    const t = setInterval(() => { if (!document.hidden) void load(); }, 10_000);
     return () => {
       alive = false;
       clearInterval(t);

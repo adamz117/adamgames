@@ -7,13 +7,13 @@ import { getGameStatsServer } from '@/lib/game-stats';
 import { countingRounds, formatToPar, HANDICAP_BEST, HANDICAP_WINDOW, readStats } from '@/lib/nine-holes-stats';
 import { getMyResultsServer } from '@/lib/mp/records-server';
 import { formatRecord, readRecord, type RecordRow } from '@/lib/mp/records';
+import { FORMAT_LABEL } from '@/lib/mp/lobby-ui';
 
 export const metadata = { title: 'Your card | Adam Games' };
 
 const longDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 
 const RECENT_GAMES = 10;
-const FORMAT_LABEL = { stroke: 'Stroke play', match: 'Match play' } as const;
 const resultWord = (g: RecordRow) => (g.result === 'win' ? 'Won' : g.result === 'loss' ? 'Lost' : g.format === 'match' ? 'Halved' : 'Tied');
 
 export default async function AccountPage() {

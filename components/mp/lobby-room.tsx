@@ -1,39 +1,33 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import GuestNameForm from '@/components/mp/guest-name-form';
+import InviteFriends from '@/components/mp/invite-friends';
+import SettingsEditor from '@/components/mp/settings-editor';
+import { useGameRelay } from '@/components/mp/use-game-relay';
 import {
-  getLobby, getPlayers, getSwings, heartbeat, joinLobby, leaveLobby, openLobbyChannel, rematch, saveSwing,
-  setReady, startLobby, updateSettings,
+  getLobby, getPlayers, heartbeat, joinLobby, leaveLobby, openLobbyChannel, rematch, setReady, startLobby,
+  updateSettings,
   type Lobby, type LobbyChannel, type LobbyMember,
 } from '@/lib/mp/lobby-client';
 import { ensureSession } from '@/lib/mp/session-client';
-import { postFinish } from '@/lib/mp/finish-client';
-import type { SlotResult } from '@/lib/mp/finish-core';
-import {
-  FORMATS, PACES, parseCode, parseSwing, presentPlayers,
-  type CourseSpec, type LobbyEvent, type LobbySettings, type Swing, type Visibility,
-} from '@/lib/mp/protocol';
-import {
-  courseChoice, courseText, errorText, FORMAT_LABEL, MODE_LABEL, PACE_LABEL, REAL_COURSES, specFor, todayKey,
-} from '@/lib/mp/lobby-ui';
-import { MODES } from '@/lib/course-rounds';
+import { parseCode, presentPlayers, type LobbyEvent, type LobbySettings, type Visibility } from '@/lib/mp/protocol';
+import { courseText, errorText, FORMAT_LABEL, PACE_LABEL, todayKey } from '@/lib/mp/lobby-ui';
 import type { Viewer } from '@/lib/mp/viewer';
 
-type Me = { id: string; userId: string; slot: number };
+type Me = { id: string; userId: string; slot: number; name: string };
 
 const HEARTBEAT_MS = 15_000;
-const AWAY_MS = 60_000; // an opponent gone from presence this long may have dropped: ask the finish route
-const FINISH_RETRY_MS = 5_000;
-const FINISH_WAIT_MS = 10 * 60_000; // how long to keep asking while the other player finishes
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 type Entry =
   | { stage: 'name'; lobby: Lobby }
   | { stage: 'error'; error: string; lobby?: Lobby }
   | { stage: 'room'; lobby: Lobby; players: LobbyMember[] | null; me: Me };
+
+// Why someone who isn't in a lobby that's under way can't come in.
+const startedError = (lobby: Lobby) => (lobby.status === 'finished' ? 'over' : 'not_open');
 
 // Into the lobby: a guest (or a visitor with no session yet) is asked for a name first, unless
 // they're already in it; then join (also a rejoin: it clears my left_at while the lobby is open).
@@ -41,14 +35,21 @@ async function enterLobby(code: string, viewer: Viewer, name?: string): Promise<
   const lobby = await getLobby(code);
   if (!lobby) return { stage: 'error', error: 'not_found' };
   if (lobby.status === 'closed') return { stage: 'error', error: 'closed', lobby };
-  if (viewer === 'none' && name === undefined) return { stage: 'name', lobby }; // no session until they pick a name
+  if (viewer === 'none' && name === undefined) {
+    // No session, so not a player in it: no name (and no guest account) for a game under way.
+    return lobby.status === 'open' ? { stage: 'name', lobby } : { stage: 'error', error: startedError(lobby), lobby };
+  }
 
   const s = await ensureSession(name);
-  if ('error' in s) return s.error === 'bad_name' ? { stage: 'name', lobby } : { stage: 'error', error: s.error, lobby };
+  if ('error' in s) {
+    if (s.error !== 'bad_name') return { stage: 'error', error: s.error, lobby };
+    return lobby.status === 'open' ? { stage: 'name', lobby } : { stage: 'error', error: startedError(lobby), lobby };
+  }
 
   const rows = await getPlayers(lobby.id); // [] unless I'm already in it
   const mine = rows?.find((p) => p.userId === s.userId);
-  if (mine?.leftAt && lobby.status !== 'open') return { stage: 'error', error: 'left', lobby };
+  if (mine?.leftAt && lobby.status !== 'open') return { stage: 'error', error: lobby.status === 'finished' ? 'over' : 'left', lobby };
+  if (!mine && lobby.status !== 'open') return { stage: 'error', error: startedError(lobby), lobby };
   if (!mine && s.guest && name === undefined) return { stage: 'name', lobby };
 
   let slot = mine?.slot;
@@ -57,11 +58,11 @@ async function enterLobby(code: string, viewer: Viewer, name?: string): Promise<
     if ('error' in r) return { stage: 'error', error: r.error, lobby };
     slot = r.slot;
   }
-  return { stage: 'room', lobby, players: rows, me: { id: lobby.id, userId: s.userId, slot } };
+  return { stage: 'room', lobby, players: mine ? rows : await getPlayers(lobby.id), me: { id: lobby.id, userId: s.userId, slot, name: s.name } };
 }
 
 // The lobby behind /play/<code>: join (asking a guest's name), the room with its settings and
-// ready/start, then the game iframe, relaying between it and the lobby's channel and swing log.
+// ready/start, then the game iframe, relayed to the lobby by useGameRelay.
 export default function LobbyRoom({ code: rawCode, viewer }: { code: string; viewer: Viewer }) {
   const router = useRouter();
   const code = parseCode(rawCode);
@@ -77,14 +78,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
 
   const channelRef = useRef<LobbyChannel | null>(null);
   const refreshRef = useRef<() => void>(() => {});
-  const swingSink = useRef<((s: Swing, game: number) => void) | null>(null);
-  const resyncRef = useRef<(() => void) | null>(null);
-  const relayRef = useRef<{ left(slot: number): void; finished(): void } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const playersRef = useRef<LobbyMember[]>([]);
-  const presentRef = useRef<string[]>([]);
-  useEffect(() => { playersRef.current = players; }, [players]);
-  useEffect(() => { presentRef.current = present; }, [present]);
 
   const send = useCallback(async (event: LobbyEvent) => {
     await channelRef.current?.send(event).catch(() => 'error');
@@ -108,6 +102,33 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
     return () => { live = false; };
   }, [code, viewer, applyEntry]);
 
+  const leaveRoom = useCallback(async () => {
+    if (!me) return;
+    setBusy(true);
+    await leaveLobby(me.id);
+    await send('left');
+    router.push('/play');
+  }, [me, router, send]);
+
+  // ── the game iframe's relay ──
+  const inGame = !!me && !!lobby?.settings && (lobby.status === 'playing' || lobby.status === 'finished');
+  const game = lobby?.game ?? 0;
+  const presentSlots = useMemo(() => presentPlayers(present, players), [present, players]);
+  const feed = useGameRelay({
+    active: inGame, lobbyId: me?.id ?? null, code, game, me: me?.slot ?? null,
+    players, present: presentSlots, status: lobby?.status, iframeRef,
+    onRematch: async () => {
+      if (!me) return;
+      const r = await rematch(me.id);
+      if ('error' in r) setNotice(errorText(r.error));
+      else await send('rematch');
+      refreshRef.current();
+    },
+    onLeave: () => void leaveRoom(),
+    onFinished: () => refreshRef.current(),
+    onError: setNotice,
+  });
+
   // ── in the lobby: channel, heartbeat, refreshes ──
   useEffect(() => {
     if (!me || !code) return;
@@ -121,6 +142,16 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
         const [l, rows] = await Promise.all([getLobby(code), getPlayers(me.id)]);
         if (!alive) return;
         if (l) setLobby(l);
+        // My row is gone (quiet for 60 s before the start, or a rematch removed it): join again.
+        if (l && rows && !rows.some((p) => p.userId === me.userId)) {
+          if (l.status !== 'open') { setFatal(l.status === 'closed' ? 'closed' : 'not_member'); setStage('error'); return; }
+          const r = await joinLobby(code, me.name);
+          if (!alive) return;
+          if ('error' in r) { setFatal(r.error); setStage('error'); return; }
+          if (r.slot !== me.slot) return setMe({ ...me, slot: r.slot }); // this effect starts over
+          again = true;
+          continue;
+        }
         if (rows) setPlayers(rows);
       } while (again);
       inFlight = false;
@@ -138,8 +169,8 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
     openLobbyChannel(me.id, me.userId, {
       onPresence: (ids) => { if (alive) { setPresent(ids); void refresh(); } },
       onEvent: () => void refresh(),
-      onSwing: (s, game) => swingSink.current?.(s, game),
-      onStatus: (status) => { if (status === 'SUBSCRIBED') resyncRef.current?.(); }, // catch up after a (re)join
+      onSwing: feed.swing,
+      onStatus: (status) => { if (status === 'SUBSCRIBED') feed.resync(); }, // catch up after a (re)join
     }).then((opened) => {
       if (!alive) return opened.close();
       ch = opened;
@@ -155,173 +186,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
       channelRef.current = null;
       refreshRef.current = () => {};
     };
-  }, [me, code]);
-
-  const leaveRoom = useCallback(async () => {
-    if (!me) return;
-    setBusy(true);
-    await leaveLobby(me.id);
-    await send('left');
-    router.push('/play');
-  }, [me, router, send]);
-
-  // ── the game: relay between the iframe and the lobby ──
-  const inGame = !!me && !!lobby?.settings && (lobby.status === 'playing' || lobby.status === 'finished');
-  const game = lobby?.game ?? 0;
-  useEffect(() => {
-    if (!inGame || !me || !code) return;
-    const { id, slot: mySlot } = me;
-    let alive = true, initSent = false, finishing = false, loopUntil = 0, saving = false, fails = 0;
-    let results: SlotResult[] | null = null;
-    let held: Swing[] = []; // swings that arrive before mp-init
-    const queue: Swing[] = []; // mine, saved in order
-    const leftSlots = new Set<number>();
-    const lastHere = new Map<number, number>();
-    const started = Date.now();
-
-    const post = (m: object) => iframeRef.current?.contentWindow?.postMessage(m, location.origin);
-    const forward = (s: Swing) => { if (s.slot !== mySlot) post({ type: 'mp-swing', swing: s }); };
-
-    swingSink.current = (s, g) => {
-      if (g !== game) return;
-      if (initSent) forward(s);
-      else held.push(s);
-    };
-    // After a reconnect or a hidden spell, anything the feed missed (the game drops duplicates).
-    const resync = async () => {
-      if (!initSent) return;
-      const swings = await getSwings(id, game);
-      if (alive && swings) swings.forEach(forward);
-    };
-    resyncRef.current = () => void resync();
-
-    // Asks the finish route; with loop, keeps asking every 5 s while the game is still on.
-    async function finish(loop: boolean) {
-      if (results) return post({ type: 'mp-result', results });
-      if (loop) loopUntil = Date.now() + FINISH_WAIT_MS;
-      if (finishing) return;
-      finishing = true;
-      try {
-        while (alive) {
-          const r = await postFinish(id, game);
-          if (!alive || r === 'stop') return;
-          if (r?.status === 'finished') {
-            results = r.results;
-            post({ type: 'mp-result', results });
-            refreshRef.current();
-            return;
-          }
-          if (Date.now() + FINISH_RETRY_MS > loopUntil) return;
-          await sleep(FINISH_RETRY_MS);
-        }
-      } finally {
-        finishing = false;
-      }
-    }
-
-    function left(slot: number) {
-      if (slot === mySlot || leftSlots.has(slot)) return;
-      leftSlots.add(slot);
-      if (initSent) post({ type: 'mp-left', slot });
-      void finish(true);
-    }
-
-    async function init() {
-      initSent = false;
-      held = [];
-      for (let tries = 0; alive && tries < 6; tries++) {
-        const [l, rows, swings] = await Promise.all([getLobby(code!), getPlayers(id), getSwings(id, game)]);
-        if (!alive) return;
-        if (l && l.game !== game) return; // a rematch began: the room takes over
-        if (l?.settings && rows && swings) {
-          post({ type: 'mp-init', settings: l.settings, players: rows.map((p) => ({ slot: p.slot, name: p.name })), me: mySlot, swings });
-          initSent = true;
-          const early = held;
-          held = [];
-          early.forEach(forward);
-          leftSlots.forEach((slot) => post({ type: 'mp-left', slot })); // seen before the game was up
-          for (const p of rows) if (p.leftAt) left(p.slot);
-          if (results) post({ type: 'mp-result', results });
-          return;
-        }
-        await sleep(2000);
-      }
-      if (alive) setNotice('The game couldn’t load. Reload the page to try again.');
-    }
-
-    // My swings go to the stored log, in order; the other players get them from its feed.
-    async function save() {
-      if (saving) return;
-      saving = true;
-      while (alive && queue.length) {
-        const r = await saveSwing(id, game, queue[0]);
-        if (r === 'failed') {
-          await sleep(Math.min(10_000, 500 * 2 ** fails++)); // never drop one: a gap would stall the game
-          continue;
-        }
-        fails = 0;
-        if (r === 'closed') queue.length = 0; // the game is over (or the swing is bad): stop
-        else queue.shift();
-      }
-      saving = false;
-    }
-
-    async function playAgain() {
-      let r = await rematch(id);
-      if ('error' in r && r.error === 'not_finished') {
-        await finish(false);
-        r = await rematch(id);
-      }
-      if (!alive) return;
-      if ('error' in r) setNotice(errorText(r.error));
-      else await send('rematch');
-      refreshRef.current();
-    }
-
-    function onMessage(e: MessageEvent) {
-      if (e.origin !== location.origin || e.source !== iframeRef.current?.contentWindow) return;
-      const m = e.data as { type?: unknown; swing?: unknown } | null;
-      if (!m || typeof m !== 'object') return;
-      if (m.type === 'mp-ready') void init();
-      else if (m.type === 'mp-swing') {
-        const s = parseSwing(m.swing);
-        if (s && s.slot === mySlot) { queue.push(s); void save(); }
-      } else if (m.type === 'mp-done') void finish(true);
-      else if (m.type === 'mp-rematch') void playAgain();
-      else if (m.type === 'mp-leave') void leaveRoom();
-    }
-
-    // An opponent missing from presence for 60 s may have dropped; the finish route decides.
-    const awayTimer = setInterval(() => {
-      const now = Date.now();
-      for (const slot of presentPlayers(presentRef.current, playersRef.current)) lastHere.set(slot, now);
-      const away = playersRef.current.some((p) => p.slot !== mySlot && !p.leftAt && now - (lastHere.get(p.slot) ?? started) > AWAY_MS);
-      if (away) void finish(false);
-    }, FINISH_RETRY_MS);
-    const onVisible = () => { if (document.visibilityState === 'visible') void resync(); };
-
-    relayRef.current = { left, finished: () => void finish(false) };
-    window.addEventListener('message', onMessage);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      alive = false;
-      clearInterval(awayTimer);
-      window.removeEventListener('message', onMessage);
-      document.removeEventListener('visibilitychange', onVisible);
-      swingSink.current = null;
-      resyncRef.current = null;
-      relayRef.current = null;
-    };
-  }, [inGame, me, code, game, leaveRoom, send]);
-
-  // Refreshes tell the relay who has left, and when the game has been recorded.
-  const status = lobby?.status;
-  useEffect(() => {
-    const relay = relayRef.current;
-    if (!relay) return;
-    for (const p of players) if (p.leftAt) relay.left(p.slot);
-    if (status === 'finished') relay.finished();
-  }, [players, status]);
+  }, [me, code, feed]);
 
   // ── views ──
   if (!code) return <Message text={errorText('not_found')} />;
@@ -373,7 +238,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
   // The room, while open.
   const isHost = lobby.host === me.userId;
   const active = players.filter((p) => !p.leftAt);
-  const here = new Set([...presentPlayers(present, players), me.slot]);
+  const here = new Set([...presentSlots, me.slot]);
   const mine = active.find((p) => p.slot === me.slot);
   const waitingOn = active.filter((p) => p.userId !== lobby.host && !p.ready);
   const away = active.filter((p) => !here.has(p.slot));
@@ -444,6 +309,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
           {copied && (
             <p className="club-lobby-note" role="status">{copied === 'yes' ? 'Link copied.' : 'Couldn’t copy. Select the link and copy it yourself.'}</p>
           )}
+          <InviteFriends lobbyId={me.id} />
         </section>
 
         <section className="club-lobby-panel">
@@ -519,64 +385,5 @@ function Message({ text, quiet }: { text: string; quiet?: boolean }) {
       <p className="club-lobby-lede">{text}</p>
       {!quiet && <p className="club-lobby-lede"><Link href="/play" className="club-link">Back to the lobbies</Link></p>}
     </Shell>
-  );
-}
-
-function Seg<T extends string>({ label, value, options, onChange }: {
-  label: string; value: T; options: { value: T; label: string }[]; onChange: (v: T) => void;
-}) {
-  return (
-    <div className="club-lobby-field" role="group" aria-label={label}>
-      <span className="club-lobby-label">{label}</span>
-      <span className="club-lobby-seg">
-        {options.map((o) => (
-          <button key={o.value} type="button" aria-pressed={o.value === value} onClick={() => o.value !== value && onChange(o.value)}>
-            {o.label}
-          </button>
-        ))}
-      </span>
-    </div>
-  );
-}
-
-function SettingsEditor({ settings, visibility, today, onChange }: {
-  settings: LobbySettings; visibility: Visibility; today: string;
-  onChange: (s: LobbySettings, v: Visibility) => void;
-}) {
-  const spec = settings.spec;
-  const setSpec = (next: CourseSpec) => onChange({ ...settings, spec: next }, visibility);
-  return (
-    <div className="club-lobby-settings">
-      <div className="club-lobby-field">
-        <label className="club-lobby-label" htmlFor="lobby-course">Course</label>
-        <select
-          id="lobby-course"
-          className="club-lobby-input"
-          value={courseChoice(spec)}
-          onChange={(e) => setSpec(specFor(e.target.value, spec.kind === 'real' ? spec.mode : 'front', today))}
-        >
-          <option value="daily">Today’s daily nine</option>
-          <option value="random">A random nine</option>
-          {REAL_COURSES.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </div>
-      {spec.kind === 'real' && (
-        <Seg label="Holes" value={spec.mode} options={MODES.map((m) => ({ value: m, label: MODE_LABEL[m] }))}
-          onChange={(mode) => setSpec({ ...spec, mode, day: today })} />
-      )}
-      {spec.kind === 'random' && (
-        <div className="club-lobby-field">
-          <span className="club-lobby-label">Random nine</span>
-          <button type="button" className="club-lobby-quiet" onClick={() => setSpec(specFor('random', 'front', today))}>Deal another</button>
-        </div>
-      )}
-      <Seg label="Format" value={settings.format} options={FORMATS.map((f) => ({ value: f, label: FORMAT_LABEL[f] }))}
-        onChange={(format) => onChange({ ...settings, format }, visibility)} />
-      <Seg label="Pace" value={settings.pace} options={PACES.map((p) => ({ value: p, label: PACE_LABEL[p] }))}
-        onChange={(pace) => onChange({ ...settings, pace }, visibility)} />
-      <Seg label="Who can join" value={visibility}
-        options={[{ value: 'private', label: 'Link only' }, { value: 'public', label: 'Public' }]}
-        onChange={(v) => onChange(settings, v)} />
-    </div>
   );
 }

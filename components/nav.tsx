@@ -10,7 +10,7 @@ export default async function Nav() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const profile = user ? await getProfileServer() : null;
+  const profile = user && !user.is_anonymous ? await getProfileServer() : null;
 
   return (
     <header
@@ -41,21 +41,21 @@ export default async function Nav() {
           <GamesDropdown
             games={GAMES.map(({ id, title, description, href }) => ({ id, title, description, href }))}
           />
-          {user ? (
+          {user && !user.is_anonymous ? (
             <>
               {/* Wide screens only: on smaller ones /play and the account page link to it. */}
-              {!user.is_anonymous && (
-                <Link href="/friends" className="club-nav-play club-nav-friends">
-                  Friends
-                </Link>
-              )}
-              <Link href="/account" className="club-link" style={{ fontSize: 14 }}>
+              <Link href="/friends" className="club-nav-play club-nav-friends">
+                Friends
+              </Link>
+              <Link href="/account" className="club-link club-nav-user">
                 {profile?.username ?? user.email}
               </Link>
               <SignOutButton />
             </>
           ) : (
             <>
+              {/* A guest (anonymous session) has no account page: they can still sign up or in. */}
+              {user && <span className="club-nav-guest">Guest</span>}
               <Link
                 href="/signup"
                 className="club-nav-extra"
