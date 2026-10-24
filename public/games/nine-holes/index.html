@@ -249,6 +249,21 @@ const PALETTES = {
     fwEdge: '#3E623B', fw: '#93B783', stripeA: '#7AA06A', stripeB: '#9FC28E', spine: '#AFCD9E',
     trees: ['#1E3127', '#25382C', '#2C4132'], lit: 'rgba(196,206,240,0.30)',
     water: '#5E7F92', waterEdge: '#3E5868', sand: '#B8AA86', sandEdge: '#8E8062', sea: ['#4E6B7C', '#2E4452'] },
+  // Augusta National: deep ryegrass, tall loblolly pines, and azaleas in bloom at the woodland edges
+  augusta: { name: 'Pines & azaleas', scene: 'parkland', real: true,
+    green: '#C9EFA0', collar: '#8CCB68', greenEdge: '#2F7A2E', close: ['#D9F6B6', '#B9E58F', '#98D36C'],
+    g: ['#5E9A4E', '#548F45', '#4A843D'], ob: '#5E7A4C', deep: '#2A5A2A', roughSoft: '#4E8C3E', rough: '#5FA049',
+    fwEdge: '#2F7A2E', fw: '#7FC85A', stripeA: '#68B748', stripeB: '#98D872', spine: '#ADE28A',
+    trees: ['#163F26', '#1D4A2C', '#255633'], lit: 'rgba(170,214,150,0.30)', canopy: '#123620', roof: '#E6DCC8',
+    blooms: ['#E2408A', '#F06FAF', '#F7EEF3', '#C42E6E'],
+    water: '#5C93B8', waterEdge: '#2F6E96', sand: '#FAF7EE', sandEdge: '#CFC6AE', tee: '#A8DE84', bench: '#6B4426', cart: '#C7BFA6', sea: ['#A9D6EA', '#6FAACB'] },
+  // TPC Sawgrass: bright Florida turf, live oaks and palms, white sand
+  'tpc-sawgrass': { name: 'Stadium', scene: 'parkland', real: true,
+    green: '#CDEFA6', collar: '#93C873', greenEdge: '#3F7F32', close: ['#DDF6BC', '#BFE597', '#9ED374'],
+    g: ['#7FA86A', '#73A060', '#679656'], ob: '#7E9470', deep: '#3D6A35', roughSoft: '#64984E', rough: '#78AC5E',
+    fwEdge: '#3F8236', fw: '#94D46C', stripeA: '#7CC255', stripeB: '#AEE088', spine: '#C1E89E',
+    trees: ['#2F5A2C', '#3E6E35', '#5A8A3E'], lit: 'rgba(206,234,170,0.34)', canopy: '#2A4F28', roof: '#E9E1D0',
+    water: '#4F8FB0', waterEdge: '#2C6C8E', sand: '#FBF8F0', sandEdge: '#D2C9B2', tee: '#B9E390', bench: '#6B4426', cart: '#C9C2AE', sea: ['#A9D6EA', '#6FAACB'] },
   // Gary Player Country Club: bright kikuyu fairways cut through dry bushveld in the Pilanesberg crater
   'gary-player': { name: 'Bushveld', scene: 'parkland', real: true,
     green: '#CDEFA6', collar: '#93C873', greenEdge: '#3F7F32', close: ['#DDF6BC', '#BFE597', '#9ED374'],
@@ -747,13 +762,25 @@ function inStand(p, t) {
 // The crowns inside each stand, worked out once per hole: a loose grid, jittered, about 4.5 yards apart.
 function canopyOf(h) {
   if (h.canopy) return h.canopy;
-  h.canopy = h.real.trees.map((t, k) => {
+  // Stands are cut into pieces when traced; crowns and edges are judged against all of them together,
+  // so the cuts never show and only real woodland edges count as edges.
+  const stands = h.real.trees, near = p => stands.filter(t => p.x >= t.box[0] - 1 && p.x <= t.box[2] + 1 && p.y >= t.box[1] - 1 && p.y <= t.box[3] + 1);
+  const inWoods = p => near(p).some(t => inStand(p, t));
+  const show = [...h.real.greens, ...h.real.tees].map(g => ({ x: (g.box[0] + g.box[2]) / 2, y: (g.box[1] + g.box[3]) / 2 }));
+  h.canopy = stands.map((t, k) => {
     const r = DH.rng(DH.hashStr(`canopy|${h.index}|${k}`)), [x0, y0, x1, y1] = t.box, crowns = [];
     for (let y = y0 + 1.5; y <= y1; y += 4.2) for (let x = x0 + 1.5; x <= x1; x += 4.6) {
       const p = { x: x + (r() - 0.5) * 3, y: y + (r() - 0.5) * 3, r: 2.4 + r() * 1.9 };
-      if (inStand(p, t)) crowns.push(p);
+      if (!inStand(p, t)) continue; // each crown belongs to one piece
+      // the whole crown stays in the woods, so no canopy hangs over water or fairway
+      if (![[1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dy]) => inWoods({ x: p.x + dx * p.r * 0.7, y: p.y + dy * p.r * 0.7 }))) continue;
+      // azaleas (a course's blooms) flower at the woodland edge beside greens and tees
+      if (PAL.blooms && r() < 0.35 && show.some(g => Math.hypot(g.x - p.x, g.y - p.y) < 45)
+        && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !inWoods({ x: p.x + dx * 6, y: p.y + dy * 6 }))) {
+        p.bloom = (r() * PAL.blooms.length) | 0; p.r = 1.3 + r() * 1.2;
+      }
+      crowns.push(p);
     }
-    if (!crowns.length) crowns.push({ x: (x0 + x1) / 2, y: (y0 + y1) / 2, r: Math.max(2, Math.min(x1 - x0, y1 - y0) / 2) });
     return { box: t.box, crowns };
   });
   return h.canopy;
@@ -810,7 +837,7 @@ function paintRealCourse(h, close, RF) {
   for (const c of R.cart) strokePath(c, 1.1, PAL.cart, G);
   fill(R.water, PAL.water, PAL.waterEdge, 1.6);
   fill(R.bunkers, PAL.sand, PAL.sandEdge, 1.2);
-  fill(R.trees, PAL.canopy); // a dark floor under the crowns
+  fill(R.trees, PAL.canopy, PAL.canopy, Math.max(2.2, 1.6 * view.s)); // a dark floor under the crowns, stroked so the cuts between pieces close
   drawCanopy(h);
   for (const b of R.benches) {
     const p = TS(b), w = Math.max(3, 2 * view.s), hh = Math.max(1.4, 0.7 * view.s);
@@ -836,12 +863,13 @@ function drawLandmarks(R) {
 
 // Thousands of crowns per hole, so they go down in five batched fills: shadows, three shades, highlights.
 function drawCanopy(h) {
-  const shade = [new Path2D(), new Path2D(), new Path2D()], shadow = new Path2D(), lit = new Path2D();
+  const shade = [new Path2D(), new Path2D(), new Path2D()], shadow = new Path2D(), lit = new Path2D(), blooms = (PAL.blooms || []).map(() => new Path2D());
   for (const sh of canopyOf(h)) {
     if (!onScreen(sh.box)) continue;
     for (const t of sh.crowns) {
       const p = TS(t), r = Math.max(0.9, t.r * view.s);
       if (p.x < -20 || p.x > W + 20 || p.y < -20 || p.y > H + 20) continue;
+      if (t.bloom != null) { blooms[t.bloom].moveTo(p.x + r, p.y); blooms[t.bloom].arc(p.x, p.y, r, 0, 6.284); continue; }
       const v = ((((t.x * 7349 + t.y * 9137) | 0) >>> 0) % 3);
       shadow.moveTo(p.x + r * 0.38 + r * 1.05, p.y + r * 0.48); shadow.arc(p.x + r * 0.38, p.y + r * 0.48, r * 1.05, 0, 6.284);
       shade[v].moveTo(p.x + r, p.y); shade[v].arc(p.x, p.y, r, 0, 6.284);
@@ -851,6 +879,7 @@ function drawCanopy(h) {
   G.fillStyle = 'rgba(40,60,44,0.26)'; G.fill(shadow);
   shade.forEach((p, v) => { G.fillStyle = PAL.trees[v]; G.fill(p); });
   G.fillStyle = PAL.lit; G.fill(lit);
+  blooms.forEach((p, k) => { G.fillStyle = PAL.blooms[k]; G.fill(p); });
 }
 
 // A tree: round crown in the woods and on the links, a dark conifer in the highlands.
