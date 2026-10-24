@@ -425,6 +425,22 @@ begin
 end;
 $$;
 
+-- A change to the settings or visibility un-readies everyone, so nobody starts on settings they
+-- didn't see. (The host can't update other players' rows, hence a trigger.)
+create or replace function public.unready_lobby_players()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  update public.lobby_players set ready = false where lobby_id = new.id and ready;
+  return null;
+end;
+$$;
+drop trigger if exists lobbies_unready_on_settings on public.lobbies;
+create trigger lobbies_unready_on_settings
+  after update of settings, visibility on public.lobbies
+  for each row
+  when (old.settings is distinct from new.settings or old.visibility is distinct from new.visibility)
+  execute function public.unready_lobby_players();
+
 -- ── Friend functions ──
 -- Sends a friend request by username (case-insensitive). If they had already asked you, this
 -- accepts it. Usernames still equal to their email prefix can't be found, so an email can't be probed.
@@ -621,7 +637,7 @@ grant update (seen) on public.invites to authenticated;
 -- ── Function privileges ──
 revoke execute on function
   public.lobby_capacity(jsonb), public.is_lobby_member(uuid), public.lobby_active_count(uuid),
-  public.lobby_can_start(uuid), public.clean_name(text), public.display_name(uuid),
+  public.lobby_can_start(uuid), public.unready_lobby_players(), public.clean_name(text), public.display_name(uuid),
   public.create_lobby(jsonb, text, text), public.join_lobby(text, text), public.touch_lobby(uuid, boolean),
   public.lobby_by_code(text), public.list_public_lobbies(), public.rematch_lobby(uuid),
   public.finish_lobby(uuid, int, jsonb), public.request_friend(text), public.my_friends(), public.my_invites()
