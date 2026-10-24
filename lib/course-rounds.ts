@@ -14,6 +14,19 @@ export const COURSE_PAR: Record<string, Record<CourseMode, number>> = {
 export const MODE_LABEL: Record<CourseMode, string> = { front: 'Front 9', back: 'Back 9', all: '18 holes' };
 export const MODES: CourseMode[] = ['front', 'back', 'all'];
 
+// A player's record on one course, for each way to play: the best round and how many rounds finished.
+export type ModeRecord = { best: { strokes: number; par: number } | null; played: number };
+export function summariseRounds(rows: { mode: string; strokes: number; par: number }[]): Record<CourseMode, ModeRecord> {
+  const out = Object.fromEntries(MODES.map((m) => [m, { best: null, played: 0 }])) as Record<CourseMode, ModeRecord>;
+  for (const r of rows) {
+    const rec = out[r.mode as CourseMode];
+    if (!rec) continue;
+    rec.played++;
+    if (!rec.best || r.strokes < rec.best.strokes) rec.best = { strokes: r.strokes, par: r.par };
+  }
+  return out;
+}
+
 const isDay = (d: unknown): d is string => {
   if (typeof d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
   const t = new Date(d + 'T00:00:00Z');

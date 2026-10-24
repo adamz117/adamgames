@@ -1,8 +1,7 @@
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { MODES, type CourseMode, type RealRound } from '@/lib/course-rounds';
+import { summariseRounds, type CourseMode, type ModeRecord, type RealRound } from '@/lib/course-rounds';
 
 export type LeaderRow = { username: string; strokes: number; par: number; day: string };
-export type Best = { strokes: number; par: number } | null;
 
 // Every call fails quietly: with Supabase unreachable the page just shows no records.
 async function signedIn() {
@@ -39,20 +38,14 @@ export async function getLeaderboard(course: string, mode: CourseMode): Promise<
   }
 }
 
-// The signed-in player's own best for each way to play; null when signed out or unreachable.
-export async function getMyBests(course: string): Promise<Record<CourseMode, Best> | null> {
+// The signed-in player's own best and rounds played for each way to play; null when signed out or unreachable.
+export async function getMyRecords(course: string): Promise<Record<CourseMode, ModeRecord> | null> {
   const s = await signedIn();
   if (!s) return null;
   try {
     const { data, error } = await s.supabase.from('course_rounds').select('mode, strokes, par').eq('user_id', s.user.id).eq('course', course);
     if (error) return null;
-    const best = { front: null, back: null, all: null } as Record<CourseMode, Best>;
-    for (const row of (data as { mode: CourseMode; strokes: number; par: number }[]) ?? []) {
-      if (!MODES.includes(row.mode)) continue;
-      const b = best[row.mode];
-      if (!b || row.strokes < b.strokes) best[row.mode] = { strokes: row.strokes, par: row.par };
-    }
-    return best;
+    return summariseRounds(data ?? []);
   } catch {
     return null;
   }
