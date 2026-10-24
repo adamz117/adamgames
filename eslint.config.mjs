@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The Nine Holes source is plain CommonJS with its own node tests.
+    "games/**",
   ]),
 ]);
 
