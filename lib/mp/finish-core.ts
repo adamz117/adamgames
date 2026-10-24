@@ -29,7 +29,9 @@ export type FinishDH = {
   matchState(pars: number[], scores: Scores): { decided: boolean; winner: number | null; label: string };
 };
 
-export const DROP_MS = 60_000; // a player not seen for this long has left
+// A player not seen for this long has left: the 60 s to rejoin, plus 30 s because browsers run a
+// hidden tab's heartbeat timer only about once a minute.
+export const DROP_MS = 90_000;
 const TIMEOUTS_TO_LEAVE = 3;
 
 // Names for course_label (ids as in COURSE_PAR and public/games/nine-holes/courses/<id>/<id>.json).
