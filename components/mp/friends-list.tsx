@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import OnlineDot from '@/components/mp/online-dot';
 import { listFriends, removeFriend, requestFriend, respond, useOnline, type Friend } from '@/lib/mp/friends-client';
-import { getHeadToHead } from '@/lib/mp/records-client';
+import { getHeadToHeads } from '@/lib/mp/records-client';
 import { formatRecord, gamesPlayed, type HeadToHead, type RecordRow } from '@/lib/mp/records';
 
 const ADD_ERROR: Record<string, string> = {
@@ -28,7 +28,13 @@ export default function FriendsList({ findable }: { findable: boolean }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const load = useCallback(() => listFriends().then(setFriends), []);
+  // undefined while loading, null when they couldn't be read.
+  const [records, setRecords] = useState<Map<string, HeadToHead> | null | undefined>(undefined);
+
+  const load = useCallback(() => listFriends().then((list) => {
+    setFriends(list);
+    if (list) return getHeadToHeads(list.filter((f) => f.status === 'accepted').map((f) => f.id)).then(setRecords);
+  }), []);
   useEffect(() => {
     void load();
     // Requests arrive while the page is open: re-read when the tab comes back.
@@ -151,7 +157,7 @@ export default function FriendsList({ findable }: { findable: boolean }) {
             ) : (
               <ul className="club-lobby-list">
                 {accepted.map((f) => (
-                  <FriendRow key={f.id} friend={f} online={online.has(f.id)} busy={busy === f.id} onRemove={() => act(f.id, () => removeFriend(f.id))} />
+                  <FriendRow key={f.id} friend={f} record={records === undefined ? undefined : records?.get(f.id) ?? null} online={online.has(f.id)} busy={busy === f.id} onRemove={() => act(f.id, () => removeFriend(f.id))} />
                 ))}
               </ul>
             )}
@@ -162,17 +168,12 @@ export default function FriendsList({ findable }: { findable: boolean }) {
   );
 }
 
-function FriendRow({ friend, online, busy, onRemove }: { friend: Friend; online: boolean; busy: boolean; onRemove: () => void }) {
-  const [record, setRecord] = useState<HeadToHead | null>(null);
+// record: undefined while loading, null when it couldn't be read.
+function FriendRow({ friend, record, online, busy, onRemove }: {
+  friend: Friend; record: HeadToHead | null | undefined; online: boolean; busy: boolean; onRemove: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    getHeadToHead(friend.id).then((r) => alive && setRecord(r));
-    return () => {
-      alive = false;
-    };
-  }, [friend.id]);
 
   const panel = `friend-${friend.id}`;
   return (
@@ -181,7 +182,7 @@ function FriendRow({ friend, online, busy, onRemove }: { friend: Friend; online:
         <span className="club-friend-main">
           <strong><OnlineDot on={online} />{friend.name}</strong>
           <span className="club-figure">
-            {record === null ? '…' : gamesPlayed(record) === 0 ? 'No games together yet' : formatRecord(record)}
+            {record === undefined ? '…' : record === null ? 'Record unavailable right now' : gamesPlayed(record) === 0 ? 'No games together yet' : formatRecord(record)}
           </span>
         </span>
         <button type="button" className="club-lobby-quiet" aria-expanded={open} aria-controls={panel} onClick={() => setOpen((o) => !o)}>
@@ -190,8 +191,10 @@ function FriendRow({ friend, online, busy, onRemove }: { friend: Friend; online:
       </div>
       {open && (
         <div id={panel} className="club-friend-more">
-          {record === null ? (
+          {record === undefined ? (
             <p className="club-lobby-note">Loading…</p>
+          ) : record === null ? (
+            <p className="club-lobby-error" role="alert">Your games together couldn’t load. Reload the page to try again.</p>
           ) : record.games.length === 0 ? (
             <p className="club-lobby-note">You haven’t finished a game together yet. Open a lobby and invite them.</p>
           ) : (

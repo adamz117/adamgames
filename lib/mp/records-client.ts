@@ -1,29 +1,18 @@
-import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { headToHead, RESULT_COLUMNS, type HeadToHead } from '@/lib/mp/records';
+import { memberSession } from '@/lib/mp/supabase';
 
-const none = (): HeadToHead => ({ win: 0, loss: 0, draw: 0, games: [] });
-
-// Every call fails quietly: signed out, a guest, or Supabase unreachable means no records.
-async function member() {
-  try {
-    const supabase = createBrowserSupabaseClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user;
-    return user && !user.is_anonymous ? { supabase, userId: user.id } : null;
-  } catch {
-    return null;
-  }
-}
-
-// The record against one friend and the last 5 games together.
-export async function getHeadToHead(friendId: string): Promise<HeadToHead> {
-  const m = await member();
-  if (!m) return none();
+// The record against each friend and your last 5 games with each, in one query. Friends with no
+// games get zeros. null when it can't be read (signed out, a guest, or Supabase unreachable).
+export async function getHeadToHeads(friendIds: string[]): Promise<Map<string, HeadToHead> | null> {
+  const m = await memberSession();
+  if (!m) return null;
+  if (!friendIds.length) return new Map();
   try {
     const { data, error } = await m.supabase.from('match_results').select(RESULT_COLUMNS)
-      .eq('user_id', m.userId).eq('opponent_id', friendId).order('played_at', { ascending: false });
-    return error ? none() : headToHead(data, friendId);
+      .eq('user_id', m.userId).in('opponent_id', friendIds).order('played_at', { ascending: false });
+    if (error) return null;
+    return new Map(friendIds.map((id) => [id, headToHead(data, id)]));
   } catch {
-    return none();
+    return null;
   }
 }

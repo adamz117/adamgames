@@ -498,8 +498,10 @@ li.club-friend-row { border-bottom: 1px solid var(--border); }
   flex-direction: column;
   gap: 10px;
   width: min(360px, calc(100vw - 32px));
+  pointer-events: none; /* the empty live region never blocks the page */
 }
 .club-invite {
+  pointer-events: auto;
   padding: 16px 18px;
   border-radius: 16px;
   background: var(--surface-2);
@@ -513,6 +515,8 @@ li.club-friend-row { border-bottom: 1px solid var(--border); }
 .club-invite-text strong { font-weight: 600; }
 .club-invite-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
 @media (max-width: 760px) {
+  /* At the top on phones, clear of the game's controls along the bottom. */
+  .club-invites { top: 12px; bottom: auto; right: 16px; }
   .club-friend-games li { grid-template-columns: minmax(0, 1fr) auto; }
   .club-friend-games li > span:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
 }

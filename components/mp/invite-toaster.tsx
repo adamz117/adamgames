@@ -2,20 +2,30 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { markInviteSeen, subscribeInvites, type Invite } from '@/lib/mp/friends-client';
+import { inviteFresh, markInviteSeen, openOnline, subscribeInvites, type Invite } from '@/lib/mp/friends-client';
 import { parseCode } from '@/lib/mp/protocol';
 
 const SHOWN = 3;
 
-// Friends' invites to a game, on any page a member has open (nothing for guests or signed-out
-// visitors). Join goes to the lobby; either button marks the invite seen.
-export default function InviteToaster() {
+// Friends' invites to a game, on any page. The nav mounts it for signed-in members only; it keeps
+// them online too. Join goes to the lobby; either button marks the invite seen.
+export default function InviteToaster({ userId }: { userId: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const [invites, setInvites] = useState<Invite[]>([]);
   const [hidden, setHidden] = useState<ReadonlySet<number>>(() => new Set());
+  const [now, setNow] = useState(() => Date.now());
 
-  useEffect(() => subscribeInvites(setInvites), []);
+  useEffect(() => {
+    const close = openOnline(userId);
+    const stop = subscribeInvites(setInvites);
+    const tick = setInterval(() => setNow(Date.now()), 60_000);
+    return () => {
+      clearInterval(tick);
+      stop();
+      close();
+    };
+  }, [userId]);
 
   // Already in that lobby: the invite is done with.
   const here = parseCode(/^\/play\/([^/]+)\/?$/.exec(pathname ?? '')?.[1]);
@@ -31,12 +41,12 @@ export default function InviteToaster() {
   // One per lobby (a friend may have asked twice), newest first.
   const byLobby = new Map<string, Invite[]>();
   for (const i of invites) {
-    if (hidden.has(i.id) || i.code === here) continue;
+    if (hidden.has(i.id) || i.code === here || !inviteFresh(i, now)) continue;
     byLobby.set(i.lobbyId, [...(byLobby.get(i.lobbyId) ?? []), i]);
   }
   const shown = [...byLobby.values()].slice(0, SHOWN);
-  if (!shown.length) return null;
 
+  // The live region stays mounted so screen readers announce invites as they arrive.
   return (
     <div className="club-invites" role="status" aria-live="polite">
       {shown.map((group) => {

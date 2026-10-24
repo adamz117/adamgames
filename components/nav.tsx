@@ -4,6 +4,7 @@ import SignOutButton from '@/components/sign-out-button';
 import GamesDropdown from '@/components/games-dropdown';
 import { GAMES } from '@/lib/games-registry';
 import { getProfileServer } from '@/lib/profile';
+import InviteToaster from '@/components/mp/invite-toaster';
 
 export default async function Nav() {
   const supabase = await createClient();
@@ -70,6 +71,8 @@ export default async function Nav() {
           )}
         </nav>
       </div>
+      {/* Invites and "online now" are for members: nobody else loads Realtime. Fixed, so it can sit here. */}
+      {user && !user.is_anonymous && <InviteToaster userId={user.id} />}
     </header>
   );
 }
