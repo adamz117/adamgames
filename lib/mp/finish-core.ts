@@ -71,9 +71,9 @@ export function decideResult({ settings, players, swings, now, DH, realData }: {
 }): Decision {
   const playing: Decision = { status: 'playing', results: [] };
   if (!players.length) return playing;
-  const finished = (result: (k: number) => Outcome, detail: string): Decision => ({
+  const finished = (result: (k: number) => Outcome, detail: string | ((k: number) => string)): Decision => ({
     status: 'finished',
-    results: players.map((p, k) => ({ slot: p.slot, result: result(k), detail })),
+    results: players.map((p, k) => ({ slot: p.slot, result: result(k), detail: typeof detail === 'string' ? detail : detail(k) })),
   });
 
   const r = DH.replayGame(settings.spec, realData, players.map((p) => ({ slot: p.slot })), swings);
@@ -89,7 +89,7 @@ export function decideResult({ settings, players, swings, now, DH, realData }: {
       const s = DH.strokeResult(pars, r.scores), best = Math.min(...s.totals);
       return finished(
         (k) => (s.winner != null ? (s.winner === k ? 'win' : 'loss') : s.totals[k] === best ? 'draw' : 'loss'),
-        s.totals.join(' v '),
+        (k) => [s.totals[k], ...s.totals.filter((_, j) => j !== k)].join(' v '), // their own total first
       );
     }
   }
@@ -142,6 +142,7 @@ export function resultRows(settings: FinishSettings, players: FinishPlayer[], re
 // two-player game a guest's result is the other side of their opponent's (if that row names them:
 // after a rematch the slot may hold someone new); otherwise it comes from fallback, if that has one.
 const OTHER_SIDE: Record<Outcome, Outcome> = { win: 'loss', loss: 'win', draw: 'draw' };
+const otherView = (detail: string) => (/^\d+ v \d+$/.test(detail) ? detail.split(' v ').reverse().join(' v ') : detail);
 export function resultsFromRows(
   players: FinishPlayer[],
   rows: { user_id: string; opponent_name: string; result: Outcome; detail: string }[],
@@ -152,7 +153,7 @@ export function resultsFromRows(
     const own = rowOf(p);
     if (own) return [{ slot: p.slot, result: own.result, detail: own.detail }];
     const opp = players.length === 2 ? rowOf(players.find((o) => o !== p)!) : undefined;
-    if (opp && opp.opponent_name === p.name) return [{ slot: p.slot, result: OTHER_SIDE[opp.result], detail: opp.detail }];
+    if (opp && opp.opponent_name === p.name) return [{ slot: p.slot, result: OTHER_SIDE[opp.result], detail: otherView(opp.detail) }];
     return fallback.filter((r) => r.slot === p.slot);
   });
 }
