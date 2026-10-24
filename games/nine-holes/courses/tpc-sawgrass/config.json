@@ -1,0 +1,160 @@
+{
+ "id": "tpc-sawgrass",
+ "name": "TPC Sawgrass Stadium Course",
+ "place": "Ponte Vedra Beach, Florida",
+ "osmWay": null,
+ "osmRelation": 1783123,
+ "golfpassId": 15881,
+ "tees": "the players",
+ "scorecard": [
+  {
+   "n": 1,
+   "par": 4,
+   "si": 11,
+   "yds": 424
+  },
+  {
+   "n": 2,
+   "par": 5,
+   "si": 15,
+   "yds": 555
+  },
+  {
+   "n": 3,
+   "par": 3,
+   "si": 17,
+   "yds": 182
+  },
+  {
+   "n": 4,
+   "par": 4,
+   "si": 9,
+   "yds": 387
+  },
+  {
+   "n": 5,
+   "par": 4,
+   "si": 3,
+   "yds": 469
+  },
+  {
+   "n": 6,
+   "par": 4,
+   "si": 13,
+   "yds": 413
+  },
+  {
+   "n": 7,
+   "par": 4,
+   "si": 1,
+   "yds": 450
+  },
+  {
+   "n": 8,
+   "par": 3,
+   "si": 7,
+   "yds": 236
+  },
+  {
+   "n": 9,
+   "par": 5,
+   "si": 5,
+   "yds": 601
+  },
+  {
+   "n": 10,
+   "par": 4,
+   "si": 12,
+   "yds": 419
+  },
+  {
+   "n": 11,
+   "par": 5,
+   "si": 8,
+   "yds": 573
+  },
+  {
+   "n": 12,
+   "par": 4,
+   "si": 16,
+   "yds": 365
+  },
+  {
+   "n": 13,
+   "par": 3,
+   "si": 18,
+   "yds": 183
+  },
+  {
+   "n": 14,
+   "par": 4,
+   "si": 4,
+   "yds": 485
+  },
+  {
+   "n": 15,
+   "par": 4,
+   "si": 6,
+   "yds": 470
+  },
+  {
+   "n": 16,
+   "par": 5,
+   "si": 10,
+   "yds": 537
+  },
+  {
+   "n": 17,
+   "par": 3,
+   "si": 14,
+   "yds": 141
+  },
+  {
+   "n": 18,
+   "par": 4,
+   "si": 2,
+   "yds": 462
+  }
+ ],
+ "notes": {
+  "4": "water short of the green",
+  "9": "par 5 with water to carry on the lay-up",
+  "11": "par 5, water in front of the green",
+  "16": "reachable par 5, water down the right to the green",
+  "17": "the island green",
+  "18": "water all down the left"
+ },
+ "hidden": [],
+ "signature": [
+  16,
+  17
+ ],
+ "turnAfter": 9,
+ "terrain": {},
+ "ponds": [],
+ "landmarks": [
+  {
+   "osm": "node/9461191717",
+   "name": "TPC Sawgrass Clubhouse",
+   "kind": "building"
+  }
+ ],
+ "water": "osm",
+ "thresholds": {
+  "glare": {
+   "minL": 999
+  },
+  "sand": {
+   "rOverG": -999,
+   "rOverB": -999,
+   "minL": 150,
+   "maxSpread": 45,
+   "nearPlay": 30
+  },
+  "mown": {
+   "minL7": 88,
+   "gOverR": 10,
+   "maxTex": 9
+  }
+ }
+}

@@ -1,0 +1,185 @@
+{
+ "id": "augusta",
+ "name": "Augusta National Golf Club",
+ "place": "Augusta, Georgia",
+ "osmRelation": null,
+ "osmWay": 871993734,
+ "golfpassId": 14948,
+ "tees": "masters",
+ "scorecard": [
+  {
+   "n": 1,
+   "par": 4,
+   "si": 9,
+   "yds": 445
+  },
+  {
+   "n": 2,
+   "par": 5,
+   "si": 1,
+   "yds": 575
+  },
+  {
+   "n": 3,
+   "par": 4,
+   "si": 13,
+   "yds": 350
+  },
+  {
+   "n": 4,
+   "par": 3,
+   "si": 15,
+   "yds": 240
+  },
+  {
+   "n": 5,
+   "par": 4,
+   "si": 5,
+   "yds": 455
+  },
+  {
+   "n": 6,
+   "par": 3,
+   "si": 17,
+   "yds": 180
+  },
+  {
+   "n": 7,
+   "par": 4,
+   "si": 11,
+   "yds": 450
+  },
+  {
+   "n": 8,
+   "par": 5,
+   "si": 3,
+   "yds": 570
+  },
+  {
+   "n": 9,
+   "par": 4,
+   "si": 7,
+   "yds": 460
+  },
+  {
+   "n": 10,
+   "par": 4,
+   "si": 6,
+   "yds": 495
+  },
+  {
+   "n": 11,
+   "par": 4,
+   "si": 8,
+   "yds": 505
+  },
+  {
+   "n": 12,
+   "par": 3,
+   "si": 16,
+   "yds": 155
+  },
+  {
+   "n": 13,
+   "par": 5,
+   "si": 4,
+   "yds": 510
+  },
+  {
+   "n": 14,
+   "par": 4,
+   "si": 12,
+   "yds": 440
+  },
+  {
+   "n": 15,
+   "par": 5,
+   "si": 2,
+   "yds": 530
+  },
+  {
+   "n": 16,
+   "par": 3,
+   "si": 18,
+   "yds": 170
+  },
+  {
+   "n": 17,
+   "par": 4,
+   "si": 14,
+   "yds": 440
+  },
+  {
+   "n": 18,
+   "par": 4,
+   "si": 10,
+   "yds": 465
+  }
+ ],
+ "notes": {
+  "1": "Tea Olive",
+  "2": "Pink Dogwood",
+  "3": "Flowering Peach",
+  "4": "Flowering Crab Apple",
+  "5": "Magnolia",
+  "6": "Juniper",
+  "7": "Pampas",
+  "8": "Yellow Jasmine",
+  "9": "Carolina Cherry",
+  "10": "Camellia: plunges downhill",
+  "11": "White Dogwood: pond left of the green, the start of Amen Corner",
+  "12": "Golden Bell: over Rae's Creek to a shallow green, the heart of Amen Corner",
+  "13": "Azalea: par 5 doglegging left along Rae's Creek",
+  "14": "Chinese Fir",
+  "15": "Firethorn: par 5 with a pond in front of the green",
+  "16": "Redbud: over the pond to a sloping green",
+  "17": "Nandina",
+  "18": "Holly: uphill to the clubhouse"
+ },
+ "hidden": [],
+ "signature": [
+  12,
+  16
+ ],
+ "turnAfter": 9,
+ "terrain": {
+  "downhill": [
+   10
+  ],
+  "uphill": [
+   18
+  ]
+ },
+ "water": "osm",
+ "ponds": [],
+ "landmarks": [],
+ "thresholds": {
+  "glare": {
+   "minL": 999
+  },
+  "sand": {
+   "rOverG": -999,
+   "rOverB": -999,
+   "minL": 150,
+   "maxSpread": 45,
+   "nearPlay": 30
+  },
+  "mown": {
+   "minL7": 55,
+   "gOverR": 30,
+   "maxTex": 9
+  },
+  "tree": {
+   "darkL": 40,
+   "minTex": 14,
+   "maxL": 80
+  },
+  "area": {
+   "tree": 80
+  },
+  "fairway": {
+   "corridor": 24
+  }
+ },
+ "osmWaterShrink": 5
+}

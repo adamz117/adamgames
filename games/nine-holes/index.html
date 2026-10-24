@@ -1,0 +1,1559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Nine Holes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #F3F6F2; --line: #DCE4DD; --line-soft: #E8EDE8;
+  --chalk: #23342A; --dim: #6E7D74; --dimmer: #9CAAA1;
+  --flag: #1F7A4C; --gold: #1F7A4C; --amber: #A5701C;
+  --sans: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'DM Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overscroll-behavior: none; }
+body {
+  background: linear-gradient(180deg, #EDF1EC 0%, #F5F8F3 42%, #FFFFFF 78%); color: var(--chalk);
+  font-family: var(--sans); font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased;
+  overflow: hidden; display: flex; align-items: center; justify-content: center;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; user-select: none; -webkit-user-select: none; }
+:focus-visible { outline: 2px solid var(--flag); outline-offset: 2px; }
+
+#app { position: relative; width: min(100vw, 540px); height: 100dvh; max-height: 960px; display: flex; flex-direction: column; background: #fff; overflow: hidden; }
+@media (min-width: 600px) { #app { height: min(100dvh, 900px); border-radius: 16px; border: 1px solid var(--line-soft); box-shadow: 0 24px 60px -28px rgba(35,60,40,.16); } }
+
+/* header + scorecard strip */
+header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 11px 14px 9px; border-bottom: 1px solid var(--line-soft); }
+.mark { font-variation-settings: 'wdth' 98, 'wght' 700; font-size: 18px; letter-spacing: -.01em; }
+.course { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--dim); text-transform: uppercase; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tot { font-family: var(--mono); font-size: 12px; color: var(--gold); letter-spacing: .04em; white-space: nowrap; }
+.card { display: grid; grid-template-columns: repeat(9, 1fr); flex: none; border-bottom: 1px solid var(--line-soft); background: #FBFCFA; }
+.cell { padding: 5px 0 6px; text-align: center; border-right: 1px solid #E8EDE8; font-family: var(--mono); font-size: 10px; color: var(--dimmer); position: relative; }
+.cell:last-child { border-right: none; }
+.card.c10 { grid-template-columns: repeat(10, 1fr); }
+.card.c10 .cell:nth-child(10) { border-right: none; }
+.cell.sum { background: #F2F6F1; color: var(--dim); } .cell.sum s { color: var(--chalk); font-weight: 600; }
+.card.c10 .cell:nth-child(-n+10) { border-bottom: 1px solid var(--line-soft); }
+.cell b { display: block; font-weight: 400; font-size: 9px; letter-spacing: .05em; }
+.cell s { display: block; text-decoration: none; font-size: 13px; line-height: 1.2; }
+.cell u { display: block; text-decoration: none; font-size: 8.5px; line-height: 1.3; margin-top: 2px; padding-top: 2px; border-top: 1px solid #EDF1EC; }
+.cell.done s { color: var(--chalk); }
+.cell.now { background: #EDF5EE; } .cell.now b { color: var(--flag); }
+.cell.eagle { background: #FBF6EA; } .cell.eagle s { color: #A5701C; }
+.cell.bird { background: #F1F8EE; } .cell.bird s { color: #1F7A4C; }
+.cell.bog s { color: #C0733F; }
+.cell.dbl { background: #FBF0ED; } .cell.dbl s { color: #A33A23; }
+.cell.ace { background: #FFF7E0; } .cell.ace s { color: var(--amber); font-weight: 700; }
+
+/* stage */
+.stage { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; cursor: pointer; }
+.stage.aiming { cursor: crosshair; }
+.stage::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: linear-gradient(180deg, rgba(255,255,255,.85) 0, rgba(255,255,255,.45) 62px, transparent 116px),
+              linear-gradient(0deg, rgba(255,255,255,.85) 0, rgba(255,255,255,.45) 54px, transparent 104px); }
+#board { display: block; width: 100%; height: 100%; touch-action: none; }
+.hud { position: absolute; z-index: 2; pointer-events: none; font-family: var(--mono); font-size: 10px; letter-spacing: .05em;
+  text-shadow: 0 1px 7px rgba(255,255,255,.95), 0 0 2px rgba(255,255,255,.9); }
+.hud-tl { top: 9px; left: 11px; } .hud-tr { top: 9px; right: 11px; text-align: right; } .hud-bl { bottom: 9px; left: 11px; }
+.hud .k { color: var(--dimmer); font-size: 9px; text-transform: uppercase; letter-spacing: .12em; }
+.hud .v { color: var(--chalk); font-size: 16px; font-family: var(--sans); font-variation-settings: 'wdth' 82, 'wght' 600; letter-spacing: .02em; }
+.hud .v small { font-size: 10px; color: var(--dim); font-family: var(--mono); font-variation-settings: normal; }
+#lie { color: var(--gold); }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; max-width: 190px; }
+.tags b { font-family: var(--mono); font-weight: 400; font-size: 8.5px; letter-spacing: .11em; padding: 2px 5px 1px; border: 1px solid currentColor; border-radius: 6px; background: rgba(255,255,255,.88); text-shadow: none; }
+.pill { position: absolute; z-index: 4; top: 10px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  padding: 7px 14px 6px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.94); box-shadow: 0 2px 10px rgba(35,60,40,.08); }
+.courseTools { position: absolute; z-index: 4; top: 64px; right: 11px; display: flex; flex-direction: column; gap: 6px; }
+.courseTools button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.94); font-family: var(--mono); font-size: 13px; display: grid; place-items: center; }
+.courseTools svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.courseTools svg path:first-child { fill: currentColor; }
+.courseTools .off, .courseTools .muted .on { display: none; }
+.courseTools .muted .off { display: inline; }
+.recenter { position: absolute; z-index: 3; right: 11px; bottom: 11px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  padding: 6px 9px 5px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.92); }
+.recenter:hover { border-color: var(--flag); color: var(--flag); }
+[hidden] { display: none !important; }
+.toast { position: absolute; z-index: 2; left: 50%; top: 44%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; opacity: 0; white-space: nowrap; }
+.toast.show { animation: pop 2.1s ease-out forwards; }
+@keyframes pop { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.86); } 12% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  72% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%,-58%) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .toast.show { animation-duration: 2.1s; animation-name: fade; } @keyframes fade { 0%,80% { opacity: 1; } 100% { opacity: 0; } } }
+.toast .big { font-variation-settings: 'wdth' 94, 'wght' 700; font-size: 30px; letter-spacing: -.01em; color: var(--flag); text-shadow: 0 1px 0 #fff; }
+.toast .sub { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; margin-top: 2px; text-shadow: 0 1px 0 #fff; }
+
+/* popups and sheets on the course */
+.pop { position: absolute; z-index: 6; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(320px, 88%);
+  background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 16px 16px 14px; box-shadow: 0 12px 40px rgba(12,28,20,.22); }
+.pop > b { font-size: 16px; }
+.pop ol { margin: 10px 0 8px 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.pop small { display: block; font-size: 12px; color: var(--dim); margin-bottom: 12px; }
+.pop .row { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.btn { width: 100%; min-height: 46px; border-radius: 10px; background: var(--flag); color: #fff; font-variation-settings: 'wdth' 98, 'wght' 700; font-size: 14.5px; }
+.btn.ghost { background: #EDF2ED; color: var(--chalk); }
+.btn:hover { filter: brightness(1.06); }
+.end { position: absolute; inset: 0; z-index: 7; background: rgba(255,255,255,.9); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; overflow-y: auto; }
+.endCard .card.c10 .cell { padding: 4px 0 5px; }
+.endCard .card.c10 .cell s { font-size: 12px; }
+.endCard { width: min(360px, 100%); background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 20px 16px 16px; text-align: center; box-shadow: 0 16px 50px -20px rgba(12,28,20,.3); }
+.endCard .tag { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.endCard h2 { font-variation-settings: 'wdth' 96, 'wght' 700; font-size: 18px; margin-top: 2px; }
+.endScore { font-variation-settings: 'wdth' 90, 'wght' 800; font-size: 56px; line-height: 1; margin-top: 10px; color: var(--flag); }
+.endStrokes { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; color: var(--dim); margin-top: 4px; }
+.endCard .card { margin: 14px 0; border: 1px solid var(--line-soft); border-radius: 8px; overflow: hidden; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px; }
+.stats div { border: 1px solid var(--line-soft); border-radius: 8px; padding: 8px 0 6px; background: #FBFCFA; }
+.stats b { display: block; font-size: 16px; font-variation-settings: 'wdth' 90, 'wght' 700; }
+.stats span { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--dimmer); }
+.endCard .btn + .btn { margin-top: 8px; }
+/* bottom panel: clubs, power track, action */
+.panel { flex: none; border-top: 1px solid var(--line-soft); background: #FBFCFA; padding: 9px 0 calc(10px + env(safe-area-inset-bottom)); }
+.clubs { display: flex; gap: 5px; overflow-x: auto; padding: 0 12px 8px; scrollbar-width: none; }
+.clubs::-webkit-scrollbar { display: none; }
+.club { flex: none; padding: 8px 12px 7px; min-height: 44px; min-width: 56px; border: 1px solid var(--line-soft); border-radius: 8px;
+  font-family: var(--mono); font-size: 11px; color: var(--dim); background: #F5F8F4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  transition: border-color .12s, color .12s, background .12s; }
+.club span { font-size: 8px; color: var(--dimmer); letter-spacing: .06em; }
+.club.on { border-color: var(--flag); color: var(--chalk); background: #E9F3EB; }
+.club.on span { color: var(--flag); }
+.club:disabled { opacity: .28; cursor: not-allowed; }
+.meterwrap { padding: 0 12px; }
+.track { position: relative; height: 32px; background: #FAFBF9; border: 1px solid var(--line-soft); border-radius: 8px; overflow: hidden; transition: opacity .15s; }
+.track.idle { opacity: .34; }
+.zpure { position: absolute; top: 0; bottom: 0; left: calc(var(--pa) * 100%); width: calc((var(--pb) - var(--pa)) * 100%);
+  background: rgba(31,122,76,.18); border-left: 1.5px solid var(--flag); border-right: 1.5px solid var(--flag); }
+.zover { position: absolute; top: 0; bottom: 0; left: calc(1 / 1.15 * 100%); right: 0; background: repeating-linear-gradient(115deg, #C74A2C3A 0 5px, transparent 5px 10px); border-left: 1px solid #C74A2C70; }
+.fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: linear-gradient(90deg, #E8EFE9, #CFE7BE 62%, #9BCF86); opacity: .85; }
+.needle { position: absolute; top: -1px; bottom: -1px; width: 2px; left: 0; transform: translateX(-50%); background: var(--chalk); }
+.ticks { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 8px; color: var(--dimmer); letter-spacing: .12em; padding: 3px 0 0; }
+.act { margin: 9px 12px 0; width: calc(100% - 24px); min-height: 50px; padding: 13px 0 12px; background: var(--flag); color: #fff; border-radius: 10px;
+  font-variation-settings: 'wdth' 98, 'wght' 700; font-size: 14.5px; letter-spacing: .01em; transition: filter .12s, background .12s; }
+.act:hover { filter: brightness(1.09); }
+.act.wait { background: #EDF2ED; color: var(--dim); pointer-events: none; }
+.hint { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dimmer); text-align: center; margin-top: 7px; min-height: 14px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header><span class="mark">Nine Holes</span><span class="course" id="courseName"></span><span class="tot" id="total">E</span></header>
+  <div class="card" id="card"></div>
+  <div class="stage aiming" id="stage">
+    <canvas id="board" aria-label="The hole. Tap to aim, drag to pan, pinch or scroll to zoom."></canvas>
+    <div class="hud hud-tl"><div class="k">Hole <span id="holeNo"></span> · Par <span id="holePar"></span></div><div class="v" id="holeYds"></div><div class="tags" id="tags"></div></div>
+    <div class="hud hud-tr"><div class="k">Wind</div><div class="v" id="wind"></div></div>
+    <div class="hud hud-bl"><div class="k" id="lie"></div><div class="v" id="pin"></div></div>
+    <button class="pill" id="menuBtn">MENU</button>
+    <div class="courseTools">
+      <button id="soundBtn" aria-label="Sound" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z"/><path class="on" d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.6a6 6 0 0 1 0 8.8"/><path class="off" d="M11 6l4 4M15 6l-4 4"/></svg></button>
+      <button id="helpBtn" aria-label="How to play">?</button>
+    </div>
+    <button class="recenter" id="recenter" hidden>Recenter</button>
+    <div class="toast" id="toast" role="status"><div class="big" id="tBig"></div><div class="sub" id="tSub"></div></div>
+    <div class="pop" id="help" hidden>
+      <b>How to play</b>
+      <ol>
+        <li>The line sweeps side to side. Tap the hole to move it, then <b>Lock the line</b>.</li>
+        <li>The needle climbs the power track. <b>Swing</b> inside the green band: it marks the power that reaches the pin, or the pure strike when the pin is out of reach.</li>
+        <li>Finish on the green: inside the gold ring is one putt, the pale ring two, anywhere else three.</li>
+      </ol>
+      <small>Drag to pan, pinch or scroll to zoom. Space works as the big button.</small>
+      <button class="btn" id="helpClose">Got it</button>
+    </div>
+    <div class="pop" id="menu" hidden>
+      <b>Menu</b>
+      <div class="row">
+        <button class="btn ghost" id="mRestart">Restart this round</button>
+        <button class="btn ghost" id="mToday">Today's course</button>
+        <button class="btn ghost" id="mNew">New random course</button>
+        <button class="btn" id="mClose">Back to the hole</button>
+      </div>
+    </div>
+  </div>
+  <div class="end" id="turn" hidden>
+    <div class="endCard">
+      <div class="tag">The halfway house</div>
+      <h2 id="turnThrough">Through 10</h2>
+      <div class="endScore" id="turnScore"></div>
+      <div class="endStrokes" id="turnOut"></div>
+      <button class="btn" id="turnGo" style="margin-top:16px">Play the 11th</button>
+    </div>
+  </div>
+  <div class="end" id="end" hidden>
+    <div class="endCard">
+      <div class="tag" id="endTag"></div>
+      <h2 id="endName"></h2>
+      <div class="endScore" id="endScore"></div>
+      <div class="endStrokes" id="endStrokes"></div>
+      <div class="card" id="endCard"></div>
+      <div class="stats">
+        <div><b id="sLong"></b><span>Longest</span></div>
+        <div><b id="sPure"></b><span>Pured</span></div>
+        <div><b id="sAces"></b><span>Aces</span></div>
+      </div>
+      <button class="btn" id="againBtn">Play again</button>
+      <button class="btn ghost" id="newBtn">New course</button>
+      <button class="btn ghost" id="homeBtn">Back to home</button>
+    </div>
+  </div>
+  <div class="panel" id="panel">
+    <div class="clubs" id="clubRail"></div>
+    <div class="meterwrap">
+      <div class="track idle" id="track"><div class="zpure"></div><div class="zover"></div><div class="fill" id="fill"></div><div class="needle" id="needle"></div></div>
+      <div class="ticks"><span>EASE</span><span id="tickMid">PIN</span><span>OVER</span></div>
+    </div>
+    <button class="act" id="act">Lock the line</button>
+    <div class="hint" id="hint"></div>
+  </div>
+</div>
+<script src="game.js"></script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const { CLUBS, LIE, dist, dirOf, add } = DH;
+const todayKey = () => new Date().toLocaleDateString('en-CA');
+const S2P = d => d === 0 ? 'E' : d > 0 ? '+' + d : String(d);
+const rad = d => d * Math.PI / 180;
+
+// The five venues. The fairway and green stay pale everywhere so a lie reads at a glance.
+const GREEN_DAY = { green: '#E2F7C6', collar: '#AFD397', greenEdge: '#5C9349', close: ['#EDFCD6', '#D2ECB4', '#AED890'] };
+const PALETTES = {
+  forest: { name: 'Pine Forest', scene: 'woodland', ...GREEN_DAY,
+    g: ['#C9D8C4', '#B9CCB6', '#A8BEA8'], deep: '#6E8E68', roughSoft: '#74986D', rough: '#9EC48E',
+    fwEdge: '#68915E', fw: '#DBF1C6', stripeA: '#B2D890', stripeB: '#E2F6C8', spine: '#EBF8D9',
+    trees: ['#4F7D55', '#5E8C5E', '#6C9A6A'], lit: 'rgba(226,244,206,0.50)',
+    water: '#9CCBE4', waterEdge: '#6FA9CB', sand: '#E4D2A6', sandEdge: '#C4A970', sea: ['#A9D6EA', '#6FAACB'] },
+  beach: { name: 'Coastal Beach', scene: 'links', ...GREEN_DAY,
+    g: ['#D9E6B4', '#CCDDA2', '#BED293'], deep: '#8E9C6F', roughSoft: '#9AA873', rough: '#C2CE91',
+    fwEdge: '#89A462', fw: '#E9F4C8', stripeA: '#CBE29B', stripeB: '#EEF8CF', spine: '#F1F9DC',
+    trees: ['#7F9A5E', '#8DA869', '#9BB477'], lit: 'rgba(250,248,214,0.45)',
+    water: '#8FD3DA', waterEdge: '#5DB3C4', sand: '#EDE0BC', sandEdge: '#CDB989', sea: ['#7FD6D2', '#3FA9C4', '#1F6F9A'] },
+  alpine: { name: 'Highland Peaks', scene: 'highland', ...GREEN_DAY,
+    g: ['#D9E2E5', '#BFCBD0', '#9BB7C5'], deep: '#566A5B', roughSoft: '#687A6A', rough: '#8FA68E',
+    fwEdge: '#536A58', fw: '#B9D3B7', stripeA: '#91B394', stripeB: '#C8DEC6', spine: '#DCEBDD',
+    trees: ['#344F43', '#426052', '#526F5E'], lit: 'rgba(217,232,224,0.40)', rock: ['#9AAAB1', '#718189', '#485563'],
+    water: '#9CC6D8', waterEdge: '#6E9DB5', sand: '#DCD3BC', sandEdge: '#B7AC90', sea: ['#B9D7E4', '#7FA9C0'] },
+  volcanic: { name: 'Volcanic Island', scene: 'volcanic', ...GREEN_DAY,
+    g: ['#AFCB83', '#86AD62', '#668D4B'], deep: '#314C32', roughSoft: '#45683D', rough: '#6E984E',
+    fwEdge: '#4D7D39', fw: '#A8D55D', stripeA: '#82BA48', stripeB: '#B8DF70', spine: '#D2EB91',
+    trees: ['#24492E', '#35633A', '#477B43'], lit: 'rgba(200,235,121,0.40)', rock: ['#414B48', '#2B3332', '#171C1E'], lava: '#F06A2A',
+    water: '#5CC3D0', waterEdge: '#2A93AE', sand: '#55514C', sandEdge: '#2E2C2A', sea: ['#58D2D0', '#168FB0', '#075777'] },
+  haunted: { name: 'Spooky Forest', scene: 'woodland', haunted: true,
+    green: '#B4CF9F', collar: '#86AC78', greenEdge: '#46753A', close: ['#C4DDB0', '#A8C890', '#8AB474'],
+    g: ['#43503F', '#36412F', '#2A3226'], deep: '#223229', roughSoft: '#2D4532', rough: '#466944',
+    fwEdge: '#3E623B', fw: '#93B783', stripeA: '#7AA06A', stripeB: '#9FC28E', spine: '#AFCD9E',
+    trees: ['#1E3127', '#25382C', '#2C4132'], lit: 'rgba(196,206,240,0.30)',
+    water: '#5E7F92', waterEdge: '#3E5868', sand: '#B8AA86', sandEdge: '#8E8062', sea: ['#4E6B7C', '#2E4452'] },
+  // Augusta National: deep ryegrass, tall loblolly pines, and azaleas in bloom at the woodland edges
+  augusta: { name: 'Pines & azaleas', scene: 'parkland', real: true,
+    green: '#C9EFA0', collar: '#8CCB68', greenEdge: '#2F7A2E', close: ['#D9F6B6', '#B9E58F', '#98D36C'],
+    g: ['#5E9A4E', '#548F45', '#4A843D'], ob: '#5E7A4C', deep: '#2A5A2A', roughSoft: '#4E8C3E', rough: '#5FA049',
+    fwEdge: '#2F7A2E', fw: '#7FC85A', stripeA: '#68B748', stripeB: '#98D872', spine: '#ADE28A',
+    trees: ['#163F26', '#1D4A2C', '#255633'], lit: 'rgba(170,214,150,0.30)', canopy: '#123620', roof: '#E6DCC8',
+    blooms: ['#E2408A', '#F06FAF', '#F7EEF3', '#C42E6E'],
+    water: '#5C93B8', waterEdge: '#2F6E96', sand: '#FAF7EE', sandEdge: '#CFC6AE', tee: '#A8DE84', bench: '#6B4426', cart: '#C7BFA6', sea: ['#A9D6EA', '#6FAACB'] },
+  // TPC Sawgrass: bright Florida turf, live oaks and palms, white sand
+  'tpc-sawgrass': { name: 'Stadium', scene: 'parkland', real: true,
+    green: '#CDEFA6', collar: '#93C873', greenEdge: '#3F7F32', close: ['#DDF6BC', '#BFE597', '#9ED374'],
+    g: ['#7FA86A', '#73A060', '#679656'], ob: '#7E9470', deep: '#3D6A35', roughSoft: '#64984E', rough: '#78AC5E',
+    fwEdge: '#3F8236', fw: '#94D46C', stripeA: '#7CC255', stripeB: '#AEE088', spine: '#C1E89E',
+    trees: ['#2F5A2C', '#3E6E35', '#5A8A3E'], lit: 'rgba(206,234,170,0.34)', canopy: '#2A4F28', roof: '#E9E1D0',
+    water: '#4F8FB0', waterEdge: '#2C6C8E', sand: '#FBF8F0', sandEdge: '#D2C9B2', tee: '#B9E390', bench: '#6B4426', cart: '#C9C2AE', sea: ['#A9D6EA', '#6FAACB'] },
+  // Gary Player Country Club: bright kikuyu fairways cut through dry bushveld in the Pilanesberg crater
+  'gary-player': { name: 'Bushveld', scene: 'parkland', real: true,
+    green: '#CDEFA6', collar: '#93C873', greenEdge: '#3F7F32', close: ['#DDF6BC', '#BFE597', '#9ED374'],
+    g: ['#86A35E', '#7C9955', '#718D4C'], ob: '#8E9466', deep: '#4F6E33', roughSoft: '#6F9A48', rough: '#7FAA52',
+    fwEdge: '#4A8A35', fw: '#8FD064', stripeA: '#76BB4E', stripeB: '#A8DC7C', spine: '#BDE596',
+    trees: ['#3E5A2C', '#4B6833', '#56733A'], lit: 'rgba(214,226,160,0.35)', canopy: '#34502A', roof: '#D8C6A6',
+    water: '#5FA3C8', waterEdge: '#357FA6', sand: '#F1E6CC', sandEdge: '#C9B48A', tee: '#B9E390', bench: '#7A4E2A', cart: '#C9AE86', sea: ['#A9D6EA', '#6FAACB'] },
+  // Victoria Country Club: a lush parkland, deeper and greener than any daily venue
+  victoria: { name: 'Parkland', scene: 'parkland', real: true,
+    green: '#CDEFA6', collar: '#93C873', greenEdge: '#3F7F32', close: ['#DDF6BC', '#BFE597', '#9ED374'],
+    g: ['#7FA36C', '#6F955E', '#5F8751'], ob: '#8C9886', deep: '#2E5A2A', roughSoft: '#558A43', rough: '#6CA154',
+    fwEdge: '#3F7F32', fw: '#9AD26E', stripeA: '#7EBE57', stripeB: '#B2DF86', spine: '#C3E79E',
+    trees: ['#1F4A24', '#285A2B', '#326933'], lit: 'rgba(196,232,160,0.38)', canopy: '#1A3F1F',
+    water: '#6FAFD2', waterEdge: '#3F82A8', sand: '#EADBB0', sandEdge: '#BFA36A', tee: '#B9E390', bench: '#7A4E2A', cart: '#C9BC98', sea: ['#A9D6EA', '#6FAACB'] },
+};
+let PAL = PALETTES.forest;
+const ROCK_NAME = { granite: 'MOUNTAIN ROCK', lava: 'BASALT', pumpkin: 'PUMPKIN' };
+const FX_TINT = { trees: '#2E5A2A', green: '#4E8A3E', fairway: '#5E9A48', tee: '#5E9A48', rough: '#4C7A3E', deep: '#3C6633', bunker: '#A98A4E', water: '#4C86A8', ob: '#8A8F86' };
+
+const cvs = $('board'), ctx = cvs.getContext('2d');
+const fwCvs = document.createElement('canvas'), fwCtx = fwCvs.getContext('2d'); // fairway layer, so stripes stay on the fairway
+let W = 0, H = 0, DPR = 1;
+const view = { cx: 0, cy: 0, s: 1, tx: 0, ty: 0, ts: 1, ready: false, manual: false, reveal: 0 };
+const QS = new URLSearchParams(location.search);
+let seed = QS.get('seed') || todayKey();
+// ?course=<id>&holes=front|back|all plays a real course from courses/<id>/<id>.json; anything else is the daily nine
+const MODE_NAME = { front: 'Front 9', back: 'Back 9', all: '18 holes' };
+const REAL = /^[a-z0-9-]{2,40}$/.test(QS.get('course') || '') ? { id: QS.get('course'), mode: MODE_NAME[QS.get('holes')] ? QS.get('holes') : 'all', data: null } : null;
+let st, phase, clubIdx, aimCenter, aimAngle, manualAim, locked, tAim, tPow, power = 0, anim = null, trail = [], fx = [], trapped = null, tickEnd = null;
+
+const hole = () => DH.holeOf(st);
+const club = () => CLUBS[clubIdx];
+const TS = p => ({ x: W / 2 + (p.x - view.cx) * view.s, y: H / 2 - (p.y - view.cy) * view.s });
+const fromScreen = (x, y) => ({ x: view.cx + (x - W / 2) / view.s, y: view.cy - (y - H / 2) / view.s });
+
+function resize() {
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  const r = cvs.getBoundingClientRect(); W = r.width; H = r.height;
+  cvs.width = fwCvs.width = Math.round(W * DPR); cvs.height = fwCvs.height = Math.round(H * DPR);
+}
+
+// ── sound: synthesised, so there is nothing to load; the context is built on the first tap ──
+const Snd = (() => {
+  let ac = null, on = true;
+  try { on = localStorage.getItem('holes-sound') !== 'off'; } catch (e) {}
+  const audio = () => {
+    if (!on) return null;
+    if (!ac) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; try { ac = new C(); } catch (e) { return null; } }
+    if (ac.state === 'suspended') ac.resume().catch(() => {});
+    return ac;
+  };
+  function tone({ f = 440, to = null, t = 0.09, type = 'sine', g = 0.12, delay = 0 }) {
+    const c = audio(); if (!c) return;
+    const t0 = c.currentTime + delay, o = c.createOscillator(), v = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t0);
+    if (to) o.frequency.exponentialRampToValueAtTime(Math.max(1, to), t0 + t);
+    v.gain.setValueAtTime(0.0001, t0); v.gain.exponentialRampToValueAtTime(g, t0 + 0.008); v.gain.exponentialRampToValueAtTime(0.0001, t0 + t);
+    o.connect(v).connect(c.destination); o.start(t0); o.stop(t0 + t + 0.03);
+  }
+  function noise({ t = 0.25, g = 0.18, f = 900, q = 1, delay = 0 }) { // a burst of filtered noise that fades out
+    const c = audio(); if (!c) return;
+    const n = Math.max(1, Math.floor(c.sampleRate * t)), buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const src = c.createBufferSource(), bp = c.createBiquadFilter(), v = c.createGain();
+    src.buffer = buf; bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q; v.gain.value = g;
+    src.connect(bp).connect(v).connect(c.destination); src.start(c.currentTime + delay);
+  }
+  return {
+    get on() { return on; },
+    toggle() { on = !on; try { localStorage.setItem('holes-sound', on ? 'on' : 'off'); } catch (e) {} audio(); return on; },
+    wake() { audio(); },
+    // a beat at each end of the power sweep, to time the tap against
+    tick(low) { tone({ f: low ? 392 : 588, t: 0.03, type: 'square', g: 0.03 }); },
+    hit(q) {
+      if (q === 'pure') { tone({ f: 780, to: 300, t: 0.14, type: 'triangle', g: 0.22 }); noise({ t: 0.07, g: 0.10, f: 2800, q: 0.8 }); }
+      else if (q === 'overswing') { tone({ f: 300, to: 140, t: 0.17, type: 'sawtooth', g: 0.15 }); noise({ t: 0.11, g: 0.09, f: 760, q: 0.6 }); }
+      else { tone({ f: 520, to: 250, t: 0.12, type: 'triangle', g: 0.17 }); noise({ t: 0.06, g: 0.07, f: 1700, q: 0.8 }); }
+    },
+    // where the ball comes down: a soft thud on turf, a hiss in sand or leaves, a knock on hard ground
+    land(surf) {
+      if (surf === 'water') return this.splash();
+      if (surf === 'cart' || surf === 'bridge') return this.knock();
+      if (surf === 'trees') return noise({ t: 0.24, g: 0.08, f: 3400, q: 0.5 });
+      if (surf === 'bunker' || surf === 'leaves') return noise({ t: 0.18, g: 0.09, f: 2400, q: 0.7 });
+      if (surf === 'green') { tone({ f: 300, to: 200, t: 0.06, g: 0.06 }); noise({ t: 0.04, g: 0.04, f: 1200, q: 1 }); return; }
+      if (surf === 'rough' || surf === 'deep') return noise({ t: 0.1, g: 0.07, f: 420, q: 0.8 });
+      tone({ f: 160, to: 90, t: 0.08, g: 0.09 }); noise({ t: 0.06, g: 0.06, f: 650, q: 0.9 });
+    },
+    splash() { noise({ t: 0.42, g: 0.24, f: 520, q: 0.5 }); tone({ f: 210, to: 90, t: 0.3, g: 0.10 }); },
+    knock() { tone({ f: 196, to: 120, t: 0.12, type: 'square', g: 0.16 }); noise({ t: 0.05, g: 0.08, f: 420, q: 1.2 }); },
+    putt() { tone({ f: 360, to: 250, t: 0.07, type: 'triangle', g: 0.18 }); noise({ t: 0.03, g: 0.06, f: 1400, q: 1 }); },
+    drop() { tone({ f: 880, t: 0.07, g: 0.16 }); tone({ f: 1320, t: 0.10, g: 0.13, delay: 0.06 }); noise({ t: 0.06, g: 0.05, f: 300, q: 2 }); },
+    arm() { tone({ f: 520, to: 110, t: 0.32, type: 'sawtooth', g: 0.14 }); },
+    // a hadeda's "haa-haa-haa": falling and nasal
+    hadeda() { for (let i = 0; i < 3; i++) { tone({ f: 640, to: 410, t: 0.26, type: 'sawtooth', g: 0.035, delay: i * 0.34 }); tone({ f: 1280, to: 820, t: 0.22, type: 'triangle', g: 0.015, delay: i * 0.34 }); } },
+    cluck() { for (let i = 0; i < 4; i++) tone({ f: 980 + (i % 2) * 140, to: 760, t: 0.05, type: 'square', g: 0.012, delay: i * 0.12 }); },
+    portal() { tone({ f: 330, to: 990, t: 0.35, g: 0.08 }); tone({ f: 660, to: 1320, t: 0.3, type: 'triangle', g: 0.05, delay: 0.12 }); },
+  };
+})();
+
+// ── round flow ──
+function startRound(newSeed) {
+  if (REAL) {
+    const course = DH.makeRealCourse(REAL.data, REAL.mode, todayKey());
+    st = DH.newRound(course.seed, course);
+    PAL = PALETTES[course.theme] || PALETTES.victoria; // a new course gets the parkland look until it has its own
+    $('courseName').textContent = `${course.name} · ${MODE_NAME[REAL.mode]}`;
+  } else {
+    if (newSeed) { seed = newSeed; history.replaceState(null, '', '?seed=' + encodeURIComponent(seed)); }
+    st = DH.newRound(seed);
+    PAL = PALETTES[st.course.theme];
+    $('courseName').textContent = `${st.course.name} · ${PAL.name}`;
+  }
+  $('end').hidden = true;
+  startHole();
+}
+function startHole() {
+  const h = hole();
+  trail = []; anim = null; fx = []; manualAim = false; trapped = null;
+  view.ready = false; view.manual = false; $('recenter').hidden = true;
+  view.reveal = h.len > 470 ? performance.now() + 1500 : 0; // a long hole: take it all in first
+  clubIdx = DH.autoClub(h, st.ball, st.lie);
+  setupAim();
+  view.fly = h.signature && st.lie === 'tee' && st.strokes === 0 ? { t0: performance.now(), dur: 2600 } : null;
+  wildFor(h);
+}
+function setupAim(keepAim) {
+  const h = hole(), c = club();
+  if (!(keepAim && manualAim)) aimCenter = DH.aimTarget(h, st.ball, st.lie, c);
+  if (!keepAim) manualAim = false;
+  aimAngle = aimCenter; locked = false; tAim = performance.now(); phase = 'aim'; power = 0;
+  const band = DH.targetBand(h, st.ball, st.lie, c);
+  $('track').style.setProperty('--pa', band.lo); $('track').style.setProperty('--pb', band.hi);
+  $('tickMid').textContent = band.label;
+  $('track').classList.add('idle');
+  setAct('Lock the line'); $('hint').textContent = 'Tap to aim · drag to pan · pinch to zoom';
+  $('stage').classList.add('aiming');
+  hud(); renderClubs(); renderCard();
+}
+function lockAim() {
+  locked = true; phase = 'power'; tPow = performance.now();
+  $('track').classList.remove('idle');
+  setAct('Swing'); $('hint').textContent = 'Stop just under 100';
+  $('stage').classList.remove('aiming');
+}
+function fireShot() {
+  power = DH.powerAt(club(), (performance.now() - tPow) / 1000);
+  const res = DH.play(st, aimAngle, clubIdx, power);
+  Snd.hit(res.quality);
+  phase = 'flight'; setAct('—', true); $('hint').textContent = ''; $('track').classList.add('idle');
+  view.manual = false; view.reveal = 0; $('recenter').hidden = true;
+  anim = { mode: 'shot', res, t0: performance.now(), dur: Math.min(1700, 620 + res.carry * 3.2),
+    rollDur: Math.min(1500, 420 + dist(res.land, res.rest) * 7), apex: Math.min(1, 0.25 + res.carry / 420),
+    ctrl: add(res.from, dirOf(aimAngle), dist(res.from, res.land) * 0.55) }; // flight bends from the line onto where it lands
+}
+function settleShot() {
+  const r = anim.res, h = hole();
+  anim = null;
+  trail.push({ a: r.from, b: r.rest });
+  fx.push({ kind: 'stop', p: r.rest, t0: performance.now(), dur: 520 });
+  if (r.holed && !r.arm) return finishHole();
+  if (r.penalty) toast(r.note, r.note === 'OUT OF BOUNDS' ? 'RE-TEE · ONE PENALTY STROKE' : 'DROP · ONE PENALTY STROKE', 'var(--flag)');
+  else if (r.rock) { Snd.knock(); toast('KICKED FORWARD', `${Math.round(r.total)} YDS · OFF THE ${ROCK_NAME[r.rock]}`, 'var(--gold)'); }
+  else if (r.cart) toast('OFF THE PATH', `${Math.round(r.total)} YDS · IT RAN`, 'var(--gold)');
+  else {
+    const word = { pure: 'PURED', overswing: 'OVERSWING', solid: 'SOLID', controlled: 'EASED' }[r.quality];
+    const col = r.quality === 'pure' ? 'var(--gold)' : r.quality === 'overswing' ? 'var(--flag)' : 'var(--chalk)';
+    const curve = Math.abs(r.curveDeg) > 1.4 ? ` · ${Math.abs(Math.round(r.curveDeg))}° ${r.curveDeg > 0 ? 'SLICE' : 'HOOK'}` : '';
+    toast(word, `${Math.round(r.total)} YDS${curve}`, col);
+  }
+  if (r.arm) { // the ball sits in the arm's circle: nothing to do but watch it come round
+    phase = 'trapped'; trapped = r;
+    setAct('Arm incoming', true); $('hint').textContent = ''; $('track').classList.add('idle');
+    $('lie').textContent = 'IN THE ARM’S PATH';
+    return;
+  }
+  afterRest(r);
+}
+// What happens once the ball has stopped for good: the portal, then putts or the next shot.
+function afterRest(r) {
+  const h = hole();
+  if (r.holed) return finishHole();
+  if (r.portal) {
+    const now = performance.now();
+    trail.push({ a: r.portal.from, b: r.portal.to }); Snd.portal();
+    fx.push({ kind: 'stop', p: r.portal.from, t0: now, dur: 700, color: '#2E9B90' }, { kind: 'land', p: r.portal.to, t0: now, dur: 900, color: '#7B5BC4' });
+    toast('THROUGH THE PORTAL', r.portal.onGreen ? (DH.puttsFrom(h, st.ball) === 1 ? 'OUT IN ONE-PUTT RANGE' : 'OUT ON THE GREEN') : `${Math.max(0, r.portal.gain)} YDS ON`, '#7B5BC4');
+  }
+  hud();
+  if (r.pickedUp) return finishHole();
+  const wait = r.portal ? 900 : 620;
+  phase = 'settle'; setAct('—', true);
+  if (r.putts) return void setTimeout(() => { if (phase === 'settle') startPutts(h, r.putts); }, r.portal ? wait : 0);
+  clubIdx = DH.autoClub(h, st.ball, st.lie);
+  setTimeout(() => { if (phase === 'settle') setupAim(); }, wait);
+}
+function settleFling() {
+  const r = anim.res, a = r.arm;
+  anim = null;
+  trail.push({ a: a.from, b: a.rest });
+  fx.push({ kind: 'stop', p: a.rest, t0: performance.now(), dur: 520 });
+  toast('STRUCK', a.penalty ? 'SWEPT AWAY · ONE PENALTY STROKE' : `${Math.round(dist(a.from, a.rest))} YDS INTO THE ${(LIE[a.surf] || LIE.rough).label}`, 'var(--flag)');
+  afterRest(r);
+}
+// No putting to time: the ring the ball finished in decides the count, and the putts play out.
+function startPutts(h, n) {
+  const from = { ...st.ball }, pin = { ...h.pin }, rr = DH.puttRings(h);
+  let dx = pin.x - from.x, dy = pin.y - from.y, L = Math.hypot(dx, dy);
+  if (L < 0.3) { dx = 0; dy = 1; L = 1; }
+  const u = { x: dx / L, y: dy / L }, p = { x: -u.y, y: u.x };
+  const stops = [];
+  if (n >= 3) stops.push(add(add(pin, u, -rr.two * 0.62), p, rr.two * 0.18)); // a lag into the pale ring
+  if (n >= 2) stops.push(add(add(pin, u, rr.one * 0.55), p, -rr.one * 0.25)); // a lip-out past the cup
+  stops.push(pin);
+  const legs = []; let a = from;
+  for (const b of stops) { legs.push({ a, b, dur: Math.min(1250, 480 + dist(a, b) * 55) }); a = b; }
+  phase = 'putting'; setAct('Putting…', true); $('track').classList.add('idle');
+  anim = { mode: 'putts', legs, n, k: 0, t0: performance.now(), from };
+  Snd.putt();
+}
+const NAMES = d => d <= -3 ? 'ALBATROSS' : d === -2 ? 'EAGLE' : d === -1 ? 'BIRDIE' : d === 0 ? 'PAR' : d === 1 ? 'BOGEY' : d === 2 ? 'DOUBLE BOGEY' : 'TRIPLE+';
+function finishHole(putts) {
+  const h = hole(), score = st.scores[st.holeIdx], d = score - h.par, ace = st.aces.includes(st.holeIdx);
+  const name = ace ? 'HOLE IN ONE' : st.strokes >= DH.strokeCap(h) && !putts ? 'PICKED UP' : NAMES(d);
+  const tail = putts ? ` · ${['', 'ONE', 'TWO', 'THREE'][putts]} PUTT${putts > 1 ? 'S' : ''}` : '';
+  if (name !== 'PICKED UP') Snd.drop();
+  if (ace) toast(name, `HOLE ${h.index} · ${h.len} YDS, ONE SWING`, 'var(--amber)');
+  else toast(name, `HOLE ${h.index} IN ${score}${tail}`, d < 0 ? 'var(--gold)' : d === 0 ? 'var(--chalk)' : 'var(--flag)');
+  phase = 'holeend';
+  const last = st.holeIdx >= st.course.holes.length - 1;
+  setAct(last ? 'Finishing…' : 'Next hole', last);
+  if (last) setTimeout(() => { if (phase === 'holeend') nextHoleUI(); }, 1900);
+  $('hint').textContent = '';
+  renderCard();
+}
+function nextHoleUI() {
+  // On this course the 10th walks back to the clubhouse, so the turn comes after it, not after the 9th.
+  if (REAL && REAL.mode === 'all' && st.holeIdx === st.course.turnAfter - 1 && phase === 'holeend') return showTurn();
+  DH.nextHole(st);
+  if (st.done) return endRound();
+  startHole();
+}
+function showTurn() {
+  phase = 'turn';
+  const T = st.course.turnAfter, hs = st.course.holes, played = st.scores.slice(0, T), par10 = hs.slice(0, T).reduce((a, h) => a + h.par, 0);
+  const out = st.scores.slice(0, 9).reduce((a, b) => a + b, 0), parOut = hs.slice(0, 9).reduce((a, h) => a + h.par, 0);
+  $('turnScore').textContent = S2P(played.reduce((a, b) => a + b, 0) - par10);
+  $('turnOut').textContent = T === 9 ? `OUT ${out} (${S2P(out - parOut)})` : `OUT ${out} (${S2P(out - parOut)}) · ${T}TH ${st.scores[T - 1]}`;
+  $('turnThrough').textContent = `Through ${T}`; $('turnGo').textContent = `Play the ${T + 1}th`;
+  $('turn').hidden = false; setAct(`Play the ${T + 1}th`);
+}
+function leaveTurn() { $('turn').hidden = true; DH.nextHole(st); startHole(); }
+function endRound() {
+  phase = 'done';
+  const strokes = st.scores.reduce((a, b) => a + b, 0), par = st.course.par;
+  $('endTag').textContent = REAL ? MODE_NAME[REAL.mode] : seed === todayKey() ? 'Today\'s nine' : 'Course · ' + seed;
+  $('endName').textContent = st.course.name;
+  $('endScore').textContent = S2P(strokes - par);
+  $('endStrokes').textContent = `${strokes} STROKES · PAR ${par}`;
+  $('endCard').innerHTML = cardCells(false);
+  $('sLong').textContent = st.longest + ' yds';
+  $('sPure').textContent = `${st.pured}/${st.shots}`;
+  $('sAces').textContent = st.aces.length;
+  $('end').hidden = false;
+  setAct('Play again');
+  reportRound(strokes, par);
+}
+// Embedded on adamgames, the page around the game adds the round to the player's record.
+function reportRound(strokes, par) {
+  if (window.parent === window) return;
+  if (REAL) return window.parent.postMessage({ type: 'nine-holes-real-round', course: REAL.id, mode: REAL.mode, strokes, par, day: todayKey() }, location.origin);
+  window.parent.postMessage({ type: 'nine-holes-round', strokes, par, course: st.course.name, seed }, location.origin);
+}
+
+// ── ui ──
+function setAct(text, wait) { const b = $('act'); b.textContent = text; b.classList.toggle('wait', !!wait); }
+function act() {
+  if (view.fly) { view.fly = null; return; }
+  if (phase === 'aim') lockAim();
+  else if (phase === 'power') fireShot();
+  else if (phase === 'holeend') nextHoleUI();
+  else if (phase === 'turn') leaveTurn();
+  else if (phase === 'done') $('end').hidden = false;
+}
+function toast(big, sub, color) {
+  $('tBig').textContent = big; $('tSub').textContent = sub || ''; $('tBig').style.color = color || 'var(--gold)';
+  const t = $('toast'); t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+}
+const fmtDist = y => y < 12 ? `${Math.round(y * 3)} <small>FT</small>` : `${Math.round(y)} <small>YDS</small>`;
+function hud() {
+  const h = hole();
+  $('holeNo').textContent = h.index; $('holePar').textContent = h.par;
+  $('holeYds').innerHTML = `${h.len} <small>YDS</small>`;
+  const oct = Math.round((((h.wind % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / (Math.PI / 4)) % 8;
+  $('wind').innerHTML = `${'↑↗→↘↓↙←↖'[oct]} ${Math.round(h.wspd)} <small>MPH</small>`;
+  $('lie').textContent = `${(LIE[st.lie] || LIE.fairway).label} · SHOT ${st.strokes + 1}`;
+  $('pin').innerHTML = fmtDist(dist(st.ball, h.pin)) + ' <small>TO PIN</small>';
+  if (h.real && st.lie !== 'green') {
+    const d = dist(st.ball, h.pin), pl = DH.playsLike(h, st.ball, h.pin);
+    if (d >= 12 && Math.abs(pl - d) >= 3) $('pin').innerHTML += ` <small>· PLAYS ${Math.round(pl)}</small>`;
+  }
+  const tags = [];
+  if (h.island) tags.push(['ISLAND', '#5FAAD0']);
+  if (h.arch) tags.push(['CROSSING', '#3E8FB5']);
+  if (h.mill) tags.push(['ARM', '#C74A2C']);
+  if (h.gust) tags.push([`GUST ${Math.round(h.gust.spd)}`, '#5E86A0']);
+  if (h.portal) tags.push(['PORTAL', '#2E9B90']);
+  if (h.burn) tags.push([`BURN ${h.burn.at}`, '#4E93BE']);
+  if (h.cart) tags.push(['PATH', '#A79E90']);
+  $('tags').innerHTML = tags.map(([t, c]) => `<b style="color:${c}">${t}</b>`).join('');
+}
+const scoreClass = d => d <= -2 ? 'eagle' : d === -1 ? 'bird' : d === 0 ? 'parred' : d === 1 ? 'bog' : 'dbl';
+function cardCells(live) {
+  const cells = st.course.holes.map((h, i) => {
+    const s = st.scores[i];
+    let cls = 'cell' + (live && i === st.holeIdx && phase !== 'done' ? ' now' : '');
+    if (s != null) cls += ' done ' + scoreClass(s - h.par);
+    if (st.aces.includes(i)) cls += ' ace';
+    return `<div class="${cls}"><b>${h.index}</b><s>${s != null ? s : '·'}</s><u>${h.par}</u></div>`;
+  });
+  if (st.course.holes.length !== 18) return cells.join('');
+  const sum = (a, b, name) => { const hs = st.course.holes.slice(a, b), sc = st.scores.slice(a, b).filter(x => x != null);
+    return `<div class="cell sum"><b>${name}</b><s>${sc.length ? sc.reduce((x, y) => x + y, 0) : '·'}</s><u>${hs.reduce((x, h) => x + h.par, 0)}</u></div>`; };
+  return [...cells.slice(0, 9), sum(0, 9, 'OUT'), ...cells.slice(9), sum(9, 18, 'IN')].join('');
+}
+function renderCard() {
+  $('card').classList.toggle('c10', st.course.holes.length === 18);
+  $('endCard').classList.toggle('c10', st.course.holes.length === 18);
+  $('card').innerHTML = cardCells(true);
+  const played = st.scores.reduce((a, s, i) => s != null ? a + s - st.course.holes[i].par : a, 0);
+  $('total').textContent = S2P(played);
+}
+function renderClubs() {
+  const lm = LIE[st.lie] || LIE.fairway;
+  $('clubRail').innerHTML = CLUBS.map((c, i) =>
+    `<button class="club${i === clubIdx ? ' on' : ''}" data-i="${i}" ${DH.clubAllowed(c, st.lie) ? '' : 'disabled'} aria-pressed="${i === clubIdx}">${c.id}<span>${Math.round(c.carry * lm.dist)}</span></button>`).join('');
+  const on = $('clubRail').children[clubIdx];
+  if (on) on.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+}
+function pickClub(i) {
+  if (phase !== 'aim' || locked || !CLUBS[i] || !DH.clubAllowed(CLUBS[i], st.lie)) return;
+  clubIdx = i; setupAim(true);
+}
+
+// ── camera ──
+// The points that matter, padded, and never narrower than `minSpan` yards, so a short shot
+// does not zoom the camera right in.
+function boxOf(pts, pad, minSpan = 0) {
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const p of pts) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+  x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  if (x1 - x0 < minSpan) { x0 = cx - minSpan / 2; x1 = cx + minSpan / 2; }
+  if (y1 - y0 < minSpan) { y0 = cy - minSpan / 2; y1 = cy + minSpan / 2; }
+  return { x0, x1, y0, y1 };
+}
+// Fit the box in the whole stage with an even margin; the HUD sits over the faded edges.
+function fitView(b) {
+  const pad = 26;
+  view.ts = view.autoS = Math.min(Math.max(W - pad * 2, 24) / Math.max(b.x1 - b.x0, 1), Math.max(H - pad * 2, 24) / Math.max(b.y1 - b.y0, 1));
+  view.tx = (b.x0 + b.x1) / 2; view.ty = (b.y0 + b.y1) / 2;
+}
+// Pinch and scroll zoom stay within reach of the automatic framing.
+const clampZoom = s => Math.max((view.autoS || 1) * 0.35, Math.min((view.autoS || 1) * 12, s));
+const greenBox = h => [{ x: h.green.x + h.gr, y: h.green.y + h.gr }, { x: h.green.x - h.gr, y: h.green.y - h.gr }];
+// What matters for the shot in front of you; on a long hole it looks down the fairway, not at the green.
+function playFocus(h) {
+  const c = club(), reach = Math.max(60, c.carry * (LIE[st.lie] || LIE.fairway).dist), f = [st.ball];
+  if (phase === 'aim' || phase === 'power') f.push(add(st.ball, dirOf(aimCenter + rad(c.fan)), reach), add(st.ball, dirOf(aimCenter - rad(c.fan)), reach));
+  if (dist(st.ball, h.pin) <= reach * 1.7) f.push(h.pin, ...greenBox(h));
+  else f.push(DH.pointAt(h.path, Math.min(h.total, DH.nearest(st.ball, h.path).along + reach * 1.3)));
+  if (anim && anim.mode === 'shot') f.push(anim.res.rest, anim.res.land);
+  if (anim && anim.mode === 'fling') f.push(anim.res.arm.rest);
+  if (phase === 'trapped' && h.mill) f.push({ x: h.mill.x + h.mill.r, y: h.mill.y + h.mill.r }, { x: h.mill.x - h.mill.r, y: h.mill.y - h.mill.r });
+  if (h.portal && st.lie === 'tee') f.push(h.portal);
+  return f;
+}
+const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function updateCamera(now) {
+  const h = hole();
+  if (view.fly && (now - view.fly.t0 > view.fly.dur || view.manual || phase !== 'aim')) view.fly = null;
+  if (view.follow && !view.manual) { // in flight: keep the zoom, centre on the ball, keep up with it
+    view.tx = view.follow.x; view.ty = view.follow.y; view.ts = view.s;
+    view.cx += (view.tx - view.cx) * 0.35; view.cy += (view.ty - view.cy) * 0.35;
+    return;
+  }
+  if (!view.manual) {
+    if (view.fly) { // out over the hole and back: 0 at the tee, 1 at the green, then home again
+      const u = (now - view.fly.t0) / view.fly.dur, k = easeInOut(u < 0.5 ? u * 2 : 2 - u * 2);
+      const c = { x: h.green.x * k, y: h.green.y * k };
+      fitView(boxOf([c, ...greenBox(h).map(p => ({ x: p.x - h.green.x + c.x, y: p.y - h.green.y + c.y }))], 40, 150));
+    } else if (anim && anim.mode === 'putts') fitView(boxOf([anim.from, h.pin], h.gr + 6, h.gr * 2.6));
+    else if (now < view.reveal) fitView(boxOf([...h.path, ...greenBox(h), ...(h.portal ? [h.portal, h.portal.mark] : [])], 30, 80));
+    else fitView(boxOf(playFocus(h), 24, 80));
+  }
+  if (!view.ready || view.manual) { view.cx = view.tx; view.cy = view.ty; view.s = view.ts; view.ready = true; return; }
+  const k = 0.14;
+  view.cx += (view.tx - view.cx) * k; view.cy += (view.ty - view.cy) * k; view.s += (view.ts - view.s) * k;
+}
+// Animations run on frame time, at most 64 ms a frame, so a hitch slows the ball down rather
+// than making it jump ahead (and the camera lurch after it).
+function animClock(a, now) {
+  a.el = (a.el || 0) + Math.min(64, Math.max(0, now - (a.last == null ? now : a.last)));
+  a.last = now;
+  return a.el;
+}
+
+// ── drawing ──
+function strokePath(pts, half, color, c = ctx, cap = 'round') {
+  c.beginPath();
+  pts.forEach((p, i) => { const q = TS(p); i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
+  c.lineWidth = Math.max(1, half * 2 * view.s); c.strokeStyle = color; c.lineCap = cap; c.lineJoin = 'round'; c.stroke();
+}
+function ellipsePath(e, grow = 0) {
+  const c = TS(e);
+  ctx.beginPath(); ctx.ellipse(c.x, c.y, (e.rx + grow) * view.s, (e.ry + grow) * view.s, -e.rot, 0, Math.PI * 2);
+}
+function label(text, p, color, size) {
+  ctx.save(); ctx.font = `500 ${size}px 'DM Mono', ui-monospace, monospace`; ctx.fillStyle = color;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, p.x, p.y); ctx.restore();
+}
+
+function drawCourse(h, now) {
+  const close = view.s > 6; // zoomed in to putting range
+  if (h.arch) drawCrossing(h);
+  else if (h.real) drawRealCourse(h, close);
+  else drawCorridor(h, close);
+  if (h.island) drawIslandLake(h);
+  if (h.burn) drawBurn(h);
+  if (h.cart) drawCart(h);
+  if (h.burn && h.burn.bridge) drawBridge(h.burn.bridge);
+
+  for (const w of h.water) {
+    if (w.kind === 'lava') { drawLavaPool(w, now); continue; }
+    ellipsePath(w, 0.8); ctx.fillStyle = PAL.waterEdge; ctx.fill();
+    ellipsePath(w); ctx.fillStyle = PAL.water; ctx.fill();
+    ctx.save(); ctx.globalAlpha = 0.35; ellipsePath({ ...w, rx: w.rx * 0.6, ry: w.ry * 0.5 }); ctx.fillStyle = '#FFFFFF'; ctx.fill(); ctx.restore();
+  }
+  for (const b of h.bunkers) {
+    ellipsePath(b, 0.6); ctx.fillStyle = PAL.sandEdge; ctx.fill();
+    ellipsePath(b); ctx.fillStyle = PAL.sand; ctx.fill();
+  }
+  for (const q of h.leafPiles || []) drawLeafPile(q);
+  for (const b of [...(h.boulders || []), ...(h.lavaRocks || [])]) drawRock(b, now);
+  if (h.gust && !close) drawGust(h, now);
+  if (h.portal) drawPortal(h.portal, now);
+  drawGreenAndPin(h, now, close);
+}
+
+// The land: ground wash, then the corridor of tree line, rough and mown fairway, then the trees.
+function drawCorridor(h, close) {
+  const g = ctx.createLinearGradient(0, 0, W * 0.35, H);
+  g.addColorStop(0, PAL.g[0]); g.addColorStop(0.55, PAL.g[1]); g.addColorStop(1, PAL.g[2]);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  drawSceneBack(h);
+  if (h.island) { loopPath(h.green, a => DH.moatR(h, a) + DH.ISLAND_BANK); ctx.fillStyle = PAL.deep; ctx.fill(); } // the bank past the lake
+  strokePath(h.path, h.deep, PAL.deep);
+  strokePath(h.path, h.rgh + 0.8, PAL.roughSoft);
+  strokePath(h.path, h.rgh, PAL.rough);
+  ctx.save(); ctx.shadowColor = 'rgba(70,95,72,0.22)'; ctx.shadowBlur = Math.max(4, 11 * Math.min(view.s, 2));
+  strokePath(h.path, h.fw + 0.7, PAL.fwEdge); ctx.restore();
+  fwCtx.setTransform(DPR, 0, 0, DPR, 0, 0); fwCtx.clearRect(0, 0, W, H);
+  strokePath(h.path, h.fw, PAL.fw, fwCtx);
+  fwCtx.globalCompositeOperation = 'source-atop';
+  if (!close) {
+    for (let sy = 0, band = 0; sy < h.total; sy += 24, band++) {
+      const c = DH.pointAt(h.path, sy), n = DH.normalAt(h.path, sy), a = TS(add(c, n, h.fw + 4)), b = TS(add(c, n, -h.fw - 4));
+      fwCtx.beginPath(); fwCtx.moveTo(a.x, a.y); fwCtx.lineTo(b.x, b.y);
+      fwCtx.lineWidth = Math.max(1, 24 * view.s); fwCtx.lineCap = 'butt';
+      fwCtx.globalAlpha = band % 2 ? 0.30 : 0.22; fwCtx.strokeStyle = band % 2 ? PAL.stripeA : PAL.stripeB; fwCtx.stroke();
+    }
+  }
+  fwCtx.globalAlpha = 0.30; strokePath(h.path, h.fw * 0.5, PAL.spine, fwCtx);
+  fwCtx.globalAlpha = 1; fwCtx.globalCompositeOperation = 'source-over';
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(fwCvs, 0, 0); ctx.restore();
+
+  for (const t of h.trees) drawTree(t, t.r);
+  for (const q of sceneOf(h).props) drawProp(q);
+}
+
+// ── a real course, drawn from its traced shapes ──
+function polyPath(pts, c = G) {
+  c.beginPath();
+  pts.forEach((p, i) => { const q = TS(p); i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
+  c.closePath();
+}
+const onScreen = box => { const a = TS({ x: box[0], y: box[3] }), b = TS({ x: box[2], y: box[1] }); return b.x > -20 && a.x < W + 20 && b.y > -20 && a.y < H + 20; };
+function inStand(p, t) {
+  let c = false;
+  for (let i = 0, j = t.pts.length - 1; i < t.pts.length; j = i++) {
+    const a = t.pts[i], b = t.pts[j];
+    if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) c = !c;
+  }
+  return c;
+}
+// The crowns inside each stand, worked out once per hole: a loose grid, jittered, about 4.5 yards apart.
+function canopyOf(h) {
+  if (h.canopy) return h.canopy;
+  // Stands are cut into pieces when traced; crowns and edges are judged against all of them together,
+  // so the cuts never show and only real woodland edges count as edges.
+  const stands = h.real.trees, near = p => stands.filter(t => p.x >= t.box[0] - 1 && p.x <= t.box[2] + 1 && p.y >= t.box[1] - 1 && p.y <= t.box[3] + 1);
+  const inWoods = p => near(p).some(t => inStand(p, t));
+  const show = [...h.real.greens, ...h.real.tees].map(g => ({ x: (g.box[0] + g.box[2]) / 2, y: (g.box[1] + g.box[3]) / 2 }));
+  h.canopy = stands.map((t, k) => {
+    const r = DH.rng(DH.hashStr(`canopy|${h.index}|${k}`)), [x0, y0, x1, y1] = t.box, crowns = [];
+    for (let y = y0 + 1.5; y <= y1; y += 4.2) for (let x = x0 + 1.5; x <= x1; x += 4.6) {
+      const p = { x: x + (r() - 0.5) * 3, y: y + (r() - 0.5) * 3, r: 2.4 + r() * 1.9 };
+      if (!inStand(p, t)) continue; // each crown belongs to one piece
+      // the whole crown stays in the woods, so no canopy hangs over water or fairway
+      if (![[1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dy]) => inWoods({ x: p.x + dx * p.r * 0.7, y: p.y + dy * p.r * 0.7 }))) continue;
+      // azaleas (a course's blooms) flower at the woodland edge beside greens and tees
+      if (PAL.blooms && r() < 0.35 && show.some(g => Math.hypot(g.x - p.x, g.y - p.y) < 45)
+        && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !inWoods({ x: p.x + dx * 6, y: p.y + dy * 6 }))) {
+        p.bloom = (r() * PAL.blooms.length) | 0; p.r = 1.3 + r() * 1.2;
+      }
+      crowns.push(p);
+    }
+    return { box: t.box, crowns };
+  });
+  return h.canopy;
+}
+// The static course goes into an offscreen image 1.6x the stage, drawn at the camera's scale. Each frame
+// just places that image; it is redrawn when the zoom moves 15% or the view nears its edge.
+let G = ctx; // where the course paints: the stage, or the cache while it is being drawn
+const courseCache = { cv: document.createElement('canvas'), fw: { cv: document.createElement('canvas') }, key: null };
+courseCache.ctx = courseCache.cv.getContext('2d'); courseCache.fw.ctx = courseCache.fw.cv.getContext('2d');
+function drawRealCourse(h, close) {
+  const C = courseCache, M = 1.6, cw = Math.ceil(W * M), ch = Math.ceil(H * M);
+  const fits = C.key && C.h === h && C.close === close && C.W === W && C.H === H && C.dpr === DPR && Math.abs(Math.log(view.s / C.s)) < 0.15
+    && Math.abs(view.cx - C.cx) + W / 2 / view.s <= cw / 2 / C.s && Math.abs(view.cy - C.cy) + H / 2 / view.s <= ch / 2 / C.s;
+  if (!fits) {
+    for (const cv of [C.cv, C.fw.cv]) { cv.width = cw * DPR; cv.height = ch * DPR; }
+    const keep = { W, H, cx: view.cx, cy: view.cy };
+    W = cw; H = ch; G = C.ctx; G.setTransform(DPR, 0, 0, DPR, 0, 0); G.clearRect(0, 0, cw, ch);
+    try { paintRealCourse(h, close, C.fw); } finally { G = ctx; W = keep.W; H = keep.H; }
+    Object.assign(C, { key: 1, h, close, W, H, dpr: DPR, s: view.s, cx: view.cx, cy: view.cy });
+  }
+  const k = view.s / C.s, dx = W / 2 - cw / 2 * k + (C.cx - view.cx) * view.s, dy = H / 2 - ch / 2 * k - (C.cy - view.cy) * view.s;
+  ctx.drawImage(C.cv, dx, dy, cw * k, ch * k);
+}
+function paintRealCourse(h, close, RF) {
+  const R = h.real, fill = (list, color, edge, lw = 1) => {
+    for (const sh of list) { if (!onScreen(sh.box)) continue; polyPath(sh.pts); G.fillStyle = color; G.fill(); if (edge) { G.lineWidth = lw; G.strokeStyle = edge; G.stroke(); } }
+  };
+  G.fillStyle = PAL.ob; G.fillRect(0, 0, W, H); // beyond the boundary
+  drawLandmarks(R); // under the course: inside the boundary the traced shapes win
+  const g = G.createLinearGradient(0, 0, W * 0.35, H);
+  g.addColorStop(0, PAL.g[0]); g.addColorStop(0.55, PAL.g[1]); g.addColorStop(1, PAL.g[2]);
+  polyPath(R.boundary.pts); G.fillStyle = g; G.fill();
+  G.save(); G.clip(); G.globalAlpha = 0.55; G.fillStyle = PAL.rough; G.fillRect(0, 0, W, H); G.restore();
+  G.save(); G.lineWidth = 1.4; G.strokeStyle = 'rgba(255,255,255,0.55)'; G.setLineDash([5, 4]); polyPath(R.boundary.pts); G.stroke(); G.restore();
+  // fairways, with mowing stripes across the hole, on their own layer so the stripes stay on them
+  RF.ctx.setTransform(DPR, 0, 0, DPR, 0, 0); RF.ctx.clearRect(0, 0, W, H);
+  for (const fw of R.fairways) { if (!onScreen(fw.box)) continue; polyPath(fw.pts, RF.ctx); RF.ctx.fillStyle = PAL.fw; RF.ctx.fill(); }
+  if (!close) {
+    RF.ctx.globalCompositeOperation = 'source-atop';
+    const a = fromScreen(0, 0), b = fromScreen(W, H), y0 = Math.floor(Math.min(a.y, b.y) / 12) * 12, y1 = Math.max(a.y, b.y);
+    for (let y = y0; y < y1; y += 12) {
+      const p = TS({ x: Math.min(a.x, b.x), y: y + 6 }), q = TS({ x: Math.max(a.x, b.x), y: y + 6 });
+      RF.ctx.beginPath(); RF.ctx.moveTo(p.x, p.y); RF.ctx.lineTo(q.x, q.y); RF.ctx.lineWidth = Math.max(1, 12 * view.s); RF.ctx.lineCap = 'butt';
+      const band = Math.round(y / 12) & 1;
+      RF.ctx.globalAlpha = band ? 0.32 : 0.24; RF.ctx.strokeStyle = band ? PAL.stripeA : PAL.stripeB; RF.ctx.stroke();
+    }
+    RF.ctx.globalAlpha = 1; RF.ctx.globalCompositeOperation = 'source-over';
+  }
+  G.save(); G.setTransform(1, 0, 0, 1, 0, 0); G.drawImage(RF.cv, 0, 0); G.restore();
+  G.lineWidth = Math.max(1, 0.8 * view.s); G.strokeStyle = PAL.fwEdge; // a crisp edge instead of a blurred shadow, which cost a frame
+  for (const fw of R.fairways) if (onScreen(fw.box)) { polyPath(fw.pts); G.stroke(); }
+  fill(R.tees, PAL.tee, PAL.fwEdge, 1);
+  fill(R.greens.filter(x => x !== R.ownGreen), PAL.green, PAL.greenEdge, 1.2); // the other holes' greens
+  for (const c of R.cart) strokePath(c, 1.1, PAL.cart, G);
+  fill(R.water, PAL.water, PAL.waterEdge, 1.6);
+  fill(R.bunkers, PAL.sand, PAL.sandEdge, 1.2);
+  fill(R.trees, PAL.canopy, PAL.canopy, Math.max(2.2, 1.6 * view.s)); // a dark floor under the crowns, stroked so the cuts between pieces close
+  drawCanopy(h);
+  for (const b of R.benches) {
+    const p = TS(b), w = Math.max(3, 2 * view.s), hh = Math.max(1.4, 0.7 * view.s);
+    G.fillStyle = PAL.bench; G.fillRect(p.x - w / 2, p.y - hh / 2, w, hh);
+  }
+}
+
+// Landmarks around the course: lakes as water, buildings as roofs with their names.
+function drawLandmarks(R) {
+  for (const l of R.landmarks || []) {
+    if (!onScreen(l.box)) continue;
+    if (l.pts.length > 2) {
+      polyPath(l.pts); G.fillStyle = l.kind === 'water' ? PAL.water : PAL.roof || '#C9B9A2'; G.fill();
+      G.lineWidth = 1.4; G.strokeStyle = l.kind === 'water' ? PAL.waterEdge : '#8F7F69'; G.stroke();
+    } else { const p = TS(l.pts[0]); G.beginPath(); G.arc(p.x, p.y, 5, 0, 6.284); G.fillStyle = PAL.roof || '#C9B9A2'; G.fill(); G.strokeStyle = '#8F7F69'; G.stroke(); }
+    if (view.s > 0.25) {
+      const c = TS({ x: (l.box[0] + l.box[2]) / 2, y: (l.box[1] + l.box[3]) / 2 });
+      G.save(); G.font = "600 11px 'Archivo', Arial, sans-serif"; G.textAlign = 'center'; G.textBaseline = 'middle';
+      G.lineWidth = 3; G.strokeStyle = 'rgba(255,255,255,0.85)'; G.strokeText(l.name, c.x, c.y); G.fillStyle = '#2C3D2F'; G.fillText(l.name, c.x, c.y); G.restore();
+    }
+  }
+}
+
+// Thousands of crowns per hole, so they go down in five batched fills: shadows, three shades, highlights.
+function drawCanopy(h) {
+  const shade = [new Path2D(), new Path2D(), new Path2D()], shadow = new Path2D(), lit = new Path2D(), blooms = (PAL.blooms || []).map(() => new Path2D());
+  for (const sh of canopyOf(h)) {
+    if (!onScreen(sh.box)) continue;
+    for (const t of sh.crowns) {
+      const p = TS(t), r = Math.max(0.9, t.r * view.s);
+      if (p.x < -20 || p.x > W + 20 || p.y < -20 || p.y > H + 20) continue;
+      if (t.bloom != null) { blooms[t.bloom].moveTo(p.x + r, p.y); blooms[t.bloom].arc(p.x, p.y, r, 0, 6.284); continue; }
+      const v = ((((t.x * 7349 + t.y * 9137) | 0) >>> 0) % 3);
+      shadow.moveTo(p.x + r * 0.38 + r * 1.05, p.y + r * 0.48); shadow.arc(p.x + r * 0.38, p.y + r * 0.48, r * 1.05, 0, 6.284);
+      shade[v].moveTo(p.x + r, p.y); shade[v].arc(p.x, p.y, r, 0, 6.284);
+      if (r > 1.8) { lit.moveTo(p.x - r * 0.28 + r * 0.6, p.y - r * 0.32); lit.arc(p.x - r * 0.28, p.y - r * 0.32, r * 0.6, 0, 6.284); }
+    }
+  }
+  G.fillStyle = 'rgba(40,60,44,0.26)'; G.fill(shadow);
+  shade.forEach((p, v) => { G.fillStyle = PAL.trees[v]; G.fill(p); });
+  G.fillStyle = PAL.lit; G.fill(lit);
+  blooms.forEach((p, k) => { G.fillStyle = PAL.blooms[k]; G.fill(p); });
+}
+
+// A tree: round crown in the woods and on the links, a dark conifer in the highlands.
+function drawTree(t, rad) {
+  const p = TS(t), r = Math.max(0.9, rad * view.s);
+  if (p.x < -20 || p.x > W + 20 || p.y < -20 || p.y > H + 20) return;
+  const v = ((((t.x * 7349 + t.y * 9137) | 0) >>> 0) % 3);
+  ctx.beginPath(); ctx.arc(p.x + r * 0.38, p.y + r * 0.48, r * 1.05, 0, 6.284); ctx.fillStyle = 'rgba(40,60,44,0.26)'; ctx.fill();
+  if (PAL.scene === 'highland') { // a star of needles seen from above
+    ctx.beginPath();
+    for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283 + v, rr = i % 2 ? r * 0.55 : r; ctx.lineTo(p.x + Math.cos(a) * rr, p.y + Math.sin(a) * rr); }
+    ctx.closePath(); ctx.fillStyle = PAL.trees[v]; ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x - r * 0.15, p.y - r * 0.18, r * 0.3, 0, 6.284); ctx.fillStyle = PAL.lit; ctx.fill();
+    return;
+  }
+  ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.284); ctx.fillStyle = PAL.trees[v]; ctx.fill();
+  if (r > 1.8) { ctx.beginPath(); ctx.arc(p.x - r * 0.28, p.y - r * 0.32, r * 0.6, 0, 6.284); ctx.fillStyle = PAL.lit; ctx.fill(); }
+}
+
+// The venue around the hole, decoration only, worked out once per hole from the seed: the sea
+// on the links and the fire coast, a river through the woods, and groves, scree or graves beyond.
+function sceneOf(h) {
+  if (h._scene) return h._scene;
+  const r = DH.rng(DH.hashStr(`scene|${st.seed}|${h.index}`)), sc = PAL.scene, L = h.total, side = h.waterSide || 1;
+  const out = { props: [], sea: null, river: null };
+  const along = (off, from = -260, to = L + 260) => { // a line beside the hole, carried past both ends
+    const pts = [], t0 = DH.tangentAt(h.path, 0), t1 = DH.tangentAt(h.path, L);
+    for (let s = from; s <= to; s += 12) {
+      const c = s < 0 ? add(h.path[0], t0, s) : s > L ? add(h.path[h.path.length - 1], t1, s - L) : DH.pointAt(h.path, s);
+      const n = DH.normalAt(h.path, Math.max(0, Math.min(L, s)));
+      pts.push(add(c, n, off * side));
+    }
+    return pts;
+  };
+  if (sc === 'links' || sc === 'volcanic') {
+    // Wide strokes laid parallel to the shore: unlike one big offset polygon they cannot fold
+    // over at a dogleg, and the corridor is drawn on top of whatever they overlap.
+    const off = h.deep + 24 + r() * 14;
+    out.sea = { shore: along(off), shallow: along(off + 18), bands: [155, 460, 765].map(k => along(off + k)) };
+  }
+  if (sc === 'woodland') out.river = along(h.deep + 34 + r() * 18, -120, L + 120);
+  for (let i = 0; i < 190; i++) {
+    const s = -60 + r() * (L + 120), sd = r() < 0.5 ? -1 : 1, off = h.deep + 4 + r() * 110;
+    const c = DH.pointAt(h.path, Math.max(0, Math.min(L, s))), p = add(c, DH.normalAt(h.path, Math.max(0, Math.min(L, s))), off * sd);
+    if (out.sea && sd === side && off > h.deep + 18) continue; // that side is the sea
+    if (DH.nearest(p, h.path).dist < h.deep + 3 || dist(p, h.green) < h.gr + 18) continue;
+    if (out.river && DH.nearest(p, out.river).dist < 12) continue;
+    const k = r(), kind = sc === 'highland' ? (k < 0.55 ? 'tree' : 'stone') : sc === 'volcanic' ? (k < 0.6 ? 'tree' : 'basalt')
+      : sc === 'links' ? (k < 0.55 ? 'tree' : 'dune') : PAL.haunted && k < 0.12 ? 'grave' : 'tree';
+    out.props.push({ ...p, r: kind === 'dune' ? 8 + r() * 10 : 2 + r() * 3.5, kind, rot: r() * 6.283 });
+  }
+  return (h._scene = out);
+}
+function drawSceneBack(h) {
+  const sc = sceneOf(h);
+  if (sc.sea) {
+    sc.sea.bands.forEach((line, i) => strokePath(line, 158, PAL.sea[Math.min(PAL.sea.length - 1, i + 1)]));
+    strokePath(sc.sea.shallow, 22, PAL.sea[0]);                                        // the shallows
+    strokePath(sc.sea.shore, 7, PAL.scene === 'volcanic' ? '#3A3632' : '#EADFB9');   // the beach
+    ctx.save(); ctx.globalAlpha = 0.7; strokePath(sc.sea.shore, 1.2, '#FFFFFF'); ctx.restore(); // the surf line
+  }
+  if (sc.river) { strokePath(sc.river, 9, PAL.waterEdge); strokePath(sc.river, 7.5, PAL.water); }
+}
+function drawProp(q) {
+  const p = TS(q);
+  if (p.x < -40 || p.x > W + 40 || p.y < -40 || p.y > H + 40) return;
+  const r = Math.max(1, q.r * view.s);
+  if (q.kind === 'tree') return drawTree(q, q.r);
+  ctx.save(); ctx.translate(p.x, p.y);
+  if (q.kind === 'stone' || q.kind === 'basalt') {
+    ctx.rotate(q.rot); ctx.beginPath();
+    for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283, rr = r * (0.75 + ((i * 37) % 10) / 30); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    ctx.closePath(); ctx.fillStyle = PAL.rock[1]; ctx.fill();
+    ctx.beginPath(); ctx.arc(-r * 0.2, -r * 0.25, r * 0.4, 0, 6.284); ctx.fillStyle = PAL.rock[0]; ctx.fill();
+  } else if (q.kind === 'dune') {
+    ctx.rotate(q.rot); ctx.globalAlpha = 0.22; ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.45, 0, 0, 6.284); ctx.fillStyle = '#D8C79C'; ctx.fill();
+  } else if (q.kind === 'grave') { // a headstone and its shadow
+    const w = Math.max(3, r * 0.9), hh = Math.max(4, r * 1.3);
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(-w / 2 + 2, -hh / 2 + 2, w, hh);
+    ctx.fillStyle = '#9AA3A8'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-w / 2, -hh / 2, w, hh, [w / 2, w / 2, 1, 1]) : ctx.rect(-w / 2, -hh / 2, w, hh); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// A closed outline round a centre, radius given per bearing (atan2(dy, dx), as the sim uses).
+function loopPath(c, rf, n = 90) {
+  ctx.beginPath();
+  for (let i = 0; i <= n; i++) {
+    const a = i / n * 2 * Math.PI, r = rf(a), p = TS({ x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r });
+    i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y);
+  }
+  ctx.closePath();
+}
+// A ragged outline from a shape's per-bearing radii (`edge`), in the shape's own rotation.
+function edgePath(q, rx, ry, grow = 1) {
+  const c = TS(q), n = q.edge.length;
+  ctx.beginPath();
+  for (let i = 0; i <= n; i++) {
+    const a = i / n * 6.283, e = q.edge[i % n] * grow, u = Math.cos(a) * rx * e, v = Math.sin(a) * ry * e;
+    const x = u * Math.cos(q.rot) - v * Math.sin(q.rot), y = u * Math.sin(q.rot) + v * Math.cos(q.rot); // world offset
+    i ? ctx.lineTo(c.x + x * view.s, c.y - y * view.s) : ctx.moveTo(c.x + x * view.s, c.y - y * view.s);
+  }
+  ctx.closePath();
+}
+// Fallen leaves: a russet drift with a few loose leaves on top.
+function drawLeafPile(q) {
+  ctx.save(); ctx.shadowColor = 'rgba(60,40,20,.3)'; ctx.shadowBlur = 5;
+  edgePath(q, q.rx, q.ry, 1.04); ctx.fillStyle = '#8E5A26'; ctx.fill(); ctx.restore();
+  edgePath(q, q.rx, q.ry); ctx.fillStyle = '#C47A2C'; ctx.fill();
+  for (let i = 0; i < 14; i++) {
+    const a = i * 2.4, k = 0.15 + ((i * 37) % 10) / 13, p = TS({ x: q.x + Math.cos(a) * q.rx * k * 0.8, y: q.y + Math.sin(a) * q.ry * k * 0.8 });
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, Math.max(1.2, 0.9 * view.s), Math.max(0.7, 0.5 * view.s), a, 0, 6.284);
+    ctx.fillStyle = ['#E3A13F', '#A84F1E', '#D9C25A'][i % 3]; ctx.fill();
+  }
+}
+// The kick rocks: granite with a snow-lit top, basalt with glowing seams, or a pumpkin.
+function drawRock(b, now) {
+  const c = TS(b), R = b.r * view.s;
+  ctx.beginPath(); ctx.arc(c.x + R * 0.18, c.y + R * 0.22, R * 1.02, 0, 6.284); ctx.fillStyle = 'rgba(20,28,24,.28)'; ctx.fill();
+  if (b.kind === 'pumpkin') {
+    for (let k = -2; k <= 2; k++) { // ribs, outermost first
+      ctx.beginPath(); ctx.ellipse(c.x + k * R * 0.32, c.y, R * (0.62 - Math.abs(k) * 0.06), R * 0.92, 0, 0, 6.284);
+      ctx.fillStyle = Math.abs(k) === 1 ? '#E07A1F' : '#F08C2A'; ctx.fill(); ctx.strokeStyle = '#A9521A'; ctx.lineWidth = 1; ctx.stroke();
+    }
+    ctx.fillStyle = '#3A2A12'; // the carved face, lit from inside
+    ctx.beginPath(); ctx.moveTo(c.x - R * 0.42, c.y - R * 0.2); ctx.lineTo(c.x - R * 0.16, c.y - R * 0.38); ctx.lineTo(c.x - R * 0.12, c.y - R * 0.1); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(c.x + R * 0.42, c.y - R * 0.2); ctx.lineTo(c.x + R * 0.16, c.y - R * 0.38); ctx.lineTo(c.x + R * 0.12, c.y - R * 0.1); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(c.x, c.y + R * 0.3, R * 0.42, R * 0.16, 0, 0, Math.PI); ctx.fill();
+    ctx.fillStyle = '#4F6B2A'; ctx.fillRect(c.x - R * 0.08, c.y - R * 1.08, R * 0.16, R * 0.28); // the stem
+    return;
+  }
+  const P = b.kind === 'lava' ? ['#414B48', '#2B3332', '#171C1E'] : ['#B5C1C6', '#7D8C93', '#4F5B66'];
+  edgePath(b, b.r, b.r); ctx.fillStyle = P[1]; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = P[2]; ctx.stroke();
+  edgePath({ ...b, x: b.x - b.r * 0.18, y: b.y + b.r * 0.2 }, b.r * 0.55, b.r * 0.5); ctx.fillStyle = P[0]; ctx.fill(); // the lit face
+  if (b.kind === 'lava') { // seams of heat through the block
+    ctx.save(); ctx.globalAlpha = 0.55 + 0.25 * Math.sin(now / 400 + b.x); ctx.strokeStyle = '#F06A2A'; ctx.lineWidth = Math.max(1, 0.35 * view.s);
+    ctx.beginPath(); ctx.moveTo(c.x - R * 0.5, c.y + R * 0.1); ctx.lineTo(c.x - R * 0.05, c.y - R * 0.1); ctx.lineTo(c.x + R * 0.45, c.y + R * 0.25); ctx.stroke(); ctx.restore();
+  } else { ctx.globalAlpha = 0.8; edgePath({ ...b, x: b.x - b.r * 0.25, y: b.y + b.r * 0.3 }, b.r * 0.3, b.r * 0.22); ctx.fillStyle = '#F2F6F7'; ctx.fill(); ctx.globalAlpha = 1; } // snow
+}
+// Molten lava: a crusted rim and a slowly pulsing glow.
+function drawLavaPool(w, now) {
+  ellipsePath(w, 1.2); ctx.fillStyle = '#2B2422'; ctx.fill();
+  const c = TS(w), g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, Math.max(w.rx, w.ry) * view.s);
+  const pulse = 0.5 + 0.5 * Math.sin(now / 700 + w.x);
+  g.addColorStop(0, '#FFD36A'); g.addColorStop(0.45 + pulse * 0.1, '#F06A2A'); g.addColorStop(1, '#A3261A');
+  ellipsePath(w); ctx.fillStyle = g; ctx.fill();
+}
+// The crossing: open sea, and islands with a rough rim and a mown middle.
+function drawCrossing(h) {
+  const g = ctx.createLinearGradient(0, 0, W * 0.4, H);
+  g.addColorStop(0, PAL.sea[0]); g.addColorStop(1, PAL.sea[PAL.sea.length - 1]);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  for (const is of h.arch.isles) {
+    const rf = k => a => DH.isleR(is, { x: is.x + Math.cos(a), y: is.y + Math.sin(a) }) * k;
+    ctx.save(); ctx.shadowColor = 'rgba(30,70,90,0.35)'; ctx.shadowBlur = 10;
+    loopPath(is, rf(1.06)); ctx.fillStyle = '#E8DDB8'; ctx.fill(); ctx.restore(); // a sandy shoreline
+    loopPath(is, rf(1)); ctx.fillStyle = PAL.rough; ctx.fill();
+    loopPath(is, rf(0.72)); ctx.fillStyle = PAL.fw; ctx.fill();
+  }
+}
+// The island green's lake, its uneven collar, and the drop zone on the near bank.
+function drawIslandLake(h) {
+  loopPath(h.green, a => DH.moatR(h, a) + 0.8); ctx.fillStyle = PAL.waterEdge; ctx.fill();
+  loopPath(h.green, a => DH.moatR(h, a)); ctx.fillStyle = PAL.water; ctx.fill();
+  loopPath(h.green, a => DH.shoreR(h, a)); ctx.fillStyle = PAL.fw; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = PAL.fwEdge; ctx.stroke();
+  const d = TS(h.drop);
+  ctx.beginPath(); ctx.arc(d.x, d.y, 6 * view.s, 0, 6.284); ctx.fillStyle = PAL.fw; ctx.fill();
+  ctx.save(); ctx.setLineDash([2, 3]); ctx.lineWidth = 1.2; ctx.strokeStyle = '#2C3D2F80'; ctx.stroke(); ctx.restore();
+  if (view.s > 0.8) label('DROP', { x: d.x, y: d.y + 6 * view.s + 9 }, '#2C3D2F90', 8);
+}
+// The burn: cut bank, wet margin, shallows, then the deep run down the middle.
+function drawBurn(h) {
+  const b = h.burn;
+  ctx.save(); ctx.globalAlpha = 0.28; strokePath(b.pts, b.w + 3.6, '#2E4A3A'); ctx.restore();
+  strokePath(b.pts, b.w + 2.3, '#8C7A55');
+  strokePath(b.pts, b.w + 1.0, '#B5D3C4');
+  strokePath(b.pts, b.w, PAL.water);
+  strokePath(b.pts, b.w * 0.74, '#7BB5D6');
+  ctx.save(); ctx.globalAlpha = 0.85; strokePath(b.pts, b.w * 0.40, '#5E9CC4'); ctx.restore();
+}
+// Poured concrete with expansion joints; where it crosses the burn it gets a deck of its own.
+function drawCart(h) {
+  ctx.save(); ctx.globalAlpha = 0.16; strokePath(h.cart, 6.2, '#243424'); ctx.restore();
+  strokePath(h.cart, 5.6, '#948E7F');
+  strokePath(h.cart, 5.2, '#CCC6B6');
+  ctx.save(); ctx.globalAlpha = 0.55; strokePath(h.cart, 3.4, '#DCD7C9'); ctx.restore();
+  if (view.s > 0.8) { ctx.save(); ctx.setLineDash([Math.max(1, 0.22 * view.s), 6 * view.s]); strokePath(h.cart, 5.2, 'rgba(80,74,62,.30)', ctx, 'butt'); ctx.restore(); }
+  const hit = DH.burnCartHit(h);
+  if (hit) {
+    const k = h.burn.w + 9, span = [add(hit.p, hit.d, -k), add(hit.p, hit.d, k)];
+    strokePath(span, 8.4, '#5E5648', ctx, 'butt'); strokePath(span, 7.8, '#8E8778', ctx, 'butt'); strokePath(span, 6.9, '#B4AD9E', ctx, 'butt');
+  }
+}
+// The bridge: a timber deck laid across the burn, planked, with a rail down each side.
+function drawBridge(b) {
+  const a = { x: -b.d.y, y: b.d.x }, corner = (i, j) => TS(add(add(b.c, b.d, i * b.half), a, j * b.span));
+  const poly = () => { ctx.beginPath(); [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([i, j], k) => { const p = corner(i, j); k ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.closePath(); };
+  ctx.save(); ctx.shadowColor = 'rgba(24,50,66,0.40)'; ctx.shadowBlur = 8; poly(); ctx.fillStyle = '#B48D5C'; ctx.fill(); ctx.restore();
+  ctx.save(); poly(); ctx.clip(); ctx.strokeStyle = 'rgba(90,62,34,.45)'; ctx.lineWidth = 1;
+  for (let t = -b.span; t <= b.span; t += 2.2) {
+    const p = TS(add(add(b.c, a, t), b.d, -b.half)), q = TS(add(add(b.c, a, t), b.d, b.half));
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.lineWidth = Math.max(1.5, 0.6 * view.s); ctx.strokeStyle = '#6E5236';
+  for (const i of [-1, 1]) { const p = corner(i, -1), q = corner(i, 1); ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke(); }
+}
+// The gust: a band of moving air across the hole, streaks drifting the way it blows.
+function drawGust(h, now) {
+  const g = h.gust, span = h.deep + 16, end = Math.min(h.total, g.along + g.width);
+  const a1 = DH.pointAt(h.path, g.along), n1 = DH.normalAt(h.path, g.along), a2 = DH.pointAt(h.path, end), n2 = DH.normalAt(h.path, end);
+  const q = [add(a1, n1, span), add(a1, n1, -span), add(a2, n2, -span), add(a2, n2, span)].map(TS);
+  ctx.save();
+  ctx.beginPath(); q.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath();
+  ctx.fillStyle = 'rgba(110,150,180,0.14)'; ctx.fill(); ctx.clip();
+  const d = dirOf(g.dir), pp = { x: d.y, y: -d.x }, mid = DH.pointAt(h.path, g.along + g.width / 2), t = now / 1000, gap = 34;
+  const shift = ((t * g.spd * 0.9) % gap + gap) % gap;
+  ctx.lineCap = 'round';
+  for (let k = -10; k <= 10; k++) {
+    const jit = (((k * 2654435761) >>> 0) % 1000) / 1000, lane = add(mid, pp, k * 9.5), len = 13 + jit * 17;
+    for (let j = -5; j <= 8; j++) {
+      const off = j * gap + shift - 110 + jit * gap, fade = 1 - Math.min(1, Math.pow(Math.abs(off + len / 2) / (span * 1.02), 2.2));
+      if (fade <= 0.02) continue;
+      const s0 = add(lane, d, off), p0 = TS(s0), p1 = TS(add(s0, d, len));
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
+      ctx.lineWidth = jit > 0.72 ? 1.8 : 1; ctx.strokeStyle = `rgba(110,150,180,${((0.16 + jit * 0.42) * fade).toFixed(3)})`; ctx.stroke();
+    }
+  }
+  ctx.restore();
+  if (view.s > 0.5) label(`GUST ${Math.round(g.spd)}`, TS(add(a1, n1, span * 0.62)), '#5E86A0A0', 9);
+}
+// The portal: a swirling well, a dotted run to where it lets you out, and the rippling exit.
+function drawPortal(q, now) {
+  const c = TS(q), R = q.r * view.s, m = TS(q.mark), t = now / 1000;
+  ctx.save();
+  ctx.setLineDash([1, 7]); ctx.lineCap = 'round'; ctx.lineWidth = 2.4; ctx.strokeStyle = 'rgba(110,80,190,.35)';
+  ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(m.x, m.y); ctx.stroke(); ctx.setLineDash([]);
+  const oR = Math.max(6, (q.onGreen ? 7 : 8.5) * view.s), fade = q.onGreen ? 0.5 : 1;
+  ctx.globalAlpha = fade;
+  const eg = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, oR);
+  eg.addColorStop(0, '#F3EEFF'); eg.addColorStop(0.6, '#CDBDF0'); eg.addColorStop(1, '#9B80DA');
+  ctx.beginPath(); ctx.arc(m.x, m.y, oR, 0, 6.284); ctx.fillStyle = eg; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = '#6A4BB8'; ctx.stroke();
+  for (let k = 0; k < 2; k++) {
+    const ph = (t * 0.5 + k * 0.5) % 1;
+    ctx.globalAlpha = fade * (1 - ph) * 0.6; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(m.x, m.y, oR * (1 + ph * 0.8), 0, 6.284); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  if (view.s > 0.7) label(q.onGreen ? 'TO THE PIN' : `+${q.gain} YDS`, { x: m.x, y: m.y + oR + 10 }, '#7B5BC4C0', 8);
+  ctx.beginPath(); ctx.arc(c.x + R * 0.1, c.y + R * 0.14, R * 1.06, 0, 6.284); ctx.fillStyle = 'rgba(20,50,46,.25)'; ctx.fill();
+  const wg = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, R);
+  wg.addColorStop(0, '#0E4E4A'); wg.addColorStop(0.55, '#2A9D90'); wg.addColorStop(0.92, '#8FDCD0'); wg.addColorStop(1, '#C9F0E8');
+  ctx.beginPath(); ctx.arc(c.x, c.y, R, 0, 6.284); ctx.fillStyle = wg; ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.arc(c.x, c.y, R, 0, 6.284); ctx.clip();
+  ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(220,255,248,.55)'; ctx.lineWidth = Math.max(1, R * 0.07);
+  for (let k = 0; k < 3; k++) { // three turning arms of the swirl
+    const a0 = t * 1.6 + k * 2.094;
+    ctx.beginPath();
+    for (let j = 0; j <= 14; j++) { const f = j / 14, a = a0 + f * 2.4, rr = R * (0.95 - 0.75 * f), x = c.x + Math.cos(a) * rr, y = c.y + Math.sin(a) * rr; j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.lineWidth = Math.max(2, R * 0.16); ctx.strokeStyle = '#5E726E'; ctx.beginPath(); ctx.arc(c.x, c.y, R, 0, 6.284); ctx.stroke();
+  if (view.s > 0.7) label('PORTAL', { x: c.x, y: c.y - R - 9 }, '#2E9B90C0', 8);
+  ctx.restore();
+}
+// The arm: its swept circle, the boom turning with a fading wake, weighted tips and a hub.
+function drawMill(m, now) {
+  const c = TS(m), R = m.r * view.s, a = DH.millAngle(m, now / 1000), sg = m.cw ? -1 : 1;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(c.x, c.y, R, 0, 6.284); ctx.fillStyle = 'rgba(178,58,30,.07)'; ctx.fill();
+  ctx.setLineDash([Math.max(3, 1.6 * view.s), Math.max(4, 2.2 * view.s)]); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(178,58,30,.45)'; ctx.stroke(); ctx.setLineDash([]);
+  for (const e of [0, Math.PI]) for (let k = 1; k <= 6; k++) {
+    const p0 = TS(add(m, dirOf(a + e - sg * (k - 1) * 0.1), m.r)), p1 = TS(add(m, dirOf(a + e - sg * k * 0.1), m.r));
+    ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.closePath();
+    ctx.fillStyle = `rgba(178,58,30,${(0.16 * (1 - k / 7)).toFixed(3)})`; ctx.fill();
+  }
+  const d = dirOf(a), p1 = TS(add(m, d, m.r)), p2 = TS(add(m, d, -m.r)), bw = Math.max(3.5, Math.min(8, 1.5 * view.s));
+  ctx.lineCap = 'round';
+  ctx.lineWidth = bw; ctx.strokeStyle = 'rgba(30,40,30,.28)'; ctx.beginPath(); ctx.moveTo(p1.x + 2, p1.y + 3); ctx.lineTo(p2.x + 2, p2.y + 3); ctx.stroke();
+  ctx.lineWidth = bw + 1.6; ctx.strokeStyle = '#6E2414'; ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+  ctx.lineWidth = bw; ctx.strokeStyle = '#F4EEE4'; ctx.stroke();
+  const seg = Math.max(5, Math.hypot(p1.x - p2.x, p1.y - p2.y) / 10);
+  ctx.setLineDash([seg, seg]); ctx.lineCap = 'butt'; ctx.strokeStyle = '#C8402A'; ctx.stroke(); ctx.setLineDash([]);
+  for (const q of [p1, p2]) { ctx.beginPath(); ctx.arc(q.x, q.y, bw * 0.62, 0, 6.284); ctx.fillStyle = '#3A3F44'; ctx.fill(); }
+  const hr = Math.max(4.5, 1.9 * view.s);
+  ctx.beginPath(); ctx.arc(c.x, c.y, hr, 0, 6.284); ctx.fillStyle = '#9AA19C'; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = '#4A3028'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(c.x, c.y, hr * 0.38, 0, 6.284); ctx.fillStyle = '#6E2414'; ctx.fill();
+  ctx.restore();
+}
+
+const greenHidden = h => h.hidden && dist(st.ball, h.green) > 150;
+function drawAimingPost(h) {
+  const p = TS(h.green);
+  ctx.save(); ctx.shadowColor = 'rgba(30,40,30,0.4)'; ctx.shadowBlur = 4;
+  ctx.fillStyle = '#fff'; ctx.fillRect(p.x - 2, p.y - 24, 4, 12); ctx.fillStyle = '#1B241D'; ctx.fillRect(p.x - 2, p.y - 12, 4, 12);
+  ctx.restore(); ctx.strokeStyle = '#1B241D'; ctx.lineWidth = 1; ctx.strokeRect(p.x - 2, p.y - 24, 4, 24);
+  if (view.s > 0.4) label('GREEN HIDDEN', { x: p.x, y: p.y + 10 }, '#1B241DB0', 9);
+}
+function drawGreenAndPin(h, now, close) {
+  if (greenHidden(h)) { // over the crest: no green, no flag, no rings, just the post to aim at
+    const t0 = TS(h.path[0]);
+    ctx.strokeStyle = '#2C3D2F99'; ctx.lineWidth = 1.4; ctx.strokeRect(t0.x - 4.5 * view.s, t0.y - 2.5 * view.s, 9 * view.s, 5 * view.s);
+    drawAimingPost(h); drawTrail();
+    return;
+  }
+  // yardage rings measured back from the pin
+  if (!close) {
+    ctx.save(); ctx.setLineDash([2, 9]); ctx.lineWidth = 1; ctx.strokeStyle = '#2C3D2F1C';
+    for (const r of [100, 150, 200]) {
+      if (r > h.len - 30) continue;
+      const c = TS(h.pin);
+      ctx.beginPath(); ctx.arc(c.x, c.y, r * view.s, 0, 6.284); ctx.stroke();
+      if (view.s > 0.55) label(String(r), TS(DH.pointAt(h.path, Math.max(0, h.total - r))), '#2C3D2F40', 9);
+    }
+    ctx.restore();
+  }
+
+  // the green, its collar, the putt rings and the fall line
+  const gc = TS(h.green), gR = h.gr * view.s, fall = dirOf(h.slopeDir);
+  const greenPath = () => { if (h.real) polyPath(h.real.ownGreen.pts); else { ctx.beginPath(); ctx.arc(gc.x, gc.y, gR, 0, 6.284); } };
+  ctx.save(); ctx.shadowColor = 'rgba(70,95,72,0.24)'; ctx.shadowBlur = Math.max(5, 9 * Math.min(view.s, 2));
+  if (h.real) { greenPath(); ctx.lineWidth = Math.max(4, 4.4 * view.s); ctx.lineJoin = 'round'; ctx.strokeStyle = PAL.collar; ctx.stroke(); ctx.fillStyle = PAL.collar; ctx.fill(); }
+  else { ctx.beginPath(); ctx.arc(gc.x, gc.y, gR + Math.max(2, 2.2 * view.s), 0, 6.284); ctx.fillStyle = PAL.collar; ctx.fill(); }
+  ctx.restore();
+  greenPath();
+  if (close) {
+    const hi = TS(add(h.green, fall, -h.gr)), lo = TS(add(h.green, fall, h.gr));
+    const gg = ctx.createLinearGradient(hi.x, hi.y, lo.x, lo.y);
+    gg.addColorStop(0, PAL.close[0]); gg.addColorStop(0.55, PAL.close[1]); gg.addColorStop(1, PAL.close[2]);
+    ctx.fillStyle = gg;
+  } else ctx.fillStyle = PAL.green;
+  ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = PAL.greenEdge; ctx.stroke();
+  ctx.save(); greenPath(); ctx.clip();
+  const rr = DH.puttRings(h), pc = TS(h.pin);
+  ctx.beginPath(); ctx.arc(pc.x, pc.y, rr.two * view.s, 0, 6.284); ctx.fillStyle = 'rgba(255,255,255,0.62)'; ctx.fill();
+  ctx.beginPath(); ctx.arc(pc.x, pc.y, rr.one * view.s, 0, 6.284); ctx.fillStyle = 'rgba(192,138,46,0.26)'; ctx.fill();
+  ctx.setLineDash([3, 3]); ctx.lineWidth = 1.6; ctx.strokeStyle = '#2C3D2FB0';
+  ctx.beginPath(); ctx.arc(pc.x, pc.y, rr.two * view.s, 0, 6.284); ctx.stroke();
+  ctx.setLineDash([]); ctx.lineWidth = 2.2; ctx.strokeStyle = '#A5701C';
+  ctx.beginPath(); ctx.arc(pc.x, pc.y, rr.one * view.s, 0, 6.284); ctx.stroke();
+  if (view.s > 1.5) { // number the rings along the roomiest line, towards the green's centre
+    let bx = h.green.x - h.pin.x, by = h.green.y - h.pin.y, L = Math.hypot(bx, by);
+    if (L < 0.4) { bx = 0; by = -1; } else { bx /= L; by /= L; }
+    const at = r => TS({ x: h.pin.x + bx * r, y: h.pin.y + by * r });
+    label('1', at(rr.one * 0.82), '#C08A2E', 11);
+    label('2', at((rr.one + rr.two) / 2), '#33463B', 11);
+    label('3', at((rr.two + h.gr) / 2), '#33463B85', 11);
+  }
+  ctx.restore();
+  if (view.s > 1.6) { // fall-line arrow, in pixels so it reads at any zoom
+    const anchor = close ? pc : gc, L = close ? 52 : Math.min(gR * 0.5, 20);
+    const a = close ? { x: anchor.x + fall.x * 14, y: anchor.y - fall.y * 14 } : { x: anchor.x - fall.x * L, y: anchor.y + fall.y * L };
+    const b = { x: anchor.x + fall.x * L, y: anchor.y - fall.y * L };
+    ctx.save(); ctx.strokeStyle = ctx.fillStyle = '#38663D'; ctx.lineWidth = close ? 2.8 : 1.8;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    const hd = close ? 9 : 6; ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.y - a.y, b.x - a.x));
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-hd, -hd * 0.58); ctx.lineTo(-hd, hd * 0.58); ctx.closePath(); ctx.fill(); ctx.restore();
+    if (close) label(`${(h.slopePct * 100).toFixed(1)}%`, { x: b.x + fall.x * 20, y: b.y - fall.y * 20 }, '#38663D', 10);
+  }
+
+  // tee box
+  const t0 = TS(h.path[0]);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(t0.x - 4.5 * view.s, t0.y - 2.5 * view.s, 9 * view.s, 5 * view.s);
+  ctx.strokeStyle = '#2C3D2F99'; ctx.lineWidth = 1.4; ctx.strokeRect(t0.x - 4.5 * view.s, t0.y - 2.5 * view.s, 9 * view.s, 5 * view.s);
+
+  if (h.mill) drawMill(h.mill, now);
+
+  drawTrail();
+  drawPin(h);
+}
+// shots already played this hole
+function drawTrail() {
+  ctx.save(); ctx.lineWidth = 1.6;
+  for (const seg of trail) {
+    const a = TS(seg.a), b = TS(seg.b);
+    ctx.setLineDash([3, 4]); ctx.strokeStyle = '#8E2E1699';
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.setLineDash([]); ctx.beginPath(); ctx.arc(b.x, b.y, 2.4, 0, 6.284); ctx.fillStyle = '#8E2E16B0'; ctx.fill();
+  }
+  ctx.restore();
+}
+
+// The light over the map: a soft vignette by day; at the Spooky Forest, dusk with a moon top right.
+function drawFrame() {
+  ctx.save();
+  if (PAL.haunted) {
+    const m = ctx.createRadialGradient(W * 0.86, -H * 0.04, 0, W * 0.86, -H * 0.04, Math.max(W, H) * 0.62);
+    m.addColorStop(0, 'rgba(226,222,196,0.16)'); m.addColorStop(1, 'rgba(226,222,196,0)');
+    ctx.fillStyle = m; ctx.fillRect(0, 0, W, H);
+  }
+  const v = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, PAL.haunted ? 'rgba(8,14,12,0.45)' : 'rgba(30,50,34,0.10)');
+  ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+function drawPin(h) {
+  const p = TS(h.pin), cup = Math.max(3.2, 0.36 * view.s * 1.6);
+  ctx.beginPath(); ctx.arc(p.x, p.y, cup * 1.25, 0, 6.284); ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fill();
+  ctx.beginPath(); ctx.arc(p.x, p.y, cup, 0, 6.284); ctx.fillStyle = '#1B241D'; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = '#2C3D2F'; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x, p.y - 19); ctx.lineWidth = 2; ctx.strokeStyle = '#22301F'; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(p.x, p.y - 19); ctx.lineTo(p.x + 12, p.y - 14.5); ctx.lineTo(p.x, p.y - 10); ctx.closePath();
+  ctx.save(); ctx.shadowColor = 'rgba(40,50,40,0.45)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2; ctx.fillStyle = '#C2401F'; ctx.fill(); ctx.restore();
+  ctx.lineWidth = 1; ctx.strokeStyle = '#8E2E16'; ctx.stroke();
+}
+
+// The sweeping line: the fan it sweeps across, the mark at the club's carry, and the needle.
+function drawAimFan(h) {
+  const c = club(), ball = st.ball, bp = TS(ball), fan = rad(c.fan), lm = LIE[st.lie] || LIE.fairway, reach = c.carry * lm.dist;
+  const at = (a, k = 1) => TS(add(ball, dirOf(a), reach * k));
+  ctx.save(); ctx.setLineDash([2, 4]); ctx.lineWidth = 1.2; ctx.strokeStyle = '#2C3D2F50';
+  for (const s of [-1, 1]) { const e = at(aimCenter + s * fan); ctx.beginPath(); ctx.moveTo(bp.x, bp.y); ctx.lineTo(e.x, e.y); ctx.stroke(); }
+  ctx.beginPath();
+  for (let i = 0; i <= 18; i++) { const p = at(aimCenter - fan + 2 * fan * i / 18); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }
+  ctx.strokeStyle = '#2C3D2F55'; ctx.stroke(); ctx.setLineDash([]);
+  for (let d = -Math.floor(c.fan / 3) * 3; d <= c.fan; d += 3) { // ticks every three degrees
+    const p1 = at(aimCenter + rad(d), 0.978), p2 = at(aimCenter + rad(d), 1.015);
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+    ctx.lineWidth = d === 0 ? 1.6 : 1.1; ctx.strokeStyle = d === 0 ? '#2C3D2FB0' : '#2C3D2F50'; ctx.stroke();
+  }
+  ctx.restore();
+  // crosshair on the line you picked, with its distance beside it
+  const ct = at(aimCenter);
+  ctx.save(); ctx.lineWidth = 1.8; ctx.strokeStyle = locked ? '#A5701C' : '#2C3D2F';
+  ctx.beginPath(); ctx.arc(ct.x, ct.y, 5, 0, 6.284); ctx.stroke();
+  ctx.beginPath();
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) { ctx.moveTo(ct.x + dx * 3, ct.y + dy * 3); ctx.lineTo(ct.x + dx * 10, ct.y + dy * 10); }
+  ctx.stroke();
+  const txt = Math.round(reach) + ' yds';
+  ctx.font = "500 10px 'DM Mono', ui-monospace, monospace";
+  const w = ctx.measureText(txt).width + 12, hh = 17, x = ct.x + w + 18 < W ? ct.x + 14 : ct.x - 14 - w, y = ct.y - hh - 6;
+  ctx.fillStyle = 'rgba(255,255,255,0.94)'; ctx.strokeStyle = 'rgba(44,61,47,0.18)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, hh, hh / 2) : ctx.rect(x, y, w, hh); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#2C3D2F'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, x + w / 2, y + hh / 2 + 0.5);
+  ctx.restore();
+  // the needle and the spread you can expect at its end
+  const tp = at(aimAngle);
+  ctx.save(); ctx.beginPath(); ctx.moveTo(bp.x, bp.y); ctx.lineTo(tp.x, tp.y);
+  ctx.lineWidth = locked ? 3 : 2.2; ctx.strokeStyle = locked ? '#B57D18' : '#B23A1E';
+  ctx.shadowColor = 'rgba(255,255,255,0.85)'; ctx.shadowBlur = 6; ctx.stroke(); ctx.restore();
+  const rx = Math.max(3, reach * Math.tan(rad(c.disp * lm.acc)) * view.s);
+  ctx.save(); ctx.translate(tp.x, tp.y); ctx.rotate(aimAngle);
+  ctx.beginPath(); ctx.ellipse(0, 0, rx, Math.max(3, rx * 0.55), 0, 0, 6.284);
+  ctx.setLineDash([2, 3]); ctx.lineWidth = 1.4; ctx.strokeStyle = locked ? '#A5701CA0' : '#B23A1E90'; ctx.stroke(); ctx.restore();
+}
+
+function drawBall(p, height = 0) {
+  const c = TS(p), r = Math.max(2.8, Math.min(6, 0.75 * view.s)) * (1 + height / 70);
+  ctx.beginPath(); ctx.ellipse(c.x + 1 + height * 0.25, c.y + 1.5, r * 1.05, r * 0.8, 0, 0, 6.284); ctx.fillStyle = 'rgba(30,50,34,0.28)'; ctx.fill();
+  ctx.beginPath(); ctx.arc(c.x, c.y - height, r, 0, 6.284); ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.lineWidth = 1; ctx.strokeStyle = '#2C3D2F'; ctx.stroke();
+}
+
+function drawFx(now) {
+  fx = fx.filter(f => now - f.t0 < f.dur);
+  for (const f of fx) {
+    const t = (now - f.t0) / f.dur, e = 1 - Math.pow(1 - t, 2.4), c = TS(f.p), R = Math.max(f.kind === 'land' ? 7 : 5, 3 * view.s);
+    ctx.save(); ctx.globalAlpha = (f.kind === 'land' ? 0.85 : 0.55) * (1 - t); ctx.lineWidth = 1.6; ctx.strokeStyle = f.color || '#3E5C3E';
+    ctx.beginPath(); ctx.arc(c.x, c.y, R * (0.35 + e * (f.kind === 'land' ? 1.9 : 1.5)), 0, 6.284); ctx.stroke(); ctx.restore();
+  }
+}
+
+function drawPuttCount(p, n) {
+  const c = TS(p), txt = `${n} PUTT${n > 1 ? 'S' : ''}`;
+  ctx.save(); ctx.font = "500 10px 'DM Mono', ui-monospace, monospace";
+  const w = ctx.measureText(txt).width + 14, hh = 18, x = c.x - w / 2, y = c.y - 34;
+  ctx.fillStyle = '#C08A2E'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, hh, hh / 2) : ctx.rect(x, y, w, hh); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, c.x, y + hh / 2 + 0.5); ctx.restore();
+}
+
+function alongTrace(tr, f) {
+  if (tr.length < 2) return tr[0];
+  let tot = 0; for (let i = 1; i < tr.length; i++) tot += dist(tr[i - 1], tr[i]);
+  let want = tot * Math.max(0, Math.min(1, f)), acc = 0;
+  for (let i = 1; i < tr.length; i++) {
+    const L = dist(tr[i - 1], tr[i]);
+    if (acc + L >= want) { const t = L > 0 ? (want - acc) / L : 0; return { x: tr[i - 1].x + (tr[i].x - tr[i - 1].x) * t, y: tr[i - 1].y + (tr[i].y - tr[i - 1].y) * t }; }
+    acc += L;
+  }
+  return tr[tr.length - 1];
+}
+
+// ── local life on a real course: scenery only, never in the way of a shot ──
+const wild = { nextBirds: 0, birds: null, fowl: null, nextCluck: 0 };
+function wildFor(h) {
+  wild.fowl = null;
+  if (!h.real) return;
+  if (!wild.nextBirds) wild.nextBirds = performance.now() + 8000 + Math.random() * 12000;
+  // one hole in three has guinea fowl crossing a fairway, well off the line of play
+  const r = DH.rng(DH.hashStr(`fowl|${todayKey()}|${h.index}`));
+  if (r() > 1 / 3) return;
+  const fws = h.real.fairways.filter(fw => fw.hole === h.index);
+  for (let t = 0; t < 40 && fws.length && !wild.fowl; t++) {
+    const fw = fws[(r() * fws.length) | 0], [x0, y0, x1, y1] = fw.box, p = { x: x0 + r() * (x1 - x0), y: y0 + r() * (y1 - y0) };
+    if (Math.abs(p.x) < 18 || p.y < 40 || p.y > h.total - 40 || !inStand(p, fw)) continue;
+    const n = 3 + ((r() * 4) | 0), dir = p.x > 0 ? 1 : -1, birds = [];
+    for (let i = 0; i < n; i++) birds.push({ dx: (r() - 0.5) * 5, dy: (r() - 0.5) * 4, ph: r() * 6 });
+    wild.fowl = { p, dir, birds, t0: performance.now() };
+  }
+  wild.nextCluck = performance.now() + 1500;
+}
+function drawFowl(now) {
+  const F = wild.fowl; if (!F) return;
+  const t = (now - F.t0) / 1000, x = F.p.x + F.dir * Math.min(t * 0.7, 26); // they amble outwards, away from play, then pick at the grass
+  for (const b of F.birds) {
+    const q = TS({ x: x + b.dx, y: F.p.y + b.dy + Math.sin(t * 1.3 + b.ph) * 0.6 }), r = Math.max(1.6, 0.75 * view.s);
+    ctx.beginPath(); ctx.ellipse(q.x, q.y, r * 1.3, r, 0, 0, 6.284); ctx.fillStyle = '#3B3F46'; ctx.fill();
+    ctx.beginPath(); ctx.arc(q.x + F.dir * r * 1.2, q.y - r * 0.5, r * 0.45, 0, 6.284); ctx.fillStyle = '#6FA1C9'; ctx.fill(); // the blue head
+    if (r > 2.5) { ctx.fillStyle = 'rgba(255,255,255,0.7)'; for (const [a, c] of [[-0.4, 0.2], [0.2, -0.3], [0.5, 0.3]]) { ctx.beginPath(); ctx.arc(q.x + a * r, q.y + c * r, r * 0.16, 0, 6.284); ctx.fill(); } }
+  }
+  if (now > wild.nextCluck) { Snd.cluck(); wild.nextCluck = now + 7000 + Math.random() * 6000; }
+}
+function drawBirds(now) {
+  if (!hole().real) return;
+  const flying = anim && anim.mode === 'shot';
+  if (!wild.birds && now > wild.nextBirds && !flying) {
+    const left = Math.random() < 0.5, n = 2 + ((Math.random() * 3) | 0), y = H * (0.15 + Math.random() * 0.5);
+    wild.birds = { t0: now, dur: 4000 + Math.random() * 2000, left, y, dy: (Math.random() - 0.5) * H * 0.25, flock: Array.from({ length: n }, (_, i) => ({ ox: -i * 26 - Math.random() * 10, oy: (Math.random() - 0.5) * 30, ph: Math.random() * 6 })) };
+    Snd.hadeda();
+  }
+  const B = wild.birds; if (!B) return;
+  const u = (now - B.t0) / B.dur;
+  if (u >= 1) { wild.birds = null; wild.nextBirds = now + 25000 + Math.random() * 35000; return; }
+  if (flying) return; // out of the way while the ball is in the air
+  ctx.save(); ctx.strokeStyle = 'rgba(52,48,44,0.85)'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+  for (const b of B.flock) {
+    const x = B.left ? -40 + u * (W + 120) + b.ox : W + 40 - u * (W + 120) - b.ox, y = B.y + B.dy * u + b.oy, flap = Math.sin(now / 90 + b.ph) * 5, s = B.left ? 1 : -1;
+    ctx.beginPath(); ctx.moveTo(x - 9, y - flap); ctx.quadraticCurveTo(x - 4, y - 2, x, y); ctx.quadraticCurveTo(x + 4, y - 2, x + 9, y - flap); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + s * 7, y + 2.5); ctx.stroke(); // the long curved bill
+  }
+  ctx.restore();
+}
+
+// ── main loop ──
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (!st || !W) return;
+  if (phase === 'aim' && !locked) aimAngle = DH.aimAt(aimCenter, club(), (now - tAim) / 1000);
+  if (phase === 'power') {
+    power = DH.powerAt(club(), (now - tPow) / 1000);
+    const end = ((now - tPow) / 1000 / (club().climb * 2)) % 1 < 0.5 ? 0 : 1; // rising or falling
+    if (tickEnd !== end) { if (tickEnd != null) Snd.tick(end === 0); tickEnd = end; }
+  } else tickEnd = null;
+  const pct = Math.max(0, Math.min(1, power / DH.METER_MAX)) * 100 + '%';
+  $('fill').style.width = pct; $('needle').style.left = pct;
+
+  // advance whatever is moving, and work out where the ball is drawn
+  let ballAt = st.ball, height = 0, puttLabel = null;
+  view.follow = null;
+  if (anim && anim.mode === 'shot') {
+    const a = anim, r = a.res, t = animClock(a, now);
+    if (t < a.dur) {
+      const u = t / a.dur, m = 1 - u;
+      ballAt = { x: m * m * r.from.x + 2 * m * u * a.ctrl.x + u * u * r.land.x, y: m * m * r.from.y + 2 * m * u * a.ctrl.y + u * u * r.land.y };
+      height = Math.sin(Math.PI * u) * a.apex * 46;
+      view.follow = ballAt; // the camera rides with the ball until it lands
+    } else if (t < a.dur + a.rollDur) {
+      if (!a.landed) {
+        const surf = DH.surfaceAt(hole(), r.land);
+        a.landed = true; fx.push({ kind: 'land', p: r.land, t0: now, dur: 620, color: FX_TINT[surf] }); Snd.land(surf);
+      }
+      ballAt = alongTrace(r.trace, 1 - Math.pow(1 - (t - a.dur) / a.rollDur, 2));
+    } else { settleShot(); ballAt = st.ball; }
+  } else if (anim && anim.mode === 'fling') {
+    const a = anim, u = Math.min(1, animClock(a, now) / a.dur);
+    ballAt = alongTrace(a.res.arm.trace, 1 - Math.pow(1 - u, 2)); height = Math.sin(Math.PI * Math.min(1, u * 1.6)) * 14;
+    if (u >= 1) { settleFling(); ballAt = st.ball; height = 0; }
+  } else if (anim && anim.mode === 'putts') {
+    const a = anim, leg = a.legs[a.k], t = animClock(a, now);
+    if (t < leg.dur) { const u = 1 - Math.pow(1 - t / leg.dur, 2); ballAt = { x: leg.a.x + (leg.b.x - leg.a.x) * u, y: leg.a.y + (leg.b.y - leg.a.y) * u }; }
+    else ballAt = leg.b;
+    puttLabel = { p: ballAt };
+    if (t >= leg.dur + 280) {
+      if (++a.k >= a.legs.length) { const n = a.n; anim = null; st.ball = { ...hole().pin }; finishHole(n); }
+      else { a.el = 0; Snd.putt(); }
+    }
+  }
+
+  if (phase === 'trapped' && !anim) { // wait for a blade to come round to the ball, then the blow
+    ballAt = trapped.arm.from;
+    if (DH.millBladeOver(hole(), ballAt, now / 1000)) { anim = { mode: 'fling', res: trapped, t0: now, dur: 660 }; phase = 'flight'; Snd.arm(); }
+  }
+
+  updateCamera(now);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const h = hole();
+  drawCourse(h, now);
+  if (h.real) drawFowl(now);
+  drawFrame();
+  if (phase === 'aim' || phase === 'power') drawAimFan(h);
+  drawFx(now);
+  const sunk = !anim && (phase === 'holeend' || phase === 'done') && dist(st.ball, h.pin) < 0.5;
+  if (!sunk) drawBall(ballAt, height);
+  if (puttLabel && anim) drawPuttCount(puttLabel.p, anim.n);
+  drawBirds(now);
+}
+
+// ── input: tap to aim, drag to pan, pinch or wheel to zoom ──
+const ptrs = new Map();
+let gesture = null;
+const pinchGap = () => { const [a, b] = [...ptrs.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+function goManual() { view.manual = true; $('recenter').hidden = false; }
+cvs.addEventListener('pointerdown', e => {
+  try { cvs.setPointerCapture(e.pointerId); } catch (err) {} // throws for a pointer the browser no longer tracks
+  ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+  if (ptrs.size === 1) gesture = { sx: e.offsetX, sy: e.offsetY, cx: view.cx, cy: view.cy, moved: false };
+  else if (ptrs.size === 2) gesture = { pinch: true, d0: pinchGap(), s0: view.s, moved: true };
+});
+cvs.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId) || !gesture) return;
+  ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+  if (gesture.pinch && ptrs.size === 2) { goManual(); view.ts = view.s = clampZoom(gesture.s0 * pinchGap() / gesture.d0); return; }
+  const dx = e.offsetX - gesture.sx, dy = e.offsetY - gesture.sy;
+  if (!gesture.moved && Math.hypot(dx, dy) > 6) gesture.moved = true;
+  if (gesture.moved) { goManual(); view.tx = view.cx = gesture.cx - dx / view.s; view.ty = view.cy = gesture.cy + dy / view.s; }
+});
+const endPtr = e => {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId);
+  if (gesture && !gesture.moved && ptrs.size === 0 && e.type === 'pointerup') tapAt(e.offsetX, e.offsetY);
+  if (ptrs.size === 0) gesture = null;
+};
+cvs.addEventListener('pointerup', endPtr);
+cvs.addEventListener('pointercancel', endPtr);
+cvs.addEventListener('wheel', e => {
+  e.preventDefault(); goManual();
+  const before = fromScreen(e.offsetX, e.offsetY);
+  view.s = view.ts = clampZoom(view.s * Math.exp(-e.deltaY * 0.0015));
+  const after = fromScreen(e.offsetX, e.offsetY); // zoom around the cursor
+  view.cx = view.tx = view.cx + before.x - after.x; view.cy = view.ty = view.cy + before.y - after.y;
+}, { passive: false });
+function tapAt(x, y) {
+  if (view.fly) { view.fly = null; return; } // a tap skips the view
+  if (phase === 'aim' && !locked) {
+    const p = fromScreen(x, y);
+    if (dist(p, st.ball) < 1) return;
+    aimCenter = Math.atan2(p.x - st.ball.x, p.y - st.ball.y); manualAim = true; tAim = performance.now();
+  } else if (phase === 'power') fireShot();
+  else if (phase === 'holeend') nextHoleUI();
+}
+
+$('act').addEventListener('click', act);
+$('turnGo').addEventListener('click', leaveTurn);
+$('clubRail').addEventListener('click', e => { const b = e.target.closest('button'); if (b) pickClub(+b.dataset.i); });
+$('recenter').addEventListener('click', () => { view.manual = false; $('recenter').hidden = true; });
+const showSound = () => { $('soundBtn').classList.toggle('muted', !Snd.on); $('soundBtn').setAttribute('aria-pressed', Snd.on); };
+$('soundBtn').addEventListener('click', () => { Snd.toggle(); showSound(); });
+showSound();
+addEventListener('pointerdown', () => Snd.wake(), { once: true }); // browsers only allow audio after a tap
+$('helpBtn').addEventListener('click', () => { $('menu').hidden = true; $('help').hidden = !$('help').hidden; });
+$('helpClose').addEventListener('click', () => { $('help').hidden = true; });
+$('menuBtn').addEventListener('click', () => { $('help').hidden = true; $('menu').hidden = !$('menu').hidden; });
+$('mClose').addEventListener('click', () => { $('menu').hidden = true; });
+$('mRestart').addEventListener('click', () => { $('menu').hidden = true; startRound(); });
+$('mToday').addEventListener('click', () => { $('menu').hidden = true; startRound(todayKey()); });
+$('mNew').addEventListener('click', () => { $('menu').hidden = true; startRound(Math.random().toString(36).slice(2, 8)); });
+$('againBtn').addEventListener('click', () => startRound());
+$('newBtn').addEventListener('click', () => startRound(Math.random().toString(36).slice(2, 8)));
+$('homeBtn').addEventListener('click', () => { try { window.top.location.href = '/'; } catch (e) { location.href = '/'; } });
+addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('button') && (e.key === ' ' || e.key === 'Enter')) return; // let buttons click themselves
+  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); act(); }
+  else if (e.key >= '1' && e.key <= '9') pickClub(+e.key - 1);
+});
+addEventListener('resize', resize);
+
+resize();
+if (REAL) {
+  for (const id of ['mToday', 'mNew', 'newBtn']) $(id).hidden = true;
+  fetch(`courses/${REAL.id}/${REAL.id}.json`).then(r => r.json()).then(d => { REAL.data = d; startRound(); })
+    .catch(() => { $('courseName').textContent = 'Could not load the course. Reload to try again.'; });
+} else startRound();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

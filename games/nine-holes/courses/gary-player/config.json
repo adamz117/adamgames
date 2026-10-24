@@ -1,0 +1,186 @@
+{
+ "id": "gary-player",
+ "name": "Gary Player Country Club",
+ "place": "Sun City, North West",
+ "osmWay": 1516928087,
+ "golfpassId": 18021,
+ "tees": "burgundy",
+ "scorecard": [
+  {
+   "n": 1,
+   "par": 4,
+   "si": 7,
+   "yds": 441
+  },
+  {
+   "n": 2,
+   "par": 5,
+   "si": 13,
+   "yds": 569
+  },
+  {
+   "n": 3,
+   "par": 4,
+   "si": 3,
+   "yds": 449
+  },
+  {
+   "n": 4,
+   "par": 3,
+   "si": 9,
+   "yds": 213
+  },
+  {
+   "n": 5,
+   "par": 4,
+   "si": 11,
+   "yds": 491
+  },
+  {
+   "n": 6,
+   "par": 4,
+   "si": 15,
+   "yds": 424
+  },
+  {
+   "n": 7,
+   "par": 3,
+   "si": 17,
+   "yds": 225
+  },
+  {
+   "n": 8,
+   "par": 4,
+   "si": 1,
+   "yds": 492
+  },
+  {
+   "n": 9,
+   "par": 5,
+   "si": 5,
+   "yds": 596
+  },
+  {
+   "n": 10,
+   "par": 5,
+   "si": 16,
+   "yds": 547
+  },
+  {
+   "n": 11,
+   "par": 4,
+   "si": 10,
+   "yds": 458
+  },
+  {
+   "n": 12,
+   "par": 3,
+   "si": 14,
+   "yds": 219
+  },
+  {
+   "n": 13,
+   "par": 4,
+   "si": 2,
+   "yds": 444
+  },
+  {
+   "n": 14,
+   "par": 5,
+   "si": 12,
+   "yds": 601
+  },
+  {
+   "n": 15,
+   "par": 4,
+   "si": 6,
+   "yds": 471
+  },
+  {
+   "n": 16,
+   "par": 3,
+   "si": 18,
+   "yds": 211
+  },
+  {
+   "n": 17,
+   "par": 4,
+   "si": 8,
+   "yds": 478
+  },
+  {
+   "n": 18,
+   "par": 4,
+   "si": 4,
+   "yds": 502
+  }
+ ],
+ "notes": {
+  "2": "dogleg; water to carry on the lay-up",
+  "9": "signature par 5: water in front of the green",
+  "10": "dogleg par 5 out from the clubhouse",
+  "17": "approach to a green in the Sun City lake, deep bunker right",
+  "18": "90-degree dogleg left, water in play"
+ },
+ "hidden": [],
+ "signature": [
+  9,
+  17
+ ],
+ "turnAfter": 9,
+ "terrain": {},
+ "ponds": [
+  [
+   721,
+   821
+  ],
+  [
+   767,
+   360
+  ],
+  [
+   175,
+   1460
+  ],
+  [
+   375,
+   1550
+  ]
+ ],
+ "landmarks": [
+  {
+   "osm": "way/858628908",
+   "name": "Sun City lake",
+   "kind": "water"
+  },
+  {
+   "osm": "way/371854070",
+   "name": "The Palace of the Lost City",
+   "kind": "building"
+  },
+  {
+   "osm": "way/315243546",
+   "name": "Sun City Hotel",
+   "kind": "building"
+  },
+  {
+   "osm": "way/315240739",
+   "name": "Welcome Centre",
+   "kind": "building"
+  },
+  {
+   "osm": "node/5316432914",
+   "name": "Cascades Hotel",
+   "kind": "building"
+  }
+ ],
+ "thresholds": {
+  "sand": {
+   "minL": 120
+  },
+  "mown": {
+   "minL7": 85,
+   "gOverR": 15
+  }
+ }
+}
