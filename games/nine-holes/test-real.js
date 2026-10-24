@@ -225,6 +225,7 @@ for (const n of [3, 18]) {
   const h8 = pb.holes[7], chasm = [];
   for (let t = 0.5; t <= 0.9; t += 0.01) chasm.push(DH.surfaceAt(h8, DH.pointAt(h8.path, h8.total * t)));
   assert.ok(chasm.includes('water'), 'the 8th carries the chasm');
+  assert.ok(!chasm.slice(chasm.indexOf('water')).includes('fairway'), 'no fairway beyond the chasm on the 8th, only water to the green');
   const h7 = pb.holes[6], sea = h7.real.lakes[0];
   assert.equal(DH.surfaceAt(h7, { x: (sea.box[0] + sea.box[2]) / 2, y: (sea.box[1] + sea.box[3]) / 2 }), 'water', 'the Pacific is water, not OB');
 }
