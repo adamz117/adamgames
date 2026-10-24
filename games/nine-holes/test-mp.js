@@ -14,7 +14,7 @@ function swingFor(st, n) {
 function playLive(st, slot = 0, n0 = 0) {
   const log = [];
   for (let n = n0; !st.done; n++) {
-    const s = swingFor(st, n), entry = { slot, hole: st.holeIdx, shot: st.shotIdx, club: s.club, aim: s.aim, v: s.v };
+    const s = swingFor(st, n), entry = { slot, hole: st.holeIdx, shot: st.shotIdx, club: s.club, aim: s.aim, v: s.v, lie: st.lie };
     const res = DH.play(st, s.aim, s.club, s.v);
     log.push(entry);
     if (res.score != null) DH.nextHole(st);
@@ -92,6 +92,17 @@ const LOG = [...playLive(live[0], 0, 0), ...playLive(live[1], 1, 2)];
   const extra = { slot: 1, hole: 9, shot: 0, club: 0, aim: 0, v: 0.5 };
   assert.ok(DH.replayGame(SPEC, null, PLAYERS, [...LOG, extra]).error);
   assert.equal(DH.replayGame(SPEC, null, PLAYERS, []).error, null);
+  // Illegal swings: power off the meter, or a club the lie doesn't allow
+  for (const v of [-0.01, DH.METER_MAX + 0.01]) {
+    const r = DH.replayGame(SPEC, null, PLAYERS, LOG.map(e => e === at ? { ...e, v } : e));
+    assert.ok(/bad swing/.test(r.error), r.error);
+    assert.deepEqual([r.states[0].holeIdx, r.states[0].shotIdx], [at.hole, at.shot]);
+  }
+  const upTo = LOG.slice(0, LOG.indexOf(at)); // slot 0's swings come first in LOG
+  assert.equal(DH.replayGame(SPEC, null, PLAYERS, [...upTo, { ...at, v: DH.METER_MAX }]).error, null);
+  const tight = LOG.find(e => !DH.clubAllowed(DH.CLUBS[0], e.lie));
+  assert.ok(tight, 'the log has a shot from a lie that bars the driver');
+  assert.ok(/bad swing/.test(DH.replayGame(SPEC, null, PLAYERS, LOG.map(e => e === tight ? { ...e, club: 0 } : e)).error));
 }
 
 // matchState
@@ -107,6 +118,9 @@ const P9 = [4, 4, 3, 4, 5, 4, 3, 4, 5], P18 = [...P9, ...P9];
   assert.equal(DH.matchState(P9, [[4], [3]]).leader, 1);
   // B has played a hole A hasn't: ignored
   assert.equal(DH.matchState(P9, [[4, 4], [4, 4, 3]]).label, 'All square');
+  // Stops at the first hole not scored by both
+  const gap = DH.matchState(P9, [[4, null, 3], [5, 4, 4]]);
+  assert.deepEqual([gap.label, gap.holes[2]], ['1 up', null]);
 }
 {
   // 18 holes, A 3 up with 2 to play
@@ -133,6 +147,7 @@ const P9 = [4, 4, 3, 4, 5, 4, 3, 4, 5], P18 = [...P9, ...P9];
 // strokeResult
 assert.deepEqual(DH.strokeResult(P9.slice(0, 3), [[4, 5, 3], [4, 4, 3]]), { totals: [12, 11], winner: 1 });
 assert.deepEqual(DH.strokeResult(P9.slice(0, 2), [[4, 5], [5, 4]]), { totals: [9, 9], winner: null });
+assert.deepEqual(DH.strokeResult(P9.slice(0, 2), [[4, 5], [4]]), { totals: [9, 4], winner: null }); // partial card
 
 // nextToPlay
 {
@@ -152,6 +167,11 @@ assert.deepEqual(DH.strokeResult(P9.slice(0, 2), [[4, 5], [5, 4]]), { totals: [9
   assert.equal(DH.nextToPlay([holed, at(30)], 0), 1);
   const done = at(300); done.done = true;
   assert.equal(DH.nextToPlay([done, at(30)], 0), 1);
+  // Scored but not yet moved on (the UI calls nextHole later) is skipped too
+  const scored = at(300); scored.scores[0] = 4;
+  assert.equal(DH.nextToPlay([scored, at(30)], 0), 1);
+  assert.equal(DH.nextToPlay([scored, holed], 0), 1);
+  assert.equal(DH.nextToPlay([scored, done], 0), -1);
 }
 
 // timeoutSwing

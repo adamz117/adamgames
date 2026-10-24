@@ -916,18 +916,20 @@ function timeoutSwing(h, ball, lie) {
   return { club, aim: q4(aimTarget(h, ball, lie, CLUBS[club])), v: 0.55 };
 }
 const total = s => s.reduce((a, x) => a + (x || 0), 0);
+// No winner until every card is complete.
 function strokeResult(pars, scores) {
   const totals = scores.map(s => total(s.slice(0, pars.length))), best = Math.min(...totals);
-  return { totals, winner: totals.filter(t => t === best).length === 1 ? totals.indexOf(best) : null };
+  const full = scores.every(s => pars.every((_, i) => s[i] != null));
+  return { totals, winner: full && totals.filter(t => t === best).length === 1 ? totals.indexOf(best) : null };
 }
-// Two players. Only holes both have scored count; holes after the match is decided don't change it.
+// Two players. Counts holes in order up to the first one not scored by both; holes after the match is decided don't change it.
 // up is the leader's margin (always >= 0).
 function matchState(pars, scores) {
   const n = pars.length, holes = new Array(n).fill(null);
   let margin = 0, played = 0, decided = false;
   for (let i = 0; i < n && !decided; i++) {
     const a = scores[0][i], b = scores[1][i];
-    if (a == null || b == null) continue;
+    if (a == null || b == null) break;
     holes[i] = a < b ? 0 : b < a ? 1 : null;
     margin += a < b ? 1 : b < a ? -1 : 0;
     played = i + 1;
@@ -939,9 +941,10 @@ function matchState(pars, scores) {
   return { holes, up, leader, decided, winner: decided ? leader : null, label };
 }
 // Take-turns order. A player who holes out has already moved to the next tee, so the current hole is
-// the lowest one anyone still on the course is playing; anyone past it (or done) is skipped.
+// the lowest one anyone still on the course is playing; anyone past it, done, or whose hole is
+// scored but not yet moved on from (the UI calls nextHole later) is skipped.
 function nextToPlay(states, honour) {
-  const live = states.map((s, i) => i).filter(i => !states[i].done);
+  const live = states.map((s, i) => i).filter(i => !states[i].done && states[i].scores[states[i].holeIdx] == null);
   if (!live.length) return -1;
   const cur = Math.min(...live.map(i => states[i].holeIdx)), on = live.filter(i => states[i].holeIdx === cur);
   if (on.every(i => states[i].shotIdx === 0)) return on.includes(honour) ? honour : on[0];
@@ -966,7 +969,7 @@ function replayGame(spec, realData, players, log) {
       if (st.done) { fail(`swing after the round: ${at}`); break; }
       if (e.hole < st.holeIdx || (e.hole === st.holeIdx && e.shot < st.shotIdx)) { fail(`duplicate ${at}`); break; }
       if (e.hole !== st.holeIdx || e.shot !== st.shotIdx) { fail(`missing shot before ${at}`); break; }
-      if (!CLUBS[e.club] || !Number.isFinite(e.aim) || !Number.isFinite(e.v)) { fail(`bad swing ${at}`); break; }
+      if (!CLUBS[e.club] || !clubAllowed(CLUBS[e.club], st.lie) || !Number.isFinite(e.aim) || !Number.isFinite(e.v) || e.v < 0 || e.v > METER_MAX) { fail(`bad swing ${at}`); break; }
       if (play(st, e.aim, e.club, e.v).score != null) nextHole(st);
     }
   });
