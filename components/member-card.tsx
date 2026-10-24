@@ -5,12 +5,15 @@ import { useSyncExternalStore } from 'react';
 import {
   currentStreak, formatHandicap, formatToPar, HANDICAP_BEST, HANDICAP_MIN, type NineHolesStats,
 } from '@/lib/nine-holes-stats';
+import { formatRecord, gamesPlayed, type MpRecord } from '@/lib/mp/records';
 
 // The visitor's date, read on the client only: the server cannot know their time zone.
 const today = () => new Date().toLocaleDateString('en-CA');
 const noSubscribe = () => () => {};
 
-export default function MemberCard({ name, stats, showLink }: { name: string; stats: NineHolesStats; showLink?: boolean }) {
+export default function MemberCard({ name, stats, showLink, record }: {
+  name: string; stats: NineHolesStats; showLink?: boolean; record?: MpRecord | null;
+}) {
   const day = useSyncExternalStore(noSubscribe, today, () => null);
   const streak = day ? currentStreak(stats, day) : stats.streak;
   const daily = stats.history.length;
@@ -28,6 +31,10 @@ export default function MemberCard({ name, stats, showLink }: { name: string; st
         <div>
           <p className="club-card-name">{name}</p>
           <p className="club-card-note">{note}</p>
+          {/* Only once there is a 1v1 game to show. */}
+          {record && gamesPlayed(record) > 0 && (
+            <p className="club-card-note club-figure">1v1&ensp;<span style={{ color: 'var(--text)' }}>{formatRecord(record)}</span></p>
+          )}
           {showLink && <p style={{ margin: '16px 0 0' }}><Link href="/account" className="club-link">Your card</Link></p>}
         </div>
         <div className="club-stats">

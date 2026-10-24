@@ -4,10 +4,12 @@ import MemberCard from '@/components/member-card';
 import { getProfileServer } from '@/lib/profile';
 import { getGameStatsServer } from '@/lib/game-stats';
 import { HANDICAP_MIN, readStats } from '@/lib/nine-holes-stats';
+import { getMyResultsServer } from '@/lib/mp/records-server';
+import { readRecord } from '@/lib/mp/records';
 
 // Three things only: today's nine, your card (or signing up for one), and the real courses.
 export default async function HomePage() {
-  const [profile, raw] = await Promise.all([getProfileServer(), getGameStatsServer('nine-holes')]);
+  const [profile, raw, results] = await Promise.all([getProfileServer(), getGameStatsServer('nine-holes'), getMyResultsServer()]);
   const stats = readStats(raw);
 
   return (
@@ -17,7 +19,7 @@ export default async function HomePage() {
 
       <section className="club-wrap club-section" aria-label="Your member card">
         {profile ? (
-          <MemberCard name={profile.username} stats={stats} showLink />
+          <MemberCard name={profile.username} stats={stats} record={readRecord(results)} showLink />
         ) : (
           <div className="club-card">
             <div className="club-card-core">
