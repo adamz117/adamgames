@@ -17,6 +17,33 @@ begin
 end;
 $$;
 
+-- ── Guests can't write to the older tables ──
+-- Anonymous users have the `authenticated` role, so the 0001–0003 policies would let them write
+-- profiles, game stats, real-course rounds and assassins requests. These restrictive policies
+-- apply on top of those and leave signed-in members as they were.
+drop policy if exists "profiles insert: members only" on public.profiles;
+create policy "profiles insert: members only" on public.profiles
+  as restrictive for insert to authenticated
+  with check (coalesce((select (auth.jwt() ->> 'is_anonymous')::boolean), false) = false);
+drop policy if exists "profiles update: members only" on public.profiles;
+create policy "profiles update: members only" on public.profiles
+  as restrictive for update to authenticated
+  using (coalesce((select (auth.jwt() ->> 'is_anonymous')::boolean), false) = false)
+  with check (coalesce((select (auth.jwt() ->> 'is_anonymous')::boolean), false) = false);
+drop policy if exists "game_stats: members only" on public.game_stats;
+create policy "game_stats: members only" on public.game_stats
+  as restrictive for all to authenticated
+  using (coalesce((select (auth.jwt() ->> 'is_anonymous')::boolean), false) = false)
+  with check (coalesce((select (auth.jwt() ->> 'is_anonymous')::boolean), false) = false);
+drop policy if exists "course_rounds insert: members only" on public.course_rounds;
+create policy "course_rounds insert: members only" on public.course_rounds
+  as restrictive for insert to authenticated
+  with check (coalesce((select (auth.jwt() ->> 'is_anonymous')::boolean), false) = false);
+drop policy if exists "assassins_access insert: members only" on public.assassins_access;
+create policy "assassins_access insert: members only" on public.assassins_access
+  as restrictive for insert to authenticated
+  with check (coalesce((select (auth.jwt() ->> 'is_anonymous')::boolean), false) = false);
+
 -- ── Tables ──
 create table if not exists public.lobbies (
   id uuid primary key default gen_random_uuid(),
@@ -49,10 +76,11 @@ create table if not exists public.lobby_players (
 );
 create index if not exists lobby_players_user on public.lobby_players (user_id, joined_at desc);
 
--- The swing log of the lobby's current game (cleared on a rematch). The primary key covers
--- lookups by lobby_id, so it needs no index of its own.
+-- The swing log, per game of the lobby (cleared on a rematch). The primary key covers lookups by
+-- lobby_id, so it needs no index of its own.
 create table if not exists public.swings (
   lobby_id uuid not null references public.lobbies(id) on delete cascade,
+  game int not null,
   slot int not null check (slot between 0 and 3),
   hole int not null check (hole between 0 and 17),
   shot int not null check (shot between 0 and 29),
@@ -61,7 +89,7 @@ create table if not exists public.swings (
   v double precision not null check (v between 0 and 1.15),
   timeout boolean not null default false,
   created_at timestamptz not null default now(),
-  primary key (lobby_id, slot, hole, shot)
+  primary key (lobby_id, game, slot, hole, shot)
 );
 
 -- One row per signed-in player per finished game. No foreign key to lobbies, so records outlive
@@ -105,7 +133,7 @@ create index if not exists invites_to on public.invites (to_id, created_at desc)
 
 -- ── Helpers ──
 -- A slot counts as taken while its player hasn't left and has been seen in the last 60 s (the
--- room heartbeats every 15 s). The host's slot 0 always counts.
+-- room calls touch_lobby every 15 s). The host's slot 0 always counts.
 
 -- Lobbies hold 2 players for now. Read settings.maxPlayers (capped at 4) once the game supports more.
 create or replace function public.lobby_capacity(p_settings jsonb)
@@ -128,13 +156,24 @@ returns int language sql stable security definer set search_path = public as $$
     and (slot = 0 or last_seen > now() - interval '60 seconds');
 $$;
 
+-- The host may start once 2 players are present and every present non-host player is ready.
+create or replace function public.lobby_can_start(p_lobby uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.lobby_active_count(p_lobby) >= 2
+     and not exists (
+       select 1 from public.lobby_players
+       where lobby_id = p_lobby and slot <> 0 and not ready and left_at is null
+         and last_seen > now() - interval '60 seconds'
+     );
+$$;
+
 -- Same rules as the client's cleanName: control/invisible characters and <> removed, trimmed, 2–20 chars.
 create or replace function public.clean_name(p_name text)
 returns text language sql immutable set search_path = public as $$
   select case when char_length(n) between 2 and 20 then n end
   from (
     select btrim(regexp_replace(coalesce(p_name, ''),
-      '[\u0001-\u001f\u007f-\u009f<>​-‏ -‮⁠-⁯﻿]', '', 'g')) as n
+      '[\u0001-\u001f\u007f-\u009f<>\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]', '', 'g')) as n
   ) x;
 $$;
 
@@ -267,6 +306,16 @@ begin
 end;
 $$;
 
+-- The heartbeat (every 15 s while the room or game is open), and leaving with p_leave. Both are
+-- set by the server, on the caller's own row only; only join_lobby (while open) clears left_at.
+create or replace function public.touch_lobby(p_lobby uuid, p_leave boolean default false)
+returns void language sql security definer set search_path = public as $$
+  update public.lobby_players
+  set last_seen = now(),
+      left_at = case when p_leave then coalesce(left_at, now()) else left_at end
+  where lobby_id = p_lobby and user_id = auth.uid();
+$$;
+
 -- The lobby behind a link or code, private or public, with its players. Null when there is none.
 create or replace function public.lobby_by_code(p_code text)
 returns jsonb language sql stable security definer set search_path = public as $$
@@ -334,12 +383,14 @@ begin
 end;
 $$;
 
--- Called by the finish route (service role) after it has replayed the swing log. Writes the
--- results of the lobby's current game and marks it finished, once: on a second call (or a lobby
--- already finished) it writes nothing and returns the stored rows. Rows for guests, players who
--- aren't in the lobby, or without a user_id, are skipped.
+-- Called by the finish route (service role) after it has replayed game p_game's swing log. While
+-- that game is the lobby's current one and in play, it writes the results and marks the lobby
+-- finished. Otherwise (a second call, a retry, a game already over) it writes nothing. Either way
+-- it returns the stored rows for p_game. Rows for guests, players who aren't in the lobby, or
+-- without a user_id, are skipped.
 -- p_rows: [{ user_id, opponent_id, opponent_name, course_label, format, result, detail }]
-create or replace function public.finish_lobby(p_lobby uuid, p_rows jsonb)
+drop function if exists public.finish_lobby(uuid, jsonb);
+create or replace function public.finish_lobby(p_lobby uuid, p_game int, p_rows jsonb)
 returns setof public.match_results
 language plpgsql security definer set search_path = public as $$
 declare
@@ -350,13 +401,13 @@ begin
     raise exception 'lobby % not found', p_lobby;
   end if;
 
-  if v_lobby.status = 'playing' then
+  if v_lobby.status = 'playing' and v_lobby.game = p_game then
     if p_rows is null or jsonb_typeof(p_rows) <> 'array' then
       raise exception 'p_rows must be a json array';
     end if;
     insert into public.match_results
       (lobby_id, game, user_id, opponent_id, opponent_name, course_label, format, result, detail)
-    select p_lobby, v_lobby.game, r.user_id, r.opponent_id, coalesce(r.opponent_name, 'Guest'),
+    select p_lobby, p_game, r.user_id, r.opponent_id, coalesce(r.opponent_name, 'Guest'),
            coalesce(r.course_label, ''), r.format, r.result, coalesce(r.detail, '')
     from jsonb_to_recordset(p_rows) as r(user_id uuid, opponent_id uuid, opponent_name text,
                                          course_label text, format text, result text, detail text)
@@ -365,13 +416,11 @@ begin
       and exists (select 1 from auth.users u where u.id = r.user_id and not u.is_anonymous)
     on conflict do nothing;
     update public.lobbies set status = 'finished', finished_at = now() where id = p_lobby;
-  elsif v_lobby.status <> 'finished' then
-    raise exception 'lobby % is %, not playing', p_lobby, v_lobby.status;
   end if;
 
   return query
     select * from public.match_results m
-    where m.lobby_id = p_lobby and m.game = v_lobby.game
+    where m.lobby_id = p_lobby and m.game = p_game
     order by m.user_id;
 end;
 $$;
@@ -460,12 +509,11 @@ alter table public.match_results enable row level security;
 alter table public.friendships enable row level security;
 alter table public.invites enable row level security;
 
--- lobbies: created only through create_lobby. The host edits settings while open, starts it
--- (with 2 players present) or closes it; a game in play can't be changed, and only the finish
--- route marks it finished.
+-- lobbies: created only through create_lobby; members read them (the browser uses
+-- list_public_lobbies, a link uses lobby_by_code). The host edits settings while open, starts it
+-- (lobby_can_start) or closes it; a game in play can't be changed, and only the finish route
+-- marks it finished.
 drop policy if exists "open public lobbies are readable" on public.lobbies;
-create policy "open public lobbies are readable" on public.lobbies
-  for select to authenticated using (visibility = 'public' and status = 'open');
 drop policy if exists "lobbies are member-readable" on public.lobbies;
 create policy "lobbies are member-readable" on public.lobbies
   for select to authenticated using (host = (select auth.uid()) or public.is_lobby_member(id));
@@ -476,11 +524,11 @@ create policy "lobbies are host-updatable while open" on public.lobbies
   with check (
     host = (select auth.uid())
     and status in ('open', 'playing', 'closed')
-    and (status <> 'playing' or public.lobby_active_count(id) >= 2)
+    and (status <> 'playing' or public.lobby_can_start(id))
   );
 
 -- lobby_players: joined only through create_lobby / join_lobby; each player updates only the
--- ready, left_at and last_seen of their own row (column grants below).
+-- ready flag of their own row (column grant below); last_seen and left_at go through touch_lobby.
 drop policy if exists "lobby_players are member-readable" on public.lobby_players;
 create policy "lobby_players are member-readable" on public.lobby_players
   for select to authenticated using (public.is_lobby_member(lobby_id));
@@ -490,7 +538,8 @@ create policy "lobby_players are self-updatable" on public.lobby_players
   using (user_id = (select auth.uid()))
   with check (user_id = (select auth.uid()));
 
--- swings: members read the log; a player adds swings for their own slot while the game is on.
+-- swings: members read the log; a player adds swings for their own slot in the current game
+-- while it is on.
 drop policy if exists "swings are member-readable" on public.swings;
 create policy "swings are member-readable" on public.swings
   for select to authenticated using (public.is_lobby_member(lobby_id));
@@ -502,7 +551,7 @@ create policy "swings insertable by their player while playing" on public.swings
     join public.lobbies l on l.id = lp.lobby_id
     where lp.lobby_id = swings.lobby_id and lp.slot = swings.slot
       and lp.user_id = (select auth.uid()) and lp.left_at is null
-      and l.status = 'playing'
+      and l.status = 'playing' and l.game = swings.game
   ));
 
 -- match_results: your own rows; written only by finish_lobby.
@@ -510,19 +559,12 @@ drop policy if exists "match_results are self-readable" on public.match_results;
 create policy "match_results are self-readable" on public.match_results
   for select to authenticated using (user_id = (select auth.uid()));
 
--- friendships: either party reads or removes; a signed-in member requests; the other accepts.
+-- friendships: either party reads or removes; requests go only through request_friend; the
+-- other party accepts.
 drop policy if exists "friendships are party-readable" on public.friendships;
 create policy "friendships are party-readable" on public.friendships
   for select to authenticated using ((select auth.uid()) in (user_low, user_high));
 drop policy if exists "friendships requestable by a member" on public.friendships;
-create policy "friendships requestable by a member" on public.friendships
-  for insert to authenticated
-  with check (
-    requested_by = (select auth.uid())
-    and (select auth.uid()) in (user_low, user_high)
-    and status = 'pending'
-    and coalesce((select (auth.jwt() ->> 'is_anonymous')::boolean), false) = false
-  );
 drop policy if exists "friendships acceptable by the other party" on public.friendships;
 create policy "friendships acceptable by the other party" on public.friendships
   for update to authenticated
@@ -565,30 +607,33 @@ revoke all on public.lobbies, public.lobby_players, public.swings, public.match_
 grant select on public.lobbies to authenticated;
 grant update (settings, visibility, status, started_at) on public.lobbies to authenticated;
 grant select on public.lobby_players to authenticated;
-grant update (ready, left_at, last_seen) on public.lobby_players to authenticated;
-grant select, insert on public.swings to authenticated;
+grant update (ready) on public.lobby_players to authenticated;
+-- No created_at in the column lists: the server sets it.
+grant select on public.swings to authenticated;
+grant insert (lobby_id, game, slot, hole, shot, club, aim, v, timeout) on public.swings to authenticated;
 grant select on public.match_results to authenticated;
-grant select, insert, delete on public.friendships to authenticated;
+grant select, delete on public.friendships to authenticated;
 grant update (status) on public.friendships to authenticated;
-grant select, insert on public.invites to authenticated;
+grant select on public.invites to authenticated;
+grant insert (from_id, to_id, lobby_id) on public.invites to authenticated;
 grant update (seen) on public.invites to authenticated;
 
 -- ── Function privileges ──
 revoke execute on function
   public.lobby_capacity(jsonb), public.is_lobby_member(uuid), public.lobby_active_count(uuid),
-  public.clean_name(text), public.display_name(uuid),
-  public.create_lobby(jsonb, text, text), public.join_lobby(text, text), public.lobby_by_code(text),
-  public.list_public_lobbies(), public.rematch_lobby(uuid), public.finish_lobby(uuid, jsonb),
-  public.request_friend(text), public.my_friends(), public.my_invites()
+  public.lobby_can_start(uuid), public.clean_name(text), public.display_name(uuid),
+  public.create_lobby(jsonb, text, text), public.join_lobby(text, text), public.touch_lobby(uuid, boolean),
+  public.lobby_by_code(text), public.list_public_lobbies(), public.rematch_lobby(uuid),
+  public.finish_lobby(uuid, int, jsonb), public.request_friend(text), public.my_friends(), public.my_invites()
 from public, anon, authenticated;
--- is_lobby_member and lobby_active_count run inside the policies, as the caller.
+-- is_lobby_member and lobby_can_start run inside the policies, as the caller.
 grant execute on function
-  public.is_lobby_member(uuid), public.lobby_active_count(uuid), public.display_name(uuid),
-  public.create_lobby(jsonb, text, text), public.join_lobby(text, text), public.lobby_by_code(text),
-  public.list_public_lobbies(), public.rematch_lobby(uuid),
+  public.is_lobby_member(uuid), public.lobby_can_start(uuid),
+  public.create_lobby(jsonb, text, text), public.join_lobby(text, text), public.touch_lobby(uuid, boolean),
+  public.lobby_by_code(text), public.list_public_lobbies(), public.rematch_lobby(uuid),
   public.request_friend(text), public.my_friends(), public.my_invites()
 to authenticated;
-grant execute on function public.finish_lobby(uuid, jsonb) to service_role;
+grant execute on function public.finish_lobby(uuid, int, jsonb) to service_role;
 
 -- ── Realtime: invites reach the recipient's open pages (postgres_changes, filtered by RLS) ──
 do $$
