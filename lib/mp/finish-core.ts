@@ -1,10 +1,9 @@
 // Decides a multiplayer game from the stored swing log and who is still there. Pure: the sim (DH,
 // public/games/nine-holes/game.js) and the real-course JSON are passed in; the finish route does the I/O.
+import type { CourseSpec, LobbySettings, Swing } from './protocol';
 
-export type FinishSpec =
-  | { kind: 'daily' | 'random'; seed: string }
-  | { kind: 'real'; id: string; mode: 'front' | 'back' | 'all'; day: string };
-export type FinishSettings = { spec: FinishSpec; format: 'stroke' | 'match' };
+// Only the parts of the lobby settings a result depends on.
+export type FinishSettings = Pick<LobbySettings, 'spec' | 'format'>;
 export type FinishPlayer = {
   slot: number;
   user_id: string | null;
@@ -13,7 +12,6 @@ export type FinishPlayer = {
   left_at: string | null;
   last_seen: string;
 };
-export type FinishSwing = { slot: number; hole: number; shot: number; club: number; aim: number; v: number; timeout: boolean };
 export type Outcome = 'win' | 'loss' | 'draw';
 export type SlotResult = { slot: number; result: Outcome; detail: string };
 export type Decision = { status: 'playing' | 'finished'; results: SlotResult[] };
@@ -22,10 +20,10 @@ export type Decision = { status: 'playing' | 'finished'; results: SlotResult[] }
 type Scores = (number | null | undefined)[][];
 export type FinishDH = {
   replayGame(
-    spec: FinishSpec,
+    spec: CourseSpec,
     realData: unknown,
     players: { slot: number }[],
-    log: FinishSwing[],
+    log: Swing[],
   ): { states: { course: { holes: { par: number }[] } }[]; scores: Scores; done: boolean[]; error: string | null };
   strokeResult(pars: number[], scores: Scores): { totals: number[]; winner: number | null };
   matchState(pars: number[], scores: Scores): { decided: boolean; winner: number | null; label: string };
@@ -34,8 +32,8 @@ export type FinishDH = {
 export const DROP_MS = 60_000; // a player not seen for this long has left
 const TIMEOUTS_TO_LEAVE = 3;
 
-// The real courses a lobby can play (ids as in public/games/nine-holes/courses/<id>/<id>.json).
-export const COURSE_NAME: Record<string, string> = {
+// Names for course_label (ids as in COURSE_PAR and public/games/nine-holes/courses/<id>/<id>.json).
+const COURSE_NAME: Record<string, string> = {
   victoria: 'Victoria Country Club',
   'gary-player': 'Gary Player Country Club',
   'tpc-sawgrass': 'TPC Sawgrass Stadium Course',
@@ -43,41 +41,31 @@ export const COURSE_NAME: Record<string, string> = {
 };
 const MODE_NAME = { front: 'front nine', back: 'back nine', all: '18 holes' } as const;
 
-// Only what the finish route needs from lobbies.settings, checked; null if anything is off.
-export function finishSettings(x: unknown): FinishSettings | null {
-  if (!x || typeof x !== 'object') return null;
-  const m = x as Record<string, unknown>, s = m.spec as Record<string, unknown> | null;
-  if ((m.format !== 'stroke' && m.format !== 'match') || !s || typeof s !== 'object') return null;
-  if ((s.kind === 'daily' || s.kind === 'random') && typeof s.seed === 'string' && s.seed)
-    return { spec: { kind: s.kind, seed: s.seed }, format: m.format };
-  if (s.kind === 'real' && typeof s.id === 'string' && Object.hasOwn(COURSE_NAME, s.id)
-      && typeof s.mode === 'string' && Object.hasOwn(MODE_NAME, s.mode) && typeof s.day === 'string')
-    return { spec: { kind: 'real', id: s.id, mode: s.mode as 'front' | 'back' | 'all', day: s.day }, format: m.format };
-  return null;
-}
-
 // For match_results.course_label.
-export function courseLabel(spec: FinishSpec): string {
+export function courseLabel(spec: CourseSpec): string {
   if (spec.kind !== 'real') return spec.kind === 'daily' ? `Daily nine ${spec.seed}` : 'Random nine';
-  return `${COURSE_NAME[spec.id] ?? spec.id} · ${MODE_NAME[spec.mode]}`;
+  return `${Object.hasOwn(COURSE_NAME, spec.id) ? COURSE_NAME[spec.id] : spec.id} · ${MODE_NAME[spec.mode]}`;
 }
 
-const byShot = (a: FinishSwing, b: FinishSwing) => a.hole - b.hole || a.shot - b.shot;
+const byShot = (a: Swing, b: Swing) => a.hole - b.hole || a.shot - b.shot;
 
 // Why a player has forfeited, or null if they haven't.
-function forfeit(p: FinishPlayer, swings: FinishSwing[], now: number): string | null {
+// now is null to ignore last_seen.
+function forfeit(p: FinishPlayer, swings: Swing[], now: number | null): string | null {
   if (p.left_at) return 'left';
-  if (now - Date.parse(p.last_seen) > DROP_MS) return 'left';
+  if (now != null && now - Date.parse(p.last_seen) > DROP_MS) return 'left';
   const last = swings.filter((s) => s.slot === p.slot).sort(byShot).slice(-TIMEOUTS_TO_LEAVE);
   if (last.length === TIMEOUTS_TO_LEAVE && last.every((s) => s.timeout)) return 'timed out';
   return null;
 }
 
+// now: the server's clock, or null to ignore last_seen (re-deciding a game already recorded, so
+// every later call agrees).
 export function decideResult({ settings, players, swings, now, DH, realData }: {
   settings: FinishSettings;
   players: FinishPlayer[];
-  swings: FinishSwing[];
-  now: number;
+  swings: Swing[];
+  now: number | null;
   DH: FinishDH;
   realData: unknown;
 }): Decision {
@@ -106,8 +94,13 @@ export function decideResult({ settings, players, swings, now, DH, realData }: {
     }
   }
 
-  // Forfeits. A player who has already finished their round can't forfeit it.
-  const why = players.map((p, k) => (r.done[k] ? null : forfeit(p, swings, now)));
+  // Forfeits. A player who has already finished their round can't forfeit it. If anyone's own swings
+  // don't replay (rounds are independent per slot), only those players can: a bad swing must never
+  // turn the honest player's leaving into a win for whoever stored it.
+  const broken = players.map((p) =>
+    DH.replayGame(settings.spec, realData, [{ slot: p.slot }], swings.filter((s) => s.slot === p.slot)).error != null);
+  const anyBroken = broken.some(Boolean);
+  const why = players.map((p, k) => (r.done[k] || (anyBroken && !broken[k]) ? null : forfeit(p, swings, now)));
   const out = players.filter((_, k) => why[k]);
   if (out.length === players.length) return finished(() => 'draw', 'Abandoned');
   if (out.length) {
@@ -146,12 +139,12 @@ export function resultRows(settings: FinishSettings, players: FinishPlayer[], re
 }
 
 // One result per slot from the stored match_results rows (which only signed-in players have). In a
-// two-player game a guest's result is the other side of their opponent's; otherwise it comes from
-// fallback (a fresh decision), if that has one.
+// two-player game a guest's result is the other side of their opponent's (if that row names them:
+// after a rematch the slot may hold someone new); otherwise it comes from fallback, if that has one.
 const OTHER_SIDE: Record<Outcome, Outcome> = { win: 'loss', loss: 'win', draw: 'draw' };
 export function resultsFromRows(
   players: FinishPlayer[],
-  rows: { user_id: string; result: Outcome; detail: string }[],
+  rows: { user_id: string; opponent_name: string; result: Outcome; detail: string }[],
   fallback: SlotResult[] = [],
 ): SlotResult[] {
   const rowOf = (p: FinishPlayer) => rows.find((r) => p.user_id && r.user_id === p.user_id);
@@ -159,7 +152,7 @@ export function resultsFromRows(
     const own = rowOf(p);
     if (own) return [{ slot: p.slot, result: own.result, detail: own.detail }];
     const opp = players.length === 2 ? rowOf(players.find((o) => o !== p)!) : undefined;
-    if (opp) return [{ slot: p.slot, result: OTHER_SIDE[opp.result], detail: opp.detail }];
+    if (opp && opp.opponent_name === p.name) return [{ slot: p.slot, result: OTHER_SIDE[opp.result], detail: opp.detail }];
     return fallback.filter((r) => r.slot === p.slot);
   });
 }
