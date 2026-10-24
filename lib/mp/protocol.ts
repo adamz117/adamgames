@@ -11,11 +11,11 @@ export type CourseSpec =
   | { kind: 'real'; id: string; mode: CourseMode; day: string };
 export type LobbySettings = { spec: CourseSpec; format: Format; pace: Pace; clock: 30; maxPlayers: 2 };
 export type Swing = { slot: number; hole: number; shot: number; club: number; aim: number; v: number; timeout: boolean };
-export type Present = { userId: string; slot: number; name: string };
 
 export const FORMATS: Format[] = ['stroke', 'match'];
 export const PACES: Pace[] = ['own', 'turns'];
-export const LOBBY_EVENTS = ['settings', 'ready', 'start', 'swing', 'left', 'rematch'] as const;
+// Broadcast refresh hints (swings arrive from the stored log instead).
+export const LOBBY_EVENTS = ['settings', 'ready', 'start', 'left', 'rematch'] as const;
 export type LobbyEvent = (typeof LOBBY_EVENTS)[number];
 export const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
@@ -75,11 +75,12 @@ export function cleanName(s: unknown): string | null {
   return len >= 2 && len <= 20 ? n : null;
 }
 
-// A signed-in member's shown name: "Member" while the username is still the email prefix.
+// A signed-in member's shown name, as the database's display_name: "Member" while the username is
+// blank or still the email prefix (compared case-insensitively, untrimmed); capped at 20.
 export function memberName(username: unknown, email: unknown): string {
-  const u = typeof username === 'string' ? username.trim() : '';
+  const u = typeof username === 'string' ? username : '';
   const prefix = typeof email === 'string' ? email.split('@')[0] : '';
-  if (!u || u.toLowerCase() === prefix.toLowerCase()) return 'Member';
+  if (!u.replace(/^ +| +$/g, '') || u.toLowerCase() === prefix.toLowerCase()) return 'Member';
   return [...u].slice(0, 20).join('');
 }
 
@@ -96,15 +97,14 @@ export function parseCode(s: unknown): string | null {
   return c.length === 6 && [...c].every(ch => CODE_ALPHABET.includes(ch)) ? c : null;
 }
 
-// A channel's presenceState() → one entry per user (keyed by userId), sorted by slot.
-export function presentPlayers(state: unknown): Present[] {
+// The user ids (presence keys) in a channel's presenceState().
+export function presenceUserIds(state: unknown): string[] {
   const s = obj(state);
-  if (!s) return [];
-  const out: Present[] = [];
-  for (const [key, metas] of Object.entries(s)) {
-    const m = Array.isArray(metas) ? obj(metas[0]) : null;
-    if (!m || m.userId !== key || !intIn(m.slot, 0, 3)) continue;
-    out.push({ userId: key, slot: m.slot, name: cleanName(m.name) ?? 'Player' });
-  }
-  return out.sort((a, b) => a.slot - b.slot);
+  return s ? Object.keys(s).filter(k => Array.isArray(s[k]) && (s[k] as unknown[]).length > 0) : [];
+}
+
+// The slots of the players present, from the lobby's own player rows (never presence metadata).
+export function presentPlayers(userIds: readonly string[], players: readonly { userId: string; slot: number }[]): number[] {
+  const here = new Set(userIds);
+  return [...new Set(players.filter(p => here.has(p.userId)).map(p => p.slot))].sort((a, b) => a - b);
 }

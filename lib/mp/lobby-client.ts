@@ -1,8 +1,9 @@
 // Lobbies over Supabase: the rpc functions and tables of 0004_multiplayer.sql, plus the lobby's
-// Realtime channel. Calls return { error } (or null / [] for reads) instead of throwing.
+// Realtime channel. Calls return an error (or null / [] for reads) instead of throwing.
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { LOBBY_EVENTS, parseSettings, parseSwing, presentPlayers } from '@/lib/mp/protocol';
-import type { LobbyEvent, LobbySettings, Present, Swing, Visibility } from '@/lib/mp/protocol';
+import { LOBBY_EVENTS, parseSettings, parseSwing, presenceUserIds } from '@/lib/mp/protocol';
+import type { LobbyEvent, LobbySettings, Swing, Visibility } from '@/lib/mp/protocol';
 
 export type LobbyStatus = 'open' | 'playing' | 'finished' | 'closed';
 export type Err = { error: string };
@@ -166,12 +167,24 @@ export async function rematch(id: string): Promise<{ game: number } | Err> {
   return { game: Number(r.game) };
 }
 
-// Stores my swing for game `game`; a swing already stored (a retry) is ignored.
-export async function saveSwing(id: string, game: number, swing: Swing): Promise<{ error: string | null }> {
+// Stores my swing for game `game`; a swing already stored (a retry) is ignored. 'stored' or a
+// duplicate; 'closed' when the game is no longer on (RLS refuses it) or the swing is bad, so retrying
+// is pointless; 'failed' for anything worth retrying.
+export async function saveSwing(id: string, game: number, swing: Swing): Promise<'stored' | 'closed' | 'failed'> {
   const s = parseSwing(swing);
-  if (!s) return { error: 'bad_swing' };
-  return update(() =>
-    client().from('swings').upsert({ lobby_id: id, game, ...s }, { onConflict: 'lobby_id,game,slot,hole,shot', ignoreDuplicates: true }));
+  if (!s) return 'closed';
+  try {
+    const { error } = await client()
+      .from('swings')
+      .upsert({ lobby_id: id, game, ...s }, { onConflict: 'lobby_id,game,slot,hole,shot', ignoreDuplicates: true });
+    if (!error) return 'stored';
+    if (error.code === '42501') return 'closed';
+    failed(error);
+    return 'failed';
+  } catch (e) {
+    failed(e);
+    return 'failed';
+  }
 }
 
 // The stored swing log of one game, in slot/hole/shot order; null on failure (not the same as none yet).
@@ -193,35 +206,67 @@ export async function getSwings(id: string, game: number): Promise<Swing[] | nul
 }
 
 export type ChannelHandlers = {
-  onPresence?: (present: Present[]) => void;
-  // payload is whatever a peer sent: check it (parseSwing, parseSettings) before use.
-  onEvent?: (event: LobbyEvent, payload: unknown) => void;
+  // The user ids present on the channel; map them to slots with presentPlayers(ids, getPlayers rows).
+  onPresence?: (userIds: string[]) => void;
+  // A refresh hint from another player: re-read the lobby (getLobby / getPlayers) from the database.
+  // Never trust or use its payload.
+  onEvent?: (event: LobbyEvent) => void;
+  // Every swing stored for this lobby (mine too), as a postgres_changes INSERT.
+  onSwing?: (swing: Swing, game: number) => void;
   onStatus?: (status: string, err?: Error) => void;
 };
+export type LobbyChannel = { send(event: LobbyEvent, payload?: object): Promise<string>; close(): void };
 
-// The lobby's channel: presence keyed by userId, and broadcast events (not echoed to the sender).
-export function openLobbyChannel(id: string, me: Present, handlers: ChannelHandlers) {
+// One removal per channel, shared by close() and a reopen waiting for it.
+const removing = new WeakMap<RealtimeChannel, Promise<unknown>>();
+function remove(supabase: ReturnType<typeof client>, ch: RealtimeChannel) {
+  let p = removing.get(ch);
+  if (!p) removing.set(ch, (p = supabase.removeChannel(ch).catch(() => 'error')));
+  return p;
+}
+
+// The lobby's private channel 'lobby:<id>' (realtime.messages RLS: its players only): presence keyed
+// by userId, broadcast refresh hints (not echoed to the sender), and the swings feed.
+// Async because channel() hands back an existing channel of the same topic, even one still leaving
+// (a quick close and reopen, React StrictMode): that one is removed first, and the newest open wins.
+// If the caller has gone by the time this resolves, it must close() what it gets.
+export async function openLobbyChannel(id: string, userId: string, handlers: ChannelHandlers): Promise<LobbyChannel> {
   const supabase = client();
-  const ch = supabase.channel(`lobby:${id}`, {
-    config: { presence: { key: me.userId }, broadcast: { self: false, ack: false } },
+  const topic = `lobby:${id}`;
+  await supabase.realtime.setAuth(); // private channels join with the user's token
+  // realtime-js stores the topic as 'realtime:<topic>'. No await between the last check and channel().
+  for (let tries = 0; tries < 3; tries++) {
+    const old = supabase.getChannels().find(c => c.topic === `realtime:${topic}`);
+    if (!old) break;
+    await remove(supabase, old);
+  }
+
+  const ch = supabase.channel(topic, {
+    config: { private: true, presence: { key: userId }, broadcast: { self: false, ack: false } },
   });
-  ch.on('presence', { event: 'sync' }, () => handlers.onPresence?.(presentPlayers(ch.presenceState())));
-  for (const event of LOBBY_EVENTS) ch.on('broadcast', { event }, msg => handlers.onEvent?.(event, msg.payload));
+  ch.on('presence', { event: 'sync' }, () => handlers.onPresence?.(presenceUserIds(ch.presenceState())));
+  for (const event of LOBBY_EVENTS) ch.on('broadcast', { event }, () => handlers.onEvent?.(event));
+  ch.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'swings', filter: `lobby_id=eq.${id}` }, msg => {
+    const row = msg.new as Row;
+    const swing = parseSwing(row);
+    if (swing && row.lobby_id === id && Number.isInteger(row.game)) handlers.onSwing?.(swing, row.game as number);
+  });
   ch.subscribe((status, err) => {
-    // Track again on every (re)join: presence starts empty each time.
-    if (status === 'SUBSCRIBED') void ch.track({ userId: me.userId, slot: me.slot, name: me.name });
+    // Track again on every (re)join: presence starts empty each time. Slots come from the rows.
+    if (status === 'SUBSCRIBED') void ch.track({ online: true });
     handlers.onStatus?.(status, err);
   });
   return {
     // 'ok', or why not ('timed out', 'error', …).
-    async send(event: LobbyEvent, payload: unknown): Promise<string> {
-      if (ch.state === 'joined') return ch.send({ type: 'broadcast', event, payload });
+    async send(event, payload) {
+      const body = payload ?? {};
+      if (ch.state === 'joined') return ch.send({ type: 'broadcast', event, payload: body });
       // Not joined (yet, or reconnecting): over REST instead.
-      const r = await ch.httpSend(event, payload).catch(() => ({ success: false as const }));
+      const r = await ch.httpSend(event, body).catch(() => ({ success: false as const }));
       return r.success ? 'ok' : 'error';
     },
     close() {
-      void supabase.removeChannel(ch);
+      void remove(supabase, ch);
     },
   };
 }
