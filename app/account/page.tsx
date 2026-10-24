@@ -19,9 +19,9 @@ const resultWord = (g: RecordRow) => (g.result === 'win' ? 'Won' : g.result === 
 export default async function AccountPage() {
   const profile = await getProfileServer();
   if (!profile) redirect('/login');
-  const stats = readStats(await getGameStatsServer('nine-holes'));
+  const [raw, results] = await Promise.all([getGameStatsServer('nine-holes'), getMyResultsServer()]);
+  const stats = readStats(raw);
   const counting = countingRounds(stats.history);
-  const results = await getMyResultsServer();
   const record = readRecord(results);
   const recent = results.slice(0, RECENT_GAMES);
 
@@ -89,7 +89,7 @@ export default async function AccountPage() {
                 <div key={`${g.lobby_id}-${g.game}`} className="club-round-tile">
                   <div className="score">{resultWord(g)}</div>
                   <div className="course">vs {g.opponent_name}{g.course_label && ` · ${g.course_label}`}</div>
-                  <div className="date">{[longDate(g.played_at), FORMAT_LABEL[g.format], g.detail].filter(Boolean).join(' · ')}</div>
+                  <div className="date">{[longDate(g.played_at), FORMAT_LABEL[g.format], g.detail !== resultWord(g) && g.detail].filter(Boolean).join(' · ')}</div>
                 </div>
               ))}
             </div>

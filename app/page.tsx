@@ -9,7 +9,8 @@ import { readRecord } from '@/lib/mp/records';
 
 // Three things only: today's nine, your card (or signing up for one), and the real courses.
 export default async function HomePage() {
-  const [profile, raw, results] = await Promise.all([getProfileServer(), getGameStatsServer('nine-holes'), getMyResultsServer()]);
+  const [profile, raw] = await Promise.all([getProfileServer(), getGameStatsServer('nine-holes')]);
+  const results = profile ? await getMyResultsServer() : [];
   const stats = readStats(raw);
 
   return (

@@ -40,11 +40,10 @@ function parseRow(x: unknown): RecordRow | null {
   };
 }
 
-// Valid rows only, newest first.
+// Valid rows only, in the order given (the readers fetch them newest first).
 export function cleanRows(rows: unknown): RecordRow[] {
   if (!Array.isArray(rows)) return [];
-  return rows.map(parseRow).filter((r): r is RecordRow => r !== null)
-    .sort((a, b) => Date.parse(b.played_at) - Date.parse(a.played_at));
+  return rows.map(parseRow).filter((r): r is RecordRow => r !== null);
 }
 
 const tally = (rows: RecordRow[]): Tally => {
@@ -62,7 +61,7 @@ export function readRecord(rows: unknown): MpRecord {
   };
 }
 
-// The record against one opponent and the last few games together.
+// The record against one opponent and the last few games together (rows newest first).
 export function headToHead(rows: unknown, friendId: string | null | undefined): HeadToHead {
   const mine = friendId ? cleanRows(rows).filter((r) => r.opponent_id === friendId) : [];
   return { ...tally(mine), games: mine.slice(0, HEAD_TO_HEAD_GAMES) };
