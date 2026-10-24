@@ -41,6 +41,13 @@ export default function CoursesPage() {
           </span>
           <span className="club-real-go">See the course</span>
         </Link>
+        <Link href="/courses/pebble-beach" className="club-real" style={{ borderTop: 'none' }}>
+          <span>
+            <span className="club-h2">Pebble Beach Golf Links</span>
+            <span className="club-lede">Pebble Beach, California. Clifftop holes on the Pacific, with the little 7th on the point, par 72.</span>
+          </span>
+          <span className="club-real-go">See the course</span>
+        </Link>
       </section>
     </main>
   );

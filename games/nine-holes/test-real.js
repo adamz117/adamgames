@@ -211,6 +211,24 @@ for (const n of [3, 18]) {
   assert.equal(DH.surfaceAt(h16, DH.pointAt(h16.path, h16.total * 0.5)), 'water');
 }
 
+// Pebble Beach: every tee and pin plays, fairways are clear of trees, the 8th carries the chasm, and the Pacific is water
+{
+  const pb = DH.makeRealCourse(require('./courses/pebble-beach/pebble-beach.json'), 'all', DAY);
+  assert.equal(pb.par, 72);
+  assert.equal(pb.turnAfter, 9);
+  for (const h of pb.holes) {
+    assert.equal(DH.surfaceAt(h, { x: 0, y: 0 }), 'tee', `Pebble hole ${h.index} tee`);
+    assert.equal(DH.surfaceAt(h, h.pin), 'green', `Pebble hole ${h.index} pin`);
+    for (let t = h.par === 3 ? 0.75 : 0.3; t <= 0.9; t += 0.1)
+      assert.notEqual(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)), 'trees', `Pebble hole ${h.index} at ${Math.round(t * 100)}%`);
+  }
+  const h8 = pb.holes[7], chasm = [];
+  for (let t = 0.5; t <= 0.9; t += 0.01) chasm.push(DH.surfaceAt(h8, DH.pointAt(h8.path, h8.total * t)));
+  assert.ok(chasm.includes('water'), 'the 8th carries the chasm');
+  const h7 = pb.holes[6], sea = h7.real.lakes[0];
+  assert.equal(DH.surfaceAt(h7, { x: (sea.box[0] + sea.box[2]) / 2, y: (sea.box[1] + sea.box[3]) / 2 }), 'water', 'the Pacific is water, not OB');
+}
+
 // The daily game is untouched
 assert.equal(DH.hashStr(JSON.stringify(DH.makeCourse('2026-10-23'))), 980314489);
 
