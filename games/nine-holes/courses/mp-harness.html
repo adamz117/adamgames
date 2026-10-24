@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Nine Holes two-player harness</title>
+<style>
+body { font: 13px system-ui, sans-serif; margin: 8px; background: #E8EDE8; color: #23342A; }
+form { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-bottom: 8px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+iframe { width: 400px; height: 740px; border: 1px solid #9CAAA1; background: #fff; }
+#log { font: 11px ui-monospace, monospace; white-space: pre; height: 140px; overflow: auto; background: #fff; padding: 4px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<!-- Not shipped: stands in for the site page. Serve with `node server.js`, open /courses/mp-harness.html.
+     It gives the two iframes slots 0 and 1, sends mp-init, relays swings, keeps them for a reload (rejoin)
+     and answers mp-done with a result worked out from the swing log, as the finish route will. -->
+<form>
+  <label>pace <select name="pace"><option>own</option><option>turns</option></select></label>
+  <label>format <select name="format"><option>stroke</option><option>match</option></select></label>
+  <label>clock <input name="clock" size="3" value="30"></label>
+  <label>course <input name="spec" size="22" value="daily:2026-10-23" title="daily:SEED | random:SEED | real:ID:front|back|all"></label>
+  <label><input type="checkbox" name="chaos" value="1"> chaos (late, doubled swings)</label>
+  <button>Start</button>
+  <button type="button" id="reloadB">Reload B</button>
+  <button type="button" id="leftB">B leaves</button>
+</form>
+<div class="row"><iframe id="A" name="A" title="Player A"></iframe><iframe id="B" name="B" title="Player B"></iframe></div>
+<div id="log"></div>
+<script src="../game.js"></script>
+<script>
+'use strict';
+const Q = new URLSearchParams(location.search), form = document.forms[0];
+for (const [k, v] of Q) if (form.elements[k]) form.elements[k].type === 'checkbox' ? form.elements[k].checked = true : form.elements[k].value = v;
+const [kind, a, b] = (Q.get('spec') || 'daily:2026-10-23').split(':');
+const spec = kind === 'real' ? { kind, id: a, mode: b || 'front', day: new Date().toLocaleDateString('en-CA') } : { kind, seed: a };
+const settings = { spec, format: Q.get('format') || 'stroke', pace: Q.get('pace') || 'own', clock: +Q.get('clock') || 30, maxPlayers: 2 };
+const players = [{ slot: 0, name: Q.get('nameA') || 'Adam <img src=x onerror=alert(1)>' }, { slot: 1, name: Q.get('nameB') || 'Ben' }];
+const frames = [document.getElementById('A'), document.getElementById('B')], chaos = Q.get('chaos') === '1';
+const H = window.H = { swings: [], events: [], result: null, settings, players };
+let realData = null;
+const log = (...x) => { const t = x.map(v => typeof v === 'string' ? v : JSON.stringify(v)).join(' '); H.events.push(t); const el = document.getElementById('log'); el.textContent += t + '\n'; el.scrollTop = 1e9; };
+const post = (k, m) => frames[k].contentWindow.postMessage(m, location.origin);
+// chaos: every relayed swing arrives twice, each up to 0.8 s late, so they come out of order
+const relay = (k, m) => chaos ? [0, 1].forEach(() => setTimeout(() => post(k, m), Math.random() * 800)) : post(k, m);
+
+function finish() {
+  const r = DH.replayGame(spec, realData, players, H.swings), pars = r.states[0].course.holes.map(h => h.par);
+  if (r.error) log('replay error', r.error);
+  let winner = null, detail;
+  const quit = players.findIndex(p => { const w = H.swings.filter(s => s.slot === p.slot).sort((x, y) => x.hole - y.hole || x.shot - y.shot).slice(-3); return w.length === 3 && w.every(s => s.timeout); });
+  const m = settings.format === 'match' && DH.matchState(pars, r.scores);
+  if (m && m.decided) { winner = m.winner; detail = m.label; }
+  else if (!m && r.done.every(Boolean)) { const s = DH.strokeResult(pars, r.scores); winner = s.winner; detail = s.totals.join(' – '); }
+  else if (quit >= 0) { winner = 1 - quit; detail = `${players[quit].name} timed out`; }
+  else return log('mp-done: game not over yet');
+  H.result = players.map((p, i) => ({ slot: p.slot, result: winner == null ? 'draw' : winner === i ? 'win' : 'loss', detail }));
+  log('result', H.result);
+  frames.forEach((f, k) => post(k, { type: 'mp-result', results: H.result }));
+}
+
+addEventListener('message', e => {
+  const k = frames.findIndex(f => f.contentWindow === e.source), m = e.data;
+  if (k < 0 || e.origin !== location.origin || !m) return;
+  if (m.type === 'mp-ready') { log(`${'AB'[k]} ready, ${H.swings.length} swings to catch up`); post(k, { type: 'mp-init', settings, players, me: players[k].slot, swings: H.swings.slice() }); }
+  else if (m.type === 'mp-swing') {
+    const w = m.swing;
+    if (!H.swings.some(s => s.slot === w.slot && s.hole === w.hole && s.shot === w.shot)) H.swings.push(w);
+    log(`${'AB'[k]} swing`, w);
+    frames.forEach((f, j) => { if (j !== k) relay(j, { type: 'mp-swing', swing: w }); });
+  } else if (m.type === 'mp-done') { log(`${'AB'[k]} done`); finish(); }
+  else log(`${'AB'[k]}`, m);
+});
+document.getElementById('reloadB').onclick = () => frames[1].contentWindow.location.reload();
+document.getElementById('leftB').onclick = () => {
+  post(0, { type: 'mp-left', slot: 1 });
+  setTimeout(() => { H.result = [{ slot: 0, result: 'win', detail: 'Walkover' }, { slot: 1, result: 'loss', detail: 'Left the game' }]; post(0, { type: 'mp-result', results: H.result }); }, 1500);
+};
+Promise.resolve(kind === 'real' ? fetch(`${a}/${a}.json`).then(r => r.json()) : null).then(d => {
+  realData = d;
+  for (const f of frames) f.src = '../index.html?mp=1';
+});
+</script>
+</body>
+</html>

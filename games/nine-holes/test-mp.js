@@ -189,4 +189,74 @@ assert.deepEqual(DH.strokeResult(P9.slice(0, 2), [[4, 5], [4]]), { totals: [9, 4
   assert.deepEqual(r.states[0].ball, p.ball);
 }
 
+// applySwing: a scripted take-turns game, one swing at a time, as the game page applies them
+{
+  const c = DH.courseFromSpec(SPEC), states = PLAYERS.map(p => DH.newRound(c.seed, c, '#p' + p.slot));
+  const log = [], snaps = [], honourOf = () => { // winner of the last hole, else the previous honour
+    let h = 0;
+    for (let j = 0; j < states[0].holeIdx; j++) { const sc = states.map(s => s.scores[j]), m = Math.min(...sc); if (sc.filter(x => x === m).length === 1) h = sc.indexOf(m); }
+    return h;
+  };
+  const view = s => ({ holeIdx: s.holeIdx, shotIdx: s.shotIdx, ball: s.ball, lie: s.lie, strokes: s.strokes, scores: s.scores, done: s.done, log: s.log, shots: s.shots, longest: s.longest, pured: s.pured });
+  for (let n = 0; ; n++) {
+    let k = DH.nextToPlay(states, honourOf());
+    if (k < 0) { // everyone has finished the hole: the page moves them all on
+      for (const s of states) DH.nextHole(s);
+      if (states.every(s => s.done)) break;
+      k = DH.nextToPlay(states, honourOf());
+    }
+    const sw = { slot: PLAYERS[k].slot, hole: states[k].holeIdx, shot: states[k].shotIdx, ...swingFor(states[k], n), timeout: n % 7 === 3 };
+    assert.equal(DH.applySwing(states, sw), 'applied');
+    assert.ok(states[k].last && states[k].last.rest, 'keeps the play() result for the animation');
+    log.push(sw); snaps.push(JSON.stringify(states.map(view)));
+    // the same swing again (a network retry) changes nothing
+    assert.equal(DH.applySwing(states, { ...sw }), 'duplicate');
+    assert.equal(JSON.stringify(states.map(view)), snaps[snaps.length - 1]);
+  }
+  assert.ok(log.length > 40);
+  // Rebuilding from the first N swings (a rejoin) gives the live position after N swings, for every N.
+  // replayGame moves a player to the next tee as soon as a hole is scored; the page does it later.
+  const moved = st => { const s = view(st); if (!s.done && s.scores[s.holeIdx] != null) Object.assign(s, s.holeIdx === c.holes.length - 1 ? { done: true } : { holeIdx: s.holeIdx + 1, shotIdx: 0, strokes: 0, ball: { x: 0, y: 0 }, lie: 'tee' }); return s; };
+  for (let N = 0; N <= log.length; N++) {
+    const r = DH.replayGame(SPEC, null, PLAYERS, log.slice(0, N));
+    assert.equal(r.error, null);
+    const live = N ? JSON.parse(snaps[N - 1]).map(s => moved({ ...s, course: c })) : states.map(() => moved(DH.newRound(c.seed, c)));
+    assert.deepEqual(r.states.map(moved).map(s => JSON.parse(JSON.stringify(s))), live.map(s => JSON.parse(JSON.stringify(s))), `after ${N} swings`);
+  }
+}
+// applySwing: order, duplicates, gaps, moving on, and bad swings
+{
+  const fresh = () => PLAYERS.map(p => DH.newRound('2026-10-23', null, '#p' + p.slot));
+  // slot 0's hole 0 is one swing (then putts); hole 1 takes several
+  const p0 = LOG.filter(e => e.slot === 0), s = fresh(), h1 = p0.findIndex(e => e.hole === 1);
+  assert.ok(h1 === 1 && p0[h1 + 2].hole === 1);
+  assert.equal(DH.applySwing(s, p0[1]), 'early'); // hole 1 before hole 0
+  assert.deepEqual([s[0].holeIdx, s[0].shotIdx, s[0].log.length], [0, 0, 0]);
+  assert.equal(DH.applySwing(s, p0[0]), 'applied');
+  assert.ok(s[0].holeIdx === 0 && s[0].scores[0] != null); // scored; the page moves on later
+  assert.equal(DH.applySwing(s, { ...p0[0], shot: 1 }), 'bad'); // a shot on a finished hole
+  assert.equal(DH.applySwing(s, p0[2]), 'early');
+  assert.equal(DH.applySwing(s, p0[1]), 'applied'); // the hole-1 tee shot moves the player on itself
+  assert.deepEqual([s[0].holeIdx, s[0].shotIdx], [1, 1]);
+  assert.equal(DH.applySwing(s, p0[1]), 'duplicate');
+  assert.equal(DH.applySwing(s, p0[0]), 'duplicate');
+  assert.equal(DH.applySwing(s, p0[3]), 'early');
+  assert.equal(DH.applySwing(s, p0[2]), 'applied');
+  assert.equal(DH.applySwing(s, p0[3]), 'applied');
+  const i = 3;
+  assert.deepEqual(s[1].log, []); // the other player is untouched
+  // the result matches a straight replay of the same swings
+  assert.deepEqual(s[0].ball, DH.replayGame(SPEC, null, PLAYERS, p0.slice(0, i + 1)).states[0].ball);
+  const t = fresh(), sw = p0[0];
+  for (const bad of [null, {}, { ...sw, slot: 5 }, { ...sw, v: -0.1 }, { ...sw, v: DH.METER_MAX + 0.1 }, { ...sw, aim: NaN }, { ...sw, club: 99 }, { ...sw, club: '0' }, { ...sw, hole: '0' }, { ...sw, shot: 0.5 }])
+    assert.equal(DH.applySwing(t, bad), 'bad', JSON.stringify(bad));
+  assert.deepEqual(t.map(x => x.log.length), [0, 0]);
+  // after the round
+  const done = fresh();
+  for (const e of LOG) { const r = DH.applySwing(done, e); assert.equal(r, 'applied'); const st = done[e.slot]; if (st.scores[st.holeIdx] != null) DH.nextHole(st); }
+  assert.deepEqual(done.map(x => x.done), [true, true]);
+  assert.equal(DH.applySwing(done, LOG[LOG.length - 1]), 'duplicate');
+  assert.equal(DH.applySwing(done, { slot: 1, hole: 9, shot: 0, club: 0, aim: 0, v: 0.5 }), 'bad');
+}
+
 console.log('mp ok');

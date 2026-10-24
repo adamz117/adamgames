@@ -952,6 +952,23 @@ function nextToPlay(states, honour) {
   for (const i of on) { const d = dist(states[i].ball, holeOf(states[i]).pin); if (d > far) { far = d; best = i; } }
   return best;
 }
+// Applies one swing ({ slot, hole, shot, club, aim, v }) to that player's state (found by its salt).
+// Swings must come in shot order: an earlier one is a 'duplicate', a later one is 'early' (the state is
+// untouched, so the caller can retry once the missing shots arrive), an illegal one is 'bad'. A tee shot
+// on the next hole moves a player on from a scored hole first. st.last keeps play()'s result for the animation.
+function applySwing(states, sw) {
+  const st = sw && states.find(s => s.salt === '#p' + sw.slot);
+  if (!st || !Number.isInteger(sw.hole) || !Number.isInteger(sw.shot)) return 'bad';
+  if (sw.hole < st.holeIdx || (sw.hole === st.holeIdx && sw.shot < st.shotIdx)) return 'duplicate';
+  const moveOn = st.scores[st.holeIdx] != null, hole = st.holeIdx + (moveOn ? 1 : 0), shot = moveOn ? 0 : st.shotIdx;
+  if (st.done || hole >= st.course.holes.length || sw.hole < hole) return 'bad';
+  if (sw.hole !== hole || sw.shot !== shot) return 'early';
+  if (!Number.isInteger(sw.club) || !CLUBS[sw.club] || !clubAllowed(CLUBS[sw.club], moveOn ? 'tee' : st.lie)
+    || !Number.isFinite(sw.aim) || !Number.isFinite(sw.v) || sw.v < 0 || sw.v > METER_MAX) return 'bad';
+  if (moveOn) nextHole(st);
+  st.last = play(st, sw.aim, sw.club, sw.v);
+  return 'applied';
+}
 // Rebuilds every player's round from a swing log ([{ slot, hole, shot, club, aim, v }], any order
 // across players). Each player's swings must run 0, 1, 2… per hole; a gap or duplicate stops that
 // player there and sets error.
@@ -965,12 +982,9 @@ function replayGame(spec, realData, players, log) {
     const st = states[k];
     const mine = log.filter(e => e.slot === p.slot).sort((a, b) => a.hole - b.hole || a.shot - b.shot);
     for (const e of mine) {
-      const at = `slot ${p.slot} hole ${e.hole} shot ${e.shot}`;
-      if (st.done) { fail(`swing after the round: ${at}`); break; }
-      if (e.hole < st.holeIdx || (e.hole === st.holeIdx && e.shot < st.shotIdx)) { fail(`duplicate ${at}`); break; }
-      if (e.hole !== st.holeIdx || e.shot !== st.shotIdx) { fail(`missing shot before ${at}`); break; }
-      if (!CLUBS[e.club] || !clubAllowed(CLUBS[e.club], st.lie) || !Number.isFinite(e.aim) || !Number.isFinite(e.v) || e.v < 0 || e.v > METER_MAX) { fail(`bad swing ${at}`); break; }
-      if (play(st, e.aim, e.club, e.v).score != null) nextHole(st);
+      const r = applySwing(states, e), at = `slot ${p.slot} hole ${e.hole} shot ${e.shot}`;
+      if (r !== 'applied') { fail(r === 'duplicate' ? `duplicate ${at}` : r === 'early' ? `missing shot before ${at}` : st.done ? `swing after the round: ${at}` : `bad swing ${at}`); break; }
+      if (st.scores[st.holeIdx] != null) nextHole(st);
     }
   });
   return { states, scores: states.map(s => s.scores), done: states.map(s => s.done), error };
@@ -983,7 +997,7 @@ const api = {
   millAngle, millBladeOver, millStrike, inMillZone, portalOut, burnCartHit, shoreR, moatR, isleR,
   clubAllowed, autoClub, aimTarget, targetBand,
   newRound, play, nextHole, holeOf,
-  courseFromSpec, timeoutSwing, strokeResult, matchState, nextToPlay, replayGame,
+  courseFromSpec, timeoutSwing, strokeResult, matchState, nextToPlay, applySwing, replayGame,
   nearest, pointAt, normalAt, tangentAt, dist, dirOf, add, rng, hashStr,
 };
 root.DH = api;
