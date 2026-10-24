@@ -34,6 +34,13 @@ export default function CoursesPage() {
           </span>
           <span className="club-real-go">See the course</span>
         </Link>
+        <Link href="/courses/augusta-national" className="club-real" style={{ borderTop: 'none' }}>
+          <span>
+            <span className="club-h2">Augusta National Golf Club</span>
+            <span className="club-lede">Augusta, Georgia. Home of the Masters, with Amen Corner and Rae&rsquo;s Creek, par 72.</span>
+          </span>
+          <span className="club-real-go">See the course</span>
+        </Link>
       </section>
     </main>
   );
