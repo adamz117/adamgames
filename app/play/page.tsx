@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import LobbyBrowser from '@/components/mp/lobby-browser';
 import { getViewer } from '@/lib/mp/viewer';
 
@@ -13,6 +14,11 @@ export default async function PlayPage() {
         Nine Holes, one against one. Same course, same wind, every shot played on both screens. Pick
         stroke or match play, and play at your own pace or take turns.
       </p>
+      {viewer === 'member' && (
+        <p className="club-lobby-lede">
+          Invite your <Link href="/friends" className="club-link">friends</Link> straight into a lobby, and see who&rsquo;s on the site now.
+        </p>
+      )}
       <LobbyBrowser viewer={viewer} />
     </main>
   );

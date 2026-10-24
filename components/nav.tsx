@@ -43,6 +43,12 @@ export default async function Nav() {
           />
           {user ? (
             <>
+              {/* Wide screens only: on smaller ones /play and the account page link to it. */}
+              {!user.is_anonymous && (
+                <Link href="/friends" className="club-nav-play club-nav-friends">
+                  Friends
+                </Link>
+              )}
               <Link href="/account" className="club-link" style={{ fontSize: 14 }}>
                 {profile?.username ?? user.email}
               </Link>

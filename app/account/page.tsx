@@ -70,11 +70,17 @@ export default async function AccountPage() {
         {results.length === 0 ? (
           <>
             <p className="club-lede">No 1v1 games yet. Open a lobby, send the link to a friend, and your record starts here.</p>
-            <p style={{ margin: '22px 0 0' }}><Link href="/play" className="club-button">Play a 1v1</Link></p>
+            <p style={{ margin: '22px 0 0', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px 22px' }}>
+              <Link href="/play" className="club-button">Play a 1v1</Link>
+              <Link href="/friends" className="club-link">Add friends</Link>
+            </p>
           </>
         ) : (
           <>
-            <p className="club-lede">Every finished 1v1 game counts, against members and guests alike.</p>
+            <p className="club-lede">
+              Every finished 1v1 game counts, against members and guests alike. Your record against each
+              friend is on your <Link href="/friends" className="club-link">friends</Link> page.
+            </p>
             <div className="club-boards" style={{ marginTop: 28 }}>
               {([['All games', record], [FORMAT_LABEL.stroke, record.stroke], [FORMAT_LABEL.match, record.match]] as const).map(([label, t]) => (
                 <section key={label} className="club-board" aria-label={`${label} record`}>

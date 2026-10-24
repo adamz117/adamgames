@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Archivo, Cormorant_Garamond } from 'next/font/google';
 import Nav from '@/components/nav';
+import InviteToaster from '@/components/mp/invite-toaster';
 import './globals.css';
 
 // Cormorant for the clubhouse's display lettering, Archivo (the game's own face) for everything else.
@@ -23,6 +24,7 @@ export default function RootLayout({
       <body>
         <Nav />
         {children}
+        <InviteToaster />
       </body>
     </html>
   );

@@ -1,7 +1,7 @@
 // Lobbies over Supabase: the rpc functions and tables of 0004_multiplayer.sql, plus the lobby's
 // Realtime channel. Calls return an error (or null / [] for reads) instead of throwing.
-import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { closeChannel, freshChannel } from '@/lib/mp/channel';
 import { LOBBY_EVENTS, parseSettings, parseSwing, presenceUserIds } from '@/lib/mp/protocol';
 import type { LobbyEvent, LobbySettings, Swing, Visibility } from '@/lib/mp/protocol';
 
@@ -217,32 +217,13 @@ export type ChannelHandlers = {
 };
 export type LobbyChannel = { send(event: LobbyEvent, payload?: object): Promise<string>; close(): void };
 
-// One removal per channel, shared by close() and a reopen waiting for it.
-const removing = new WeakMap<RealtimeChannel, Promise<unknown>>();
-function remove(supabase: ReturnType<typeof client>, ch: RealtimeChannel) {
-  let p = removing.get(ch);
-  if (!p) removing.set(ch, (p = supabase.removeChannel(ch).catch(() => 'error')));
-  return p;
-}
-
 // The lobby's private channel 'lobby:<id>' (realtime.messages RLS: its players only): presence keyed
 // by userId, broadcast refresh hints (not echoed to the sender), and the swings feed.
-// Async because channel() hands back an existing channel of the same topic, even one still leaving
-// (a quick close and reopen, React StrictMode): that one is removed first, and the newest open wins.
-// If the caller has gone by the time this resolves, it must close() what it gets.
+// Async (see freshChannel): if the caller has gone by the time this resolves, it must close() what it gets.
 export async function openLobbyChannel(id: string, userId: string, handlers: ChannelHandlers): Promise<LobbyChannel> {
   const supabase = client();
-  const topic = `lobby:${id}`;
-  await supabase.realtime.setAuth(); // private channels join with the user's token
-  // realtime-js stores the topic as 'realtime:<topic>'. No await between the last check and channel().
-  for (let tries = 0; tries < 3; tries++) {
-    const old = supabase.getChannels().find(c => c.topic === `realtime:${topic}`);
-    if (!old) break;
-    await remove(supabase, old);
-  }
-
-  const ch = supabase.channel(topic, {
-    config: { private: true, presence: { key: userId }, broadcast: { self: false, ack: false } },
+  const ch = await freshChannel(supabase, `lobby:${id}`, {
+    private: true, presence: { key: userId }, broadcast: { self: false, ack: false },
   });
   ch.on('presence', { event: 'sync' }, () => handlers.onPresence?.(presenceUserIds(ch.presenceState())));
   for (const event of LOBBY_EVENTS) ch.on('broadcast', { event }, () => handlers.onEvent?.(event));
@@ -266,7 +247,7 @@ export async function openLobbyChannel(id: string, userId: string, handlers: Cha
       return r.success ? 'ok' : 'error';
     },
     close() {
-      void remove(supabase, ch);
+      void closeChannel(supabase, ch);
     },
   };
 }
