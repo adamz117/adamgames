@@ -853,9 +853,10 @@ function targetBand(h, ball, lie, club) {
 }
 
 // ── round state ──
-function newRound(seed, real) {
+// salt sets each player's own shot scatter in a multiplayer game ('#p' + slot); solo play has none.
+function newRound(seed, real, salt = '') {
   const course = real || makeCourse(seed);
-  return { seed, course, holeIdx: 0, ball: { x: 0, y: 0 }, lie: 'tee', strokes: 0, shotIdx: 0,
+  return { seed, salt, course, holeIdx: 0, ball: { x: 0, y: 0 }, lie: 'tee', strokes: 0, shotIdx: 0,
            scores: [], log: [], done: false, longest: 0, pured: 0, shots: 0, aces: [] };
 }
 const holeOf = st => st.course.holes[st.holeIdx];
@@ -865,7 +866,7 @@ const playable = s => s === 'water' || s === 'ob' ? 'rough' : s;
 // res.portal describe those for the animation. res.score is set when the hole is over.
 function play(st, aim, clubIdx, v) {
   aim = q4(aim); v = q4(v);
-  const h = holeOf(st), c = CLUBS[clubIdx], key = st.seed + '#' + st.holeIdx + '#' + st.shotIdx, cap = strokeCap(h);
+  const h = holeOf(st), c = CLUBS[clubIdx], key = st.seed + st.salt + '#' + st.holeIdx + '#' + st.shotIdx, cap = strokeCap(h);
   const res = resolveShot(h, st.ball, st.lie, c, aim, v, rng(hashStr(key)));
   st.log.push({ hole: st.holeIdx, club: clubIdx, aim, v });
   st.shotIdx++; st.shots++; st.strokes += 1 + res.penalty;
@@ -902,6 +903,76 @@ function nextHole(st) {
   st.holeIdx++; st.strokes = 0; st.shotIdx = 0; st.ball = { x: 0, y: 0 }; st.lie = 'tee';
 }
 
+// ── multiplayer ──
+// spec: { kind: 'daily' | 'random', seed } or { kind: 'real', id, mode, day } (realData is courses/<id>/<id>.json).
+function courseFromSpec(spec, realData) {
+  if (spec.kind === 'daily' || spec.kind === 'random') return makeCourse(spec.seed);
+  if (spec.kind === 'real' && realData && realData.id === spec.id && REAL_MODES[spec.mode]) return makeRealCourse(realData, spec.mode, spec.day);
+  throw new Error('bad course spec');
+}
+// What a shot-clock expiry plays: the suggested club and line at power 0.55 (rounded as play() logs them).
+function timeoutSwing(h, ball, lie) {
+  const club = autoClub(h, ball, lie);
+  return { club, aim: q4(aimTarget(h, ball, lie, CLUBS[club])), v: 0.55 };
+}
+const total = s => s.reduce((a, x) => a + (x || 0), 0);
+function strokeResult(pars, scores) {
+  const totals = scores.map(s => total(s.slice(0, pars.length))), best = Math.min(...totals);
+  return { totals, winner: totals.filter(t => t === best).length === 1 ? totals.indexOf(best) : null };
+}
+// Two players. Only holes both have scored count; holes after the match is decided don't change it.
+// up is the leader's margin (always >= 0).
+function matchState(pars, scores) {
+  const n = pars.length, holes = new Array(n).fill(null);
+  let margin = 0, played = 0, decided = false;
+  for (let i = 0; i < n && !decided; i++) {
+    const a = scores[0][i], b = scores[1][i];
+    if (a == null || b == null) continue;
+    holes[i] = a < b ? 0 : b < a ? 1 : null;
+    margin += a < b ? 1 : b < a ? -1 : 0;
+    played = i + 1;
+    decided = Math.abs(margin) > n - played || played === n;
+  }
+  const up = Math.abs(margin), left = n - played, leader = margin > 0 ? 0 : margin < 0 ? 1 : null;
+  const label = decided ? (left > 0 ? `${up} & ${left}` : up ? `${up} up` : 'Halved')
+    : !up ? 'All square' : up === left ? `Dormie ${up}` : `${up} up`;
+  return { holes, up, leader, decided, winner: decided ? leader : null, label };
+}
+// Take-turns order. A player who holes out has already moved to the next tee, so the current hole is
+// the lowest one anyone still on the course is playing; anyone past it (or done) is skipped.
+function nextToPlay(states, honour) {
+  const live = states.map((s, i) => i).filter(i => !states[i].done);
+  if (!live.length) return -1;
+  const cur = Math.min(...live.map(i => states[i].holeIdx)), on = live.filter(i => states[i].holeIdx === cur);
+  if (on.every(i => states[i].shotIdx === 0)) return on.includes(honour) ? honour : on[0];
+  let best = on[0], far = -1;
+  for (const i of on) { const d = dist(states[i].ball, holeOf(states[i]).pin); if (d > far) { far = d; best = i; } }
+  return best;
+}
+// Rebuilds every player's round from a swing log ([{ slot, hole, shot, club, aim, v }], any order
+// across players). Each player's swings must run 0, 1, 2… per hole; a gap or duplicate stops that
+// player there and sets error.
+function replayGame(spec, realData, players, log) {
+  const course = courseFromSpec(spec, realData);
+  const states = players.map(p => newRound(course.seed, course, '#p' + p.slot));
+  let error = null;
+  const fail = msg => { if (!error) error = msg; };
+  for (const e of log) if (!players.some(p => p.slot === e.slot)) fail(`unknown slot ${e.slot}`);
+  players.forEach((p, k) => {
+    const st = states[k];
+    const mine = log.filter(e => e.slot === p.slot).sort((a, b) => a.hole - b.hole || a.shot - b.shot);
+    for (const e of mine) {
+      const at = `slot ${p.slot} hole ${e.hole} shot ${e.shot}`;
+      if (st.done) { fail(`swing after the round: ${at}`); break; }
+      if (e.hole < st.holeIdx || (e.hole === st.holeIdx && e.shot < st.shotIdx)) { fail(`duplicate ${at}`); break; }
+      if (e.hole !== st.holeIdx || e.shot !== st.shotIdx) { fail(`missing shot before ${at}`); break; }
+      if (!CLUBS[e.club] || !Number.isFinite(e.aim) || !Number.isFinite(e.v)) { fail(`bad swing ${at}`); break; }
+      if (play(st, e.aim, e.club, e.v).score != null) nextHole(st);
+    }
+  });
+  return { states, scores: states.map(s => s.scores), done: states.map(s => s.done), error };
+}
+
 const api = {
   CLUBS, LIE, PURE_LO, PURE_HI, SOLID, METER_MAX, ISLAND_BANK, THEMES, themeFor, inLeafPile,
   carryFactor, powerFor, grade, powerAt, aimAt,
@@ -909,6 +980,7 @@ const api = {
   millAngle, millBladeOver, millStrike, inMillZone, portalOut, burnCartHit, shoreR, moatR, isleR,
   clubAllowed, autoClub, aimTarget, targetBand,
   newRound, play, nextHole, holeOf,
+  courseFromSpec, timeoutSwing, strokeResult, matchState, nextToPlay, replayGame,
   nearest, pointAt, normalAt, tangentAt, dist, dirOf, add, rng, hashStr,
 };
 root.DH = api;
