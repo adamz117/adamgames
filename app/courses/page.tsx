@@ -48,6 +48,13 @@ export default function CoursesPage() {
           </span>
           <span className="club-real-go">See the course</span>
         </Link>
+        <Link href="/courses/ironmere-quarry" className="club-real" style={{ borderTop: 'none' }}>
+          <span>
+            <span className="club-h2">Ironmere Quarry</span>
+            <span className="club-lede">An original: the hardest course in Nine Holes, two loops round flooded slate pits, with two island greens, par 72.</span>
+          </span>
+          <span className="club-real-go">See the course</span>
+        </Link>
       </section>
     </main>
   );

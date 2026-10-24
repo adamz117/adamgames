@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Ironmere preview</title>
+<style>body{margin:0;background:#2a3328}svg{width:800px;height:520px;display:block}text{font:700 22px Arial;fill:#fff;paint-order:stroke;stroke:#000;stroke-width:4px}</style>
+<svg id="s"></svg>
+<script>
+// The whole course from ironmere.json, for checking the layout by eye. ?vb=x,y,w,h zooms (course yards).
+fetch('ironmere.json').then(r => r.json()).then(C => {
+  const s = document.getElementById('s'), P = pts => pts.map(p => `${p[0]},${-p[1]}`).join(' ');
+  const xs = C.boundary.map(p => p[0]), ys = C.boundary.map(p => -p[1]);
+  const vb = new URLSearchParams(location.search).get('vb');
+  s.setAttribute('viewBox', vb ? vb.split(',').map((v, i) => i === 1 ? -v - +vb.split(',')[3] : v).join(' ') : `${Math.min(...xs) - 250} ${Math.min(...ys) - 60} ${Math.max(...xs) - Math.min(...xs) + 300} ${Math.max(...ys) - Math.min(...ys) + 520}`);
+  let h = '';
+  const poly = (pts, fill, stroke = 'none', w = 1) => { h += `<polygon points="${P(pts)}" fill="${fill}" stroke="${stroke}" stroke-width="${w}"/>`; };
+  for (const l of C.landmarks) if (l.pts.length > 2) poly(l.pts, l.kind === 'water' ? '#3f6f8f' : '#d8ccb4');
+  poly(C.boundary, '#6f9356', '#fff', 2);
+  for (const t of C.trees) poly(t.pts, '#24442f');
+  for (const f of C.fairways) poly(f.pts, '#92cf68', '#3f8236');
+  for (const t of C.tees) poly(t.pts, '#b9e390');
+  for (const g of C.greens) poly(g.pts, '#cdefa6', '#3f7f32');
+  for (const w of C.water) poly(w.pts, '#3f6f8f', '#bcd7e4', 1.5);
+  for (const b of C.bunkers) poly(b.pts, '#dcd8cf', '#9a958a');
+  for (const ho of C.holes) {
+    h += `<polyline points="${P(ho.path)}" fill="none" stroke="#fff" stroke-dasharray="6 6" stroke-width="1.5"/>`;
+    const t = ho.path[0]; h += `<text x="${t[0]}" y="${-t[1]}">${ho.n}</text>`;
+  }
+  s.innerHTML = h;
+});
+</script>

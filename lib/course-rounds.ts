@@ -10,6 +10,7 @@ export const COURSE_PAR: Record<string, Record<CourseMode, number>> = {
   'tpc-sawgrass': { front: 36, back: 36, all: 72 },
   augusta: { front: 36, back: 36, all: 72 },
   'pebble-beach': { front: 36, back: 36, all: 72 },
+  ironmere: { front: 36, back: 36, all: 72 },
 };
 export const MODE_LABEL: Record<CourseMode, string> = { front: 'Front 9', back: 'Back 9', all: '18 holes' };
 export const MODES: CourseMode[] = ['front', 'back', 'all'];

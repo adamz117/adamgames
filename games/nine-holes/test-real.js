@@ -230,6 +230,32 @@ for (const n of [3, 18]) {
   assert.equal(DH.surfaceAt(h7, { x: (sea.box[0] + sea.box[2]) / 2, y: (sea.box[1] + sea.box[3]) / 2 }), 'water', 'the Pacific is water, not OB');
 }
 
+// Ironmere Quarry (designed, not traced): every tee and pin plays, fairway lines are clear of trees, the island
+// greens are ringed by water but keep a dry land bridge, the creek crosses the 7th, and no fairway or green is wet
+{
+  const im = DH.makeRealCourse(require('./courses/ironmere/ironmere.json'), 'all', DAY);
+  assert.equal(im.par, 72);
+  assert.equal(im.turnAfter, 9);
+  for (const h of im.holes) {
+    assert.equal(DH.surfaceAt(h, { x: 0, y: 0 }), 'tee', `Ironmere hole ${h.index} tee`);
+    assert.equal(DH.surfaceAt(h, h.pin), 'green', `Ironmere hole ${h.index} pin`);
+    for (let t = h.par === 3 ? 0.75 : 0.3; t <= 0.9; t += 0.05)
+      assert.notEqual(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)), 'trees', `Ironmere hole ${h.index} at ${Math.round(t * 100)}%`);
+    for (const fw of h.real.fairways.filter(f => f.hole === h.index)) for (const p of fw.pts.filter((_, i) => i % 4 === 0))
+      assert.ok(!h.real.water.some(w => DH.surfaceAt(h, p) === 'water'), `Ironmere hole ${h.index} fairway edge is dry`);
+  }
+  for (const [n, gap] of [[3, 42], [17, 98]]) {
+    const h = im.holes[n - 1], g = h.green, back = DH.pointAt(h.path, h.total - 40), vx = (g.x - back.x) / 40, vy = (g.y - back.y) / 40;
+    const at = (deg, r) => { const a = deg * Math.PI / 180; return { x: g.x - vx * Math.cos(a) * r + vy * Math.sin(a) * r, y: g.y - vy * Math.cos(a) * r - vx * Math.sin(a) * r }; };
+    const ring = [0, 60, 120, 180, 240, 300].filter(d => Math.abs(((d - gap + 540) % 360) - 180) > 30);
+    for (const d of ring) assert.equal(DH.surfaceAt(h, at(d, 30)), 'water', `Ironmere ${n}: water round the island at ${d}°`);
+    for (let r = 16; r <= 60; r += 4) assert.notEqual(DH.surfaceAt(h, at(gap, r)), 'water', `Ironmere ${n}: the land bridge is dry ${r} yds out`);
+  }
+  const h7 = im.holes[6], creek = [];
+  for (let t = 0.45; t <= 0.58; t += 0.003) creek.push(DH.surfaceAt(h7, DH.pointAt(h7.path, h7.total * t)));
+  assert.ok(creek.includes('water'), 'the creek crosses the 7th');
+}
+
 // The daily game is untouched
 assert.equal(DH.hashStr(JSON.stringify(DH.makeCourse('2026-10-23'))), 980314489);
 
