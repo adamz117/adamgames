@@ -39,10 +39,17 @@ drop policy if exists "course_rounds insert: members only" on public.course_roun
 create policy "course_rounds insert: members only" on public.course_rounds
   as restrictive for insert to authenticated
   with check (coalesce((select (auth.jwt() ->> 'is_anonymous')::boolean), false) = false);
-drop policy if exists "assassins_access insert: members only" on public.assassins_access;
-create policy "assassins_access insert: members only" on public.assassins_access
-  as restrictive for insert to authenticated
-  with check (coalesce((select (auth.jwt() ->> 'is_anonymous')::boolean), false) = false);
+-- Only if the assassins tables (0002) are still there.
+do $$
+begin
+  if to_regclass('public.assassins_access') is not null then
+    drop policy if exists "assassins_access insert: members only" on public.assassins_access;
+    create policy "assassins_access insert: members only" on public.assassins_access
+      as restrictive for insert to authenticated
+      with check (coalesce((select (auth.jwt() ->> 'is_anonymous')::boolean), false) = false);
+  end if;
+end;
+$$;
 
 -- ── Tables ──
 create table if not exists public.lobbies (
