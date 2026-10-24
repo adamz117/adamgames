@@ -129,32 +129,36 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
     onError: setNotice,
   });
 
-  // ── in the lobby: channel, heartbeat, refreshes ──
+  // ── in the lobby: channel, heartbeat, refreshes (none once it has closed or we're out) ──
+  const connected = stage === 'room' && lobby?.status !== 'closed';
   useEffect(() => {
-    if (!me || !code) return;
+    if (!me || !code || !connected) return;
     let alive = true, inFlight = false, again = false;
     // Re-read the lobby and its players (every broadcast is only a hint to do this).
     const refresh = async () => {
       if (inFlight) { again = true; return; }
       inFlight = true;
-      do {
-        again = false;
-        const [l, rows] = await Promise.all([getLobby(code), getPlayers(me.id)]);
-        if (!alive) return;
-        if (l) setLobby(l);
-        // My row is gone (quiet for 60 s before the start, or a rematch removed it): join again.
-        if (l && rows && !rows.some((p) => p.userId === me.userId)) {
-          if (l.status !== 'open') { setFatal(l.status === 'closed' ? 'closed' : 'not_member'); setStage('error'); return; }
-          const r = await joinLobby(code, me.name);
+      try {
+        do {
+          again = false;
+          const [l, rows] = await Promise.all([getLobby(code), getPlayers(me.id)]);
           if (!alive) return;
-          if ('error' in r) { setFatal(r.error); setStage('error'); return; }
-          if (r.slot !== me.slot) return setMe({ ...me, slot: r.slot }); // this effect starts over
-          again = true;
-          continue;
-        }
-        if (rows) setPlayers(rows);
-      } while (again);
-      inFlight = false;
+          if (l) setLobby(l);
+          // My row is gone (quiet for 60 s before the start, or a rematch removed it): join again.
+          if (l && rows && !rows.some((p) => p.userId === me.userId)) {
+            if (l.status !== 'open') { setFatal(l.status === 'closed' ? 'closed' : 'not_member'); setStage('error'); return; }
+            const r = await joinLobby(code, me.name);
+            if (!alive) return;
+            if ('error' in r) { setFatal(r.error); setStage('error'); return; }
+            if (r.slot !== me.slot) return setMe({ ...me, slot: r.slot }); // this effect starts over
+            again = true;
+            continue;
+          }
+          if (rows) setPlayers(rows);
+        } while (again);
+      } finally {
+        inFlight = false;
+      }
     };
     refreshRef.current = () => void refresh();
     // Hidden tabs throttle timers, so also beat whenever the page comes back.
@@ -186,7 +190,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
       channelRef.current = null;
       refreshRef.current = () => {};
     };
-  }, [me, code, feed]);
+  }, [me, code, feed, connected]);
 
   // ── views ──
   if (!code) return <Message text={errorText('not_found')} />;

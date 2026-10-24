@@ -42,6 +42,7 @@ export const AWAY_MS = 60_000; // an opponent gone from presence this long may h
 export const FINISH_RETRY_MS = 5_000;
 export const FINISH_WAIT_MS = 10 * 60_000; // how long to keep asking while the other player finishes
 export const RESYNC_MS = 15_000;
+export const AWAY_RETRY_MS = 30_000; // while they stay away (but may still be heartbeating): ask at most this often
 const INIT_TRIES = 6;
 
 export function createGameRelay(d: RelayDeps): GameRelay {
@@ -60,7 +61,7 @@ export function createGameRelay(d: RelayDeps): GameRelay {
   const leftSlots = new Set<number>();
   const lastHere = new Map<number, number>();
   const started = now();
-  let lastResync = started;
+  let lastResync = started, lastAwayAsk = -Infinity;
 
   const forward = (s: Swing) => { if (s.slot !== me) d.post({ type: 'mp-swing', swing: s }); };
   // Once per mp-init: the game reopens its end card on every mp-result.
@@ -193,7 +194,11 @@ export function createGameRelay(d: RelayDeps): GameRelay {
     tick() {
       if (!alive) return;
       const t = markHere();
-      if (!results && players.some((p) => p.slot !== me && !p.leftAt && t - (lastHere.get(p.slot) ?? started) > AWAY_MS)) void finish(false);
+      const away = players.some((p) => p.slot !== me && !p.leftAt && t - (lastHere.get(p.slot) ?? started) > AWAY_MS);
+      if (away && !results && t - lastAwayAsk >= AWAY_RETRY_MS) {
+        lastAwayAsk = t;
+        void finish(false);
+      }
       if (t - lastResync >= RESYNC_MS) void resync();
     },
     dispose() {

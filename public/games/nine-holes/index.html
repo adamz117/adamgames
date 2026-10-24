@@ -1788,7 +1788,14 @@ function mpMessage(m) {
   if (m.type === 'mp-init') return mpInit(m);
   if (!MP) return void mpEarly.push(m);
   if (m.type === 'mp-swing') mpReceive(m.swing);
-  else if (m.type === 'mp-left') { const i = MP.players.findIndex(p => p.slot === m.slot); if (i >= 0 && i !== MP.meIdx) mpShowEnd(`${mpName(i)} left`); }
+  else if (m.type === 'mp-left') {
+    const i = MP.players.findIndex(p => p.slot === m.slot);
+    if (i < 0 || i === MP.meIdx) return;
+    const note = `${mpName(i)} left`;
+    // Leaving after finishing the round is no forfeit: I finish mine and the site settles it.
+    if (!MP.states[i].done || MP.over) return mpShowEnd(note);
+    MP.note = note; $('hint').textContent = note;
+  }
   else if (m.type === 'mp-result' && Array.isArray(m.results)) { MP.result = m.results; mpShowEnd(); }
 }
 addEventListener('message', e => {
