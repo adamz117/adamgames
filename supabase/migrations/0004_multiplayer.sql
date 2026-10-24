@@ -517,6 +517,18 @@ language sql stable security definer set search_path = public as $$
   limit 20;
 $$;
 
+-- True only for a well-formed 'lobby:<uuid>' Realtime topic whose lobby the caller is in.
+create or replace function public.lobby_topic_member(p_topic text)
+returns boolean language plpgsql stable security definer set search_path = public as $$
+begin
+  if p_topic is null
+     or p_topic !~ '^lobby:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    return false;
+  end if;
+  return public.is_lobby_member(substr(p_topic, 7)::uuid);
+end;
+$$;
+
 -- ── Row level security ──
 alter table public.lobbies enable row level security;
 alter table public.lobby_players enable row level security;
@@ -637,32 +649,65 @@ grant update (seen) on public.invites to authenticated;
 -- ── Function privileges ──
 revoke execute on function
   public.lobby_capacity(jsonb), public.is_lobby_member(uuid), public.lobby_active_count(uuid),
-  public.lobby_can_start(uuid), public.unready_lobby_players(), public.clean_name(text), public.display_name(uuid),
+  public.lobby_can_start(uuid), public.unready_lobby_players(), public.lobby_topic_member(text), public.clean_name(text), public.display_name(uuid),
   public.create_lobby(jsonb, text, text), public.join_lobby(text, text), public.touch_lobby(uuid, boolean),
   public.lobby_by_code(text), public.list_public_lobbies(), public.rematch_lobby(uuid),
   public.finish_lobby(uuid, int, jsonb), public.request_friend(text), public.my_friends(), public.my_invites()
 from public, anon, authenticated;
--- is_lobby_member and lobby_can_start run inside the policies, as the caller.
+-- is_lobby_member, lobby_can_start and lobby_topic_member run inside the policies, as the caller.
 grant execute on function
-  public.is_lobby_member(uuid), public.lobby_can_start(uuid),
+  public.is_lobby_member(uuid), public.lobby_can_start(uuid), public.lobby_topic_member(text),
   public.create_lobby(jsonb, text, text), public.join_lobby(text, text), public.touch_lobby(uuid, boolean),
   public.lobby_by_code(text), public.list_public_lobbies(), public.rematch_lobby(uuid),
   public.request_friend(text), public.my_friends(), public.my_invites()
 to authenticated;
 grant execute on function public.finish_lobby(uuid, int, jsonb) to service_role;
+-- Logged-out visitors can browse public lobbies and open a link before becoming a guest.
+grant execute on function public.list_public_lobbies(), public.lobby_by_code(text) to anon;
 
--- ── Realtime: invites reach the recipient's open pages (postgres_changes, filtered by RLS) ──
+-- ── Realtime ──
+-- postgres_changes (filtered by each table's RLS): invites reach the recipient's open pages, and
+-- the room receives every stored swing, so the swing log is the one source of truth.
 do $$
+declare
+  t text;
 begin
-  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
-     and not exists (
-       select 1 from pg_publication_tables
-       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'invites'
-     ) then
-    alter publication supabase_realtime add table public.invites;
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    foreach t in array array['invites', 'swings'] loop
+      if not exists (
+        select 1 from pg_publication_tables
+        where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+      ) then
+        execute format('alter publication supabase_realtime add table public.%I', t);
+      end if;
+    end loop;
   end if;
 end;
 $$;
+
+-- Private channels: broadcast and presence on 'lobby:<id>' are for that lobby's players only;
+-- presence on 'online' is for signed-in members (not guests). RLS on realtime.messages is
+-- already on in Supabase.
+drop policy if exists "lobby players read their lobby channel" on realtime.messages;
+create policy "lobby players read their lobby channel" on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension in ('broadcast', 'presence')
+         and public.lobby_topic_member((select realtime.topic())));
+drop policy if exists "lobby players write their lobby channel" on realtime.messages;
+create policy "lobby players write their lobby channel" on realtime.messages
+  for insert to authenticated
+  with check (realtime.messages.extension in ('broadcast', 'presence')
+              and public.lobby_topic_member((select realtime.topic())));
+drop policy if exists "members read online presence" on realtime.messages;
+create policy "members read online presence" on realtime.messages
+  for select to authenticated
+  using ((select realtime.topic()) = 'online' and realtime.messages.extension = 'presence'
+         and coalesce((select (auth.jwt() ->> 'is_anonymous')::boolean), false) = false);
+drop policy if exists "members track online presence" on realtime.messages;
+create policy "members track online presence" on realtime.messages
+  for insert to authenticated
+  with check ((select realtime.topic()) = 'online' and realtime.messages.extension = 'presence'
+              and coalesce((select (auth.jwt() ->> 'is_anonymous')::boolean), false) = false);
 
 -- ── Occasional clean-up (Supabase doesn't do it for you). Run by hand in the SQL editor. ──
 -- Results are kept: match_results has no foreign key to lobbies.
