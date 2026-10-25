@@ -11,6 +11,7 @@ const COURSES: (CourseEntry & { href: string })[] = [
   { id: 'augusta', kind: 'real', href: '/courses/augusta-national', name: 'Augusta National Golf Club', lede: 'Augusta, Georgia. Home of the Masters, with Amen Corner and Rae’s Creek, par 72.' },
   { id: 'pebble-beach', kind: 'real', href: '/courses/pebble-beach', name: 'Pebble Beach Golf Links', lede: 'Pebble Beach, California. Clifftop holes on the Pacific, with the little 7th on the point, par 72.' },
   { id: 'ironmere', kind: 'fantasy', href: '/courses/ironmere-quarry', name: 'Ironmere Quarry', lede: 'The hardest course in Nine Holes: two loops round flooded slate pits, with two island greens, par 72.' },
+  { id: 'cloudspire', kind: 'fantasy', href: '/courses/cloudspire-highlands', name: 'Cloudspire Highlands', lede: 'Up one face of a mountain and down the other: ridge-top fairways, greens on pinnacles and crags, streams that plunge into waterfalls. Every hole a gamble, made for match play, par 72.' },
   { id: 'sunscar', kind: 'fantasy', href: '/courses/sunscar-canyon', name: 'Sunscar Canyon', lede: 'A red-rock desert canyon where every hole crosses the river, and the 8th green sits on a butte in the middle of it, par 72.' },
 ];
 

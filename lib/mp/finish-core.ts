@@ -43,6 +43,7 @@ export const COURSE_NAME: Record<string, string> = {
   'pebble-beach': 'Pebble Beach Golf Links',
   ironmere: 'Ironmere Quarry',
   sunscar: 'Sunscar Canyon',
+  cloudspire: 'Cloudspire Highlands',
 };
 const MODE_NAME = { front: 'front nine', back: 'back nine', all: '18 holes' } as const;
 

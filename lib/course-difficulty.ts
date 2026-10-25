@@ -11,6 +11,7 @@ export const CLUB_AVG: Record<string, number> = {
   'tpc-sawgrass': 8.0,
   ironmere: 12.8,
   sunscar: 4.5,
+  cloudspire: 3.7,
 };
 
 const LABELS = ['Easy', 'Easy', 'Moderate', 'Moderate', 'Testing', 'Testing', 'Hard', 'Hard', 'Brutal', 'Brutal'];

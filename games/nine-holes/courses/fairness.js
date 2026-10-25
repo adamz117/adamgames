@@ -54,7 +54,10 @@ for (const id of COURSES) {
   }
   const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
   const total = DAYS.map((_, r) => per.reduce((a, p) => a + p[r], 0));
-  console.log(`\n${data.name}: ${ROUNDS} rounds, average ${mean(total) >= 0 ? '+' : ''}${mean(total).toFixed(1)} (best ${Math.min(...total)}, worst ${Math.max(...total)})`);
-  data.holes.forEach((h, i) => console.log(`  ${String(h.n).padStart(2)} par ${h.par} ${String(h.cardYds).padStart(3)}y  avg ${mean(per[i]) >= 0 ? '+' : ''}${mean(per[i]).toFixed(2)}  worst +${Math.max(...per[i])}  penalties ${wet[i]}`));
+  // swing: how often a hole is won or lost outright against par (birdie or better, bogey or worse): a match-play hole swings
+  const pct = (a, f) => Math.round(100 * a.filter(f).length / a.length);
+  const swing = per.map(a => pct(a, x => x < 0) + pct(a, x => x > 0));
+  console.log(`\n${data.name}: ${ROUNDS} rounds, average ${mean(total) >= 0 ? '+' : ''}${mean(total).toFixed(1)} (best ${Math.min(...total)}, worst ${Math.max(...total)}), swing ${Math.round(mean(swing))}%`);
+  data.holes.forEach((h, i) => console.log(`  ${String(h.n).padStart(2)} par ${h.par} ${String(h.cardYds).padStart(3)}y  avg ${mean(per[i]) >= 0 ? '+' : ''}${mean(per[i]).toFixed(2)}  worst +${Math.max(...per[i])}  penalties ${wet[i]}  birdie+ ${pct(per[i], x => x < 0)}%  bogey+ ${pct(per[i], x => x > 0)}%`));
   if (process.env.SAVE) fs.writeFileSync(path.join(__dirname, id, 'hardness.json'), JSON.stringify(per.map(mean)));
 }

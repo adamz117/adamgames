@@ -284,6 +284,41 @@ for (const n of [3, 18]) {
   assert.equal(DH.surfaceAt(h1, frame([-160, 880])), 'ob', 'the desert beyond the boundary is out of bounds');
 }
 
+// Cloudspire Highlands (designed): every tee and pin plays, fairway lines clear of trees, fairway edges dry, the six
+// stream holes cross their streams, the waterfalls beyond the boundary are water (not OB), no stream near a tee or green
+{
+  const data = require('./courses/cloudspire/cloudspire.json'), cs = DH.makeRealCourse(data, 'all', DAY);
+  assert.equal(cs.par, 72);
+  assert.equal(cs.turnAfter, 9);
+  for (const h of cs.holes) {
+    assert.equal(DH.surfaceAt(h, { x: 0, y: 0 }), 'tee', `Cloudspire hole ${h.index} tee`);
+    assert.equal(DH.surfaceAt(h, h.pin), 'green', `Cloudspire hole ${h.index} pin`);
+    for (let t = h.par === 3 ? 0.75 : 0.3; t <= 0.9; t += 0.05)
+      assert.notEqual(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)), 'trees', `Cloudspire hole ${h.index} at ${Math.round(t * 100)}%`);
+    for (const fw of h.real.fairways.filter(f => f.hole === h.index)) for (const p of fw.pts.filter((_, i) => i % 4 === 0))
+      assert.notEqual(DH.surfaceAt(h, p), 'water', `Cloudspire hole ${h.index} fairway edge is dry`);
+  }
+  for (const n of [4, 7, 11, 12, 17, 18]) {
+    const h = cs.holes[n - 1], line = [];
+    for (let t = 0; t <= 1; t += 0.004) line.push(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)));
+    assert.ok(line.includes('water'), `Cloudspire ${n} crosses its stream`);
+  }
+  const falls = data.landmarks.filter(l => /Falls$/.test(l.name));
+  assert.equal(falls.length, 6, 'six named waterfalls');
+  const h1 = cs.holes[0], { T, th, k } = h1.real, c = Math.cos(th), s = Math.sin(th);
+  const frame = ([x, y]) => { const dx = x - T.x, dy = y - T.y; return { x: (dx * c - dy * s) * k, y: (dx * s + dy * c) * k }; };
+  for (const f of falls) {
+    const mid = f.pts.reduce((a, p) => [a[0] + p[0] / f.pts.length, a[1] + p[1] / f.pts.length], [0, 0]);
+    assert.equal(DH.surfaceAt(h1, frame(mid)), 'water', `${f.name} is water, not out of bounds`);
+  }
+  const streams = data.water.filter(w => w.pts.length > 300), segD = (p, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy))); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); };
+  assert.equal(streams.length, 6, 'six streams');
+  for (const sh of [...data.greens, ...data.tees]) {
+    const mid = sh.pts.reduce((a, p) => [a[0] + p[0] / sh.pts.length, a[1] + p[1] / sh.pts.length], [0, 0]);
+    for (const w of streams) assert.ok(w.pts.every((p, i) => segD(mid, p, w.pts[(i + 1) % w.pts.length]) > 20), `no stream beside the hole ${sh.hole} tee or green`);
+  }
+}
+
 // The daily game is untouched
 assert.equal(DH.hashStr(JSON.stringify(DH.makeCourse('2026-10-23'))), 980314489);
 
