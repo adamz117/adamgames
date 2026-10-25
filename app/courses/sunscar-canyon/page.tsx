@@ -26,7 +26,7 @@ export default function SunscarPage() {
       <h1 className="club-h2" style={{ fontSize: 'clamp(44px, 7vw, 84px)', marginTop: 10 }}>Sunscar Canyon</h1>
       <p className="club-lede">
         An original desert course, designed for Nine Holes. A river winds through a red-rock canyon in a great
-        horseshoe bend, and every hole crosses it: carries off the tee, rivers across the driving zone that make you
+        horseshoe bend, and every hole crosses it: carries off the tee, crossings in the driving zone that make you
         choose between laying up and taking it on, approaches over the water, and the 15th running along the canyon
         until it has to cross. The 8th green sits on a butte in the middle of the river. In the heart of the
         horseshoe lies open desert.
