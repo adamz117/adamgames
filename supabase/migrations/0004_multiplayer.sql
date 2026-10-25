@@ -1,3 +1,4 @@
+-- Don't re-run after 0005 (it changes list_public_lobbies and lobby_capacity).
 -- Nine Holes multiplayer: lobbies, their players, the swing log, results, friends and invites.
 -- Additive and safe to re-run on the live database. Guests are Supabase anonymous users: they have
 -- the `authenticated` role and auth.users.is_anonymous = true.
