@@ -137,6 +137,15 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
 .act:hover { filter: brightness(1.09); }
 .act.wait { background: #EDF2ED; color: var(--dim); pointer-events: none; }
 .hint { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dimmer); text-align: center; margin-top: 7px; min-height: 14px; }
+/* two-player game (?mp=1): the score / match pill with the shot clock, and the side-by-side card */
+.mpHud { pointer-events: none; display: flex; max-width: 58%; white-space: nowrap; }
+#mpScore { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#mpClock { flex: none; } #mpClock.late { color: #C0392B; font-weight: 500; }
+.mpCard { display: grid; margin: 14px 0; border: 1px solid var(--line-soft); border-radius: 8px; overflow: hidden; background: #FBFCFA; font-family: var(--mono); font-size: 11px; }
+.mpCard span { padding: 5px 0 4px; border-bottom: 1px solid var(--line-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--chalk); }
+.mpCard .h { font-size: 9px; color: var(--dimmer); background: #F2F6F1; }
+.mpCard .name { text-align: left; padding-left: 7px; }
+.mpCard .won { color: var(--flag); font-weight: 600; background: #EDF5EE; }
 </style>
 </head>
 <body>
@@ -149,6 +158,7 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
     <div class="hud hud-tr"><div class="k">Wind</div><div class="v" id="wind"></div></div>
     <div class="hud hud-bl"><div class="k" id="lie"></div><div class="v" id="pin"></div></div>
     <button class="pill" id="menuBtn">MENU</button>
+    <div class="pill mpHud" id="mpHud" hidden><span id="mpScore"></span><span id="mpClock"></span></div>
     <div class="courseTools">
       <button id="soundBtn" aria-label="Sound" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z"/><path class="on" d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.6a6 6 0 0 1 0 8.8"/><path class="off" d="M11 6l4 4M15 6l-4 4"/></svg></button>
       <button id="helpBtn" aria-label="How to play">?</button>
@@ -199,6 +209,16 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
       <button class="btn" id="againBtn">Play again</button>
       <button class="btn ghost" id="newBtn">New course</button>
       <button class="btn ghost" id="homeBtn">Back to home</button>
+    </div>
+  </div>
+  <div class="end" id="mpEnd" hidden>
+    <div class="endCard">
+      <div class="tag" id="mpTag"></div>
+      <h2 id="mpResult"></h2>
+      <div class="endStrokes" id="mpDetail"></div>
+      <div class="mpCard" id="mpCard"></div>
+      <button class="btn" id="mpAgain">Play again</button>
+      <button class="btn ghost" id="mpLobby">Leave</button>
     </div>
   </div>
   <div class="panel" id="panel">
@@ -302,10 +322,12 @@ const fwCvs = document.createElement('canvas'), fwCtx = fwCvs.getContext('2d'); 
 let W = 0, H = 0, DPR = 1;
 const view = { cx: 0, cy: 0, s: 1, tx: 0, ty: 0, ts: 1, ready: false, manual: false, reveal: 0 };
 const QS = new URLSearchParams(location.search);
+const MP_MODE = QS.get('mp') === '1'; // a two-player game: the page around it sends mp-init
 let seed = QS.get('seed') || todayKey();
 // ?course=<id>&holes=front|back|all plays a real course from courses/<id>/<id>.json; anything else is the daily nine
 const MODE_NAME = { front: 'Front 9', back: 'Back 9', all: '18 holes' };
 const REAL = /^[a-z0-9-]{2,40}$/.test(QS.get('course') || '') ? { id: QS.get('course'), mode: MODE_NAME[QS.get('holes')] ? QS.get('holes') : 'all', data: null } : null;
+let MP = null; // the two-player game (?mp=1), set up by the page's mp-init; null in the solo game
 let st, phase, clubIdx, aimCenter, aimAngle, manualAim, locked, tAim, tPow, power = 0, anim = null, trail = [], fx = [], trapped = null, tickEnd = null;
 
 const hole = () => DH.holeOf(st);
@@ -423,15 +445,18 @@ function lockAim() {
   setAct('Swing'); $('hint').textContent = 'Stop just under 100';
   $('stage').classList.remove('aiming');
 }
-function fireShot() {
-  power = DH.powerAt(club(), (performance.now() - tPow) / 1000);
-  const res = DH.play(st, aimAngle, clubIdx, power);
+function fireShot(timeout) {
+  if (!timeout) power = DH.powerAt(club(), (performance.now() - tPow) / 1000);
+  launch(MP ? mpPlay(timeout) : DH.play(st, aimAngle, clubIdx, power), aimAngle);
+}
+// Animates a shot already played (mine, or in a two-player game one I am watching).
+function launch(res, aim) {
   Snd.hit(res.quality);
   phase = 'flight'; setAct('—', true); $('hint').textContent = ''; $('track').classList.add('idle');
   view.manual = false; view.reveal = 0; $('recenter').hidden = true;
   anim = { mode: 'shot', res, t0: performance.now(), dur: Math.min(1700, 620 + res.carry * 3.2),
     rollDur: Math.min(1500, 420 + dist(res.land, res.rest) * 7), apex: Math.min(1, 0.25 + res.carry / 420),
-    ctrl: add(res.from, dirOf(aimAngle), dist(res.from, res.land) * 0.55) }; // flight bends from the line onto where it lands
+    ctrl: add(res.from, dirOf(aim), dist(res.from, res.land) * 0.55) }; // flight bends from the line onto where it lands
 }
 function settleShot() {
   const r = anim.res, h = hole();
@@ -472,7 +497,7 @@ function afterRest(r) {
   phase = 'settle'; setAct('—', true);
   if (r.putts) return void setTimeout(() => { if (phase === 'settle') startPutts(h, r.putts); }, r.portal ? wait : 0);
   clubIdx = DH.autoClub(h, st.ball, st.lie);
-  setTimeout(() => { if (phase === 'settle') setupAim(); }, wait);
+  setTimeout(() => { if (phase === 'settle') MP ? mpNext() : setupAim(); }, wait);
 }
 function settleFling() {
   const r = anim.res, a = r.arm;
@@ -507,6 +532,7 @@ function finishHole(putts) {
   if (ace) toast(name, `HOLE ${h.index} · ${h.len} YDS, ONE SWING`, 'var(--amber)');
   else toast(name, `HOLE ${h.index} IN ${score}${tail}`, d < 0 ? 'var(--gold)' : d === 0 ? 'var(--chalk)' : 'var(--flag)');
   phase = 'holeend';
+  if (MP) return mpHoleEnd();
   const last = st.holeIdx >= st.course.holes.length - 1;
   setAct(last ? 'Finishing…' : 'Next hole', last);
   if (last) setTimeout(() => { if (phase === 'holeend') nextHoleUI(); }, 1900);
@@ -514,6 +540,7 @@ function finishHole(putts) {
   renderCard();
 }
 function nextHoleUI() {
+  if (MP) return mpNext();
   // On this course the 10th walks back to the clubhouse, so the turn comes after it, not after the 9th.
   if (REAL && REAL.mode === 'all' && st.holeIdx === st.course.turnAfter - 1 && phase === 'holeend') return showTurn();
   DH.nextHole(st);
@@ -532,6 +559,7 @@ function showTurn() {
 function leaveTurn() { $('turn').hidden = true; DH.nextHole(st); startHole(); }
 function endRound() {
   phase = 'done';
+  if (MP) return mpEnd();
   const strokes = st.scores.reduce((a, b) => a + b, 0), par = st.course.par;
   $('endTag').textContent = REAL ? MODE_NAME[REAL.mode] : seed === todayKey() ? 'Today\'s nine' : 'Course · ' + seed;
   $('endName').textContent = st.course.name;
@@ -555,12 +583,13 @@ function reportRound(strokes, par) {
 // ── ui ──
 function setAct(text, wait) { const b = $('act'); b.textContent = text; b.classList.toggle('wait', !!wait); }
 function act() {
+  if (MP && MP.over) return void ($('mpEnd').hidden = false); // the game is over: no more swings
   if (view.fly) { view.fly = null; return; }
   if (phase === 'aim') lockAim();
   else if (phase === 'power') fireShot();
   else if (phase === 'holeend') nextHoleUI();
   else if (phase === 'turn') leaveTurn();
-  else if (phase === 'done') $('end').hidden = false;
+  else if (phase === 'done') $(MP ? 'mpEnd' : 'end').hidden = false;
 }
 function toast(big, sub, color) {
   $('tBig').textContent = big; $('tSub').textContent = sub || ''; $('tBig').style.color = color || 'var(--gold)';
@@ -588,6 +617,7 @@ function hud() {
   if (h.burn) tags.push([`BURN ${h.burn.at}`, '#4E93BE']);
   if (h.cart) tags.push(['PATH', '#A79E90']);
   $('tags').innerHTML = tags.map(([t, c]) => `<b style="color:${c}">${t}</b>`).join('');
+  if (MP) mpHud(true);
 }
 const scoreClass = d => d <= -2 ? 'eagle' : d === -1 ? 'bird' : d === 0 ? 'parred' : d === 1 ? 'bog' : 'dbl';
 function cardCells(live) {
@@ -604,6 +634,7 @@ function cardCells(live) {
   return [...cells.slice(0, 9), sum(0, 9, 'OUT'), ...cells.slice(9), sum(9, 18, 'IN')].join('');
 }
 function renderCard() {
+  if (MP && st !== mpMine()) return; // the strip is always my card, even while I watch someone else's shot
   $('card').classList.toggle('c10', st.course.holes.length === 18);
   $('endCard').classList.toggle('c10', st.course.holes.length === 18);
   $('card').innerHTML = cardCells(true);
@@ -1341,10 +1372,10 @@ function drawAimFan(h) {
   ctx.setLineDash([2, 3]); ctx.lineWidth = 1.4; ctx.strokeStyle = locked ? '#A5701CA0' : '#B23A1E90'; ctx.stroke(); ctx.restore();
 }
 
-function drawBall(p, height = 0) {
+function drawBall(p, height = 0, fill = '#fff') {
   const c = TS(p), r = Math.max(2.8, Math.min(6, 0.75 * view.s)) * (1 + height / 70);
   ctx.beginPath(); ctx.ellipse(c.x + 1 + height * 0.25, c.y + 1.5, r * 1.05, r * 0.8, 0, 0, 6.284); ctx.fillStyle = 'rgba(30,50,34,0.28)'; ctx.fill();
-  ctx.beginPath(); ctx.arc(c.x, c.y - height, r, 0, 6.284); ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.beginPath(); ctx.arc(c.x, c.y - height, r, 0, 6.284); ctx.fillStyle = fill; ctx.fill();
   ctx.lineWidth = 1; ctx.strokeStyle = '#2C3D2F'; ctx.stroke();
 }
 
@@ -1486,8 +1517,9 @@ function frame(now) {
   drawFrame();
   if (phase === 'aim' || phase === 'power') drawAimFan(h);
   drawFx(now);
-  const sunk = !anim && (phase === 'holeend' || phase === 'done') && dist(st.ball, h.pin) < 0.5;
-  if (!sunk) drawBall(ballAt, height);
+  const sunk = !anim && (phase === 'holeend' || phase === 'done' || phase === 'wait') && dist(st.ball, h.pin) < 0.5;
+  if (!sunk) drawBall(ballAt, height, MP ? mpColor(MP.states.indexOf(st)) : undefined);
+  if (MP) mpDraw(ballAt, height);
   if (puttLabel && anim) drawPuttCount(puttLabel.p, anim.n);
   drawBirds(now);
 }
@@ -1527,6 +1559,7 @@ cvs.addEventListener('wheel', e => {
   view.cx = view.tx = view.cx + before.x - after.x; view.cy = view.ty = view.cy + before.y - after.y;
 }, { passive: false });
 function tapAt(x, y) {
+  if (MP && MP.over) return;
   if (view.fly) { view.fly = null; return; } // a tap skips the view
   if (phase === 'aim' && !locked) {
     const p = fromScreen(x, y);
@@ -1561,8 +1594,237 @@ addEventListener('keydown', e => {
 });
 addEventListener('resize', resize);
 
+// ── two-player game (?mp=1) ──
+// Players swap swings, not positions: every client plays every swing through the same sim, so all
+// see the same game. The page around the game relays the messages. In: mp-init, mp-swing, mp-left,
+// mp-result. Out: mp-ready, mp-swing (mine, before it animates), mp-done, mp-rematch, mp-leave.
+const MP_COLORS = ['#E2553B', '#3B7BE2', '#E2B53B']; // the other players' balls; mine stays white
+const MP_IDLE = ['init', 'settle', 'holeend', 'wait']; // nothing moving: mpNext may decide what comes next
+const q4 = x => Math.round(x * 1e4) / 1e4; // as play() rounds them, so the swing I send is the one I play
+const mpPost = m => window.parent.postMessage(m, location.origin);
+let mpEarly = []; // messages that arrive while mp-init is still loading the course, handled once it's built
+const mpMine = () => MP.states[MP.meIdx];
+const mpName = i => MP.players[i].name;
+const mpColor = i => i === MP.meIdx ? '#fff' : MP_COLORS[(i - (i > MP.meIdx ? 1 : 0)) % MP_COLORS.length];
+const mpPars = () => MP.states[0].course.holes.map(h => h.par);
+// The names of the players who haven't finished hole j (scored it, or moved past it).
+const mpBehind = j => MP.states.flatMap((s, i) => s.done || s.holeIdx > j || s.scores[j] != null ? [] : [mpName(i)]);
+// Take-turns honour on hole k: whoever won the last hole outright, else the previous honour, else the host.
+function mpHonour(k) {
+  let h = 0;
+  for (let j = 0; j < k; j++) {
+    const sc = MP.states.map(s => s.scores[j]), lo = Math.min(...sc);
+    if (sc.filter(x => x === lo).length === 1) h = sc.indexOf(lo);
+  }
+  return h;
+}
+// Builds the game from the page's settings; on a rejoin, swings already played catch every player up.
+function mpInit(m) {
+  const set = m.settings || {}, spec = set.spec || {}, swings = Array.isArray(m.swings) ? m.swings : [];
+  const players = (Array.isArray(m.players) ? m.players : []).map((p, i) => ({ slot: p.slot, name: String(p.name || 'Player ' + (i + 1)).slice(0, 24) }));
+  const meIdx = players.findIndex(p => p.slot === m.me);
+  if (meIdx < 0 || (spec.kind === 'real' && !/^[a-z0-9-]{2,40}$/.test(spec.id || ''))) return;
+  MP = null; mpEarly = []; anim = null; phase = 'init'; setAct('Waiting…', true); // a rematch: nothing from the last game carries over
+  const start = data => {
+    const r = DH.replayGame(spec, data, players, swings);
+    if (r.error) console.warn('nine holes mp:', r.error);
+    const mine = swings.filter(w => w.slot === m.me).sort((a, b) => a.hole - b.hole || a.shot - b.shot);
+    MP = { players, meIdx, states: r.states, inbox: r.error ? swings.slice() : [], deadline: 0, over: false, doneSent: false, result: null, note: '',
+      timeouts: mine.reduce((n, w) => w.timeout ? n + 1 : 0, 0), // timed-out swings in a row
+      settings: { format: set.format === 'match' ? 'match' : 'stroke', pace: set.pace === 'turns' ? 'turns' : 'own', clock: set.clock > 0 ? +set.clock : 30 } };
+    st = mpMine();
+    PAL = PALETTES[st.course.theme] || PALETTES.victoria;
+    $('courseName').textContent = `${st.course.name} · ${spec.kind === 'real' ? MODE_NAME[spec.mode] : PAL.name}`;
+    for (const id of ['end', 'turn', 'mpEnd']) $(id).hidden = true;
+    startHole();
+    phase = 'init'; mpNext();
+    for (const e of mpEarly.splice(0)) mpMessage(e);
+  };
+  Promise.resolve(spec.kind === 'real' ? fetch(`courses/${spec.id}/${spec.id}.json`).then(r => r.json()) : null).then(start)
+    .catch(e => { console.warn(e); $('courseName').textContent = 'Could not start the game. Reload to try again.'; });
+}
+// Whenever nothing is moving: move everyone on once a hole is finished, watch someone's shot (take
+// turns), wait, or aim my own shot with the clock running.
+function mpNext() {
+  if (anim || !MP_IDLE.includes(phase)) return;
+  if (st.holeIdx !== mpMine().holeIdx) trail = []; // back from watching a shot on another hole (after a rejoin)
+  st = mpMine();
+  // A rejoin replays me onto the next tee at once; anyone who has since finished the hole behind joins me there.
+  for (const s of MP.states) if (!s.done && s.holeIdx < st.holeIdx && s.scores[s.holeIdx] != null) DH.nextHole(s);
+  if (MP.over) return endRound();
+  const turns = MP.settings.pace === 'turns';
+  if (!turns) mpPump();
+  const k = st.holeIdx;
+  if ((st.done || st.scores[k] != null) && !mpBehind(k).length) {
+    if (MP.settings.format === 'match' && DH.matchState(mpPars(), MP.states.map(s => s.scores)).decided) return endRound();
+    for (const s of MP.states) if (!s.done && s.holeIdx === k) DH.nextHole(s);
+    if (st.done) return endRound();
+    startHole();
+  }
+  if (turns && mpPump()) return;
+  const over = st.done || st.scores[st.holeIdx] != null;
+  const behind = over ? mpBehind(st.holeIdx) : st.holeIdx ? mpBehind(st.holeIdx - 1) : [];
+  if (behind.length) return mpWait(`Waiting for ${behind.join(' and ')}`);
+  if (turns) {
+    const n = DH.nextToPlay(MP.states, mpHonour(st.holeIdx));
+    if (n !== MP.meIdx) { // their clock, roughly, for show: from when their turn began on my screen
+      const key = n + ':' + MP.states[n].holeIdx + ':' + MP.states[n].shotIdx;
+      if (MP.turnKey !== key) { MP.turnKey = key; MP.turnEnd = Date.now() + MP.settings.clock * 1000; }
+      return mpWait(`${mpName(n)} to play`, MP.turnEnd);
+    }
+  }
+  if (phase !== 'aim') { clubIdx = DH.autoClub(hole(), st.ball, st.lie); setupAim(); }
+  MP.deadline = Date.now() + MP.settings.clock * 1000; MP.theirs = 0;
+}
+function mpWait(text, theirs = 0) {
+  phase = 'wait'; MP.deadline = 0; MP.theirs = theirs; locked = false;
+  setAct(text, true); $('hint').textContent = ''; $('track').classList.add('idle'); $('stage').classList.remove('aiming');
+  hud();
+}
+// Applies the swings that have arrived, in each player's shot order. Taking turns (unless silent),
+// one at a time: returns true when it has started animating one.
+function mpPump(silent) {
+  for (let i = 0; i < MP.inbox.length; i++) {
+    const sw = MP.inbox[i], r = DH.applySwing(MP.states, sw);
+    if (r === 'early') continue; // keep it until the shots before it arrive
+    MP.inbox.splice(i, 1); i = -1;
+    if (r === 'bad') console.warn('nine holes mp: bad swing', sw);
+    if (r === 'applied' && MP.settings.pace === 'turns' && !silent) { mpWatch(sw); return true; }
+  }
+  return false;
+}
+function mpReceive(sw) {
+  if (!sw || typeof sw !== 'object' || sw.slot === MP.players[MP.meIdx].slot) return;
+  MP.inbox.push(sw);
+  if (MP.settings.pace === 'own' || MP.over) { mpPump(true); mpHud(); }
+  if (MP.over) mpShowEnd(); // the card catches up with swings that come in after the end
+  else if (phase === 'wait') mpNext();
+}
+// Someone else's shot on my screen, through the same animation as mine; mpNext comes back to my ball.
+function mpWatch(sw) {
+  const i = MP.players.findIndex(p => p.slot === sw.slot);
+  if (MP.states[i].holeIdx !== st.holeIdx) trail = [];
+  st = MP.states[i]; clubIdx = sw.club; MP.theirs = 0;
+  launch(st.last, sw.aim);
+  setAct(`${mpName(i)}’s shot`, true);
+  if (sw.timeout) $('hint').textContent = `${mpName(i)} ran out of time`;
+}
+// My swing: sent to the page before it animates, then played like everyone else's.
+function mpPlay(timeout) {
+  const swing = { slot: MP.players[MP.meIdx].slot, hole: st.holeIdx, shot: st.shotIdx, club: clubIdx, aim: q4(aimAngle), v: q4(power), timeout: !!timeout };
+  MP.deadline = 0;
+  mpPost({ type: 'mp-swing', swing });
+  MP.timeouts = timeout ? MP.timeouts + 1 : 0;
+  if (MP.timeouts >= 3) { MP.over = true; mpDone(); } // three in a row counts as leaving; the site settles it
+  DH.applySwing(MP.states, swing);
+  return st.last;
+}
+function mpHoleEnd() {
+  const mine = st === mpMine();
+  if (!mine) $('tSub').textContent = `${mpName(MP.states.indexOf(st))} · ${$('tSub').textContent}`;
+  $('hint').textContent = ''; renderCard(); hud();
+  setAct(mine ? 'Next hole' : '—', !mine);
+  setTimeout(() => { if (phase === 'holeend') mpNext(); }, 1900);
+}
+// The shot clock: a deadline, judged from Date.now() so a throttled background tab still runs out on return.
+function mpTick() {
+  if (!MP) return;
+  if (document.hidden) mpHidden();
+  const end = MP.over ? 0 : MP.deadline || MP.theirs, left = end ? Math.max(0, Math.ceil((end - Date.now()) / 1000)) : null, c = $('mpClock');
+  c.textContent = left == null ? '' : `\u00A0· ${left}s`; c.classList.toggle('late', left != null && left <= 10);
+  if (MP.deadline && left === 0 && (phase === 'aim' || phase === 'power') && st === mpMine()) {
+    const t = DH.timeoutSwing(hole(), st.ball, st.lie);
+    clubIdx = t.club; aimAngle = t.aim; power = t.v;
+    fireShot(true);
+    $('hint').textContent = 'Out of time · eased shot played';
+  }
+}
+// A hidden tab gets no animation frames (and slow timers): finish whatever is moving, a step a tick,
+// so a timed-out shot or a watched one never leaves the other player waiting.
+function mpHidden() {
+  if (anim && anim.mode === 'shot') settleShot();
+  else if (anim && anim.mode === 'fling') settleFling();
+  else if (anim && anim.mode === 'putts') { const n = anim.n; anim = null; st.ball = { ...hole().pin }; finishHole(n); }
+  else if (phase === 'trapped') { anim = { mode: 'fling', res: trapped }; settleFling(); }
+  else if (phase === 'settle' || phase === 'holeend') mpNext();
+}
+function mpDone() { if (!MP.doneSent) { MP.doneSent = true; mpPost({ type: 'mp-done' }); } }
+function mpEnd() { mpDone(); mpShowEnd(); setAct('Results'); }
+// The end: the side-by-side card, and the result once the site has checked it.
+function mpShowEnd(note) {
+  MP.over = true; MP.deadline = 0; mpPump(true);
+  if (note) MP.note = note;
+  const me = MP.players[MP.meIdx].slot, r = (MP.result || []).find(x => x && x.slot === me), match = MP.settings.format === 'match';
+  $('mpTag').textContent = `${match ? 'Match play' : 'Stroke play'} · ${MP.states[0].course.name}`;
+  $('mpResult').textContent = r ? { win: 'You won', loss: 'You lost', draw: match ? 'Halved' : 'Tied' }[r.result] || 'Game over' : 'Checking the result…';
+  $('mpDetail').textContent = [MP.note, r && r.detail].filter(Boolean).map(String).join(' · ');
+  mpRenderCard();
+  $('mpEnd').hidden = false;
+}
+function mpRenderCard() {
+  const box = $('mpCard'), holes = MP.states[0].course.holes, n = holes.length, wide = n > 9;
+  const m = MP.settings.format === 'match' && DH.matchState(mpPars(), MP.states.map(s => s.scores));
+  const sum = sc => { const v = sc.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) : '·'; };
+  const cell = (text, cls) => { const d = document.createElement('span'); d.textContent = text; if (cls) d.className = cls; box.append(d); };
+  box.textContent = '';
+  box.style.gridTemplateColumns = `minmax(0, 2.4fr) repeat(${Math.min(n, 9)}, 1fr) 1.5fr${wide ? ' 1.5fr' : ''}`;
+  for (const [a, b, name] of wide ? [[0, 9, 'OUT'], [9, n, 'IN']] : [[0, n, 'TOT']]) {
+    cell('', 'h'); for (let i = a; i < b; i++) cell(holes[i].index, 'h'); cell(name, 'h'); if (wide) cell(b === n ? 'TOT' : '', 'h');
+    cell('Par', 'name h'); for (let i = a; i < b; i++) cell(holes[i].par, 'h'); cell(sum(mpPars().slice(a, b)), 'h'); if (wide) cell(b === n ? sum(mpPars()) : '', 'h');
+    MP.states.forEach((s, k) => {
+      cell(mpName(k), 'name');
+      for (let i = a; i < b; i++) cell(s.scores[i] ?? '·', m && m.holes[i] === k ? 'won' : '');
+      cell(sum(s.scores.slice(a, b))); if (wide) cell(b === n ? sum(s.scores) : '');
+    });
+  }
+}
+// The pill: everyone's score to par, or the match; then the shot clock. Called from hud(), which
+// passes lie = true to name whoever's ball I'm watching.
+function mpHud(lie) {
+  const sc = MP.states.map(s => s.scores), pars = mpPars(), i = MP.states.indexOf(st);
+  let txt;
+  if (MP.settings.format === 'match') { const m = DH.matchState(pars, sc); txt = m.leader == null ? m.label : `${mpName(m.leader)} · ${m.label}`; }
+  else txt = sc.map((s, k) => `${mpName(k)} ${S2P(s.reduce((a, x, j) => x != null ? a + x - pars[j] : a, 0))}`).join(' · ');
+  $('mpScore').textContent = txt; $('mpHud').hidden = false;
+  if (lie && i !== MP.meIdx) $('lie').textContent = `${mpName(i).toUpperCase()} · ${$('lie').textContent}`;
+}
+// Everyone else still playing this hole: a coloured ball with their name (canvas text, never markup).
+function mpDraw(ballAt, height) {
+  const tag = (p, ht, i) => { const c = TS(p); label(mpName(i), { x: c.x, y: c.y - ht - 13 }, '#23342A', 10); };
+  MP.states.forEach((s, i) => {
+    if (s === st || s.done || s.holeIdx !== st.holeIdx || s.scores[s.holeIdx] != null) return;
+    drawBall(s.ball, 0, mpColor(i)); tag(s.ball, 0, i);
+  });
+  const cur = MP.states.indexOf(st);
+  if (cur !== MP.meIdx) tag(ballAt, height, cur);
+}
+function mpMessage(m) {
+  if (m.type === 'mp-init') return mpInit(m);
+  if (!MP) return void mpEarly.push(m);
+  if (m.type === 'mp-swing') mpReceive(m.swing);
+  else if (m.type === 'mp-left') {
+    const i = MP.players.findIndex(p => p.slot === m.slot);
+    if (i < 0 || i === MP.meIdx) return;
+    const note = `${mpName(i)} left`;
+    // Leaving after finishing the round is no forfeit: I finish mine and the site settles it.
+    if (!MP.states[i].done || MP.over) return mpShowEnd(note);
+    MP.note = note; $('hint').textContent = note;
+  }
+  else if (m.type === 'mp-result' && Array.isArray(m.results)) { MP.result = m.results; mpShowEnd(); }
+}
+addEventListener('message', e => {
+  const m = e.data;
+  if (MP_MODE && e.source === window.parent && e.origin === location.origin && m && typeof m === 'object') mpMessage(m);
+});
+
 resize();
-if (REAL) {
+if (MP_MODE) {
+  $('menuBtn').hidden = true; $('courseName').textContent = 'Waiting for the game…'; setAct('Waiting…', true);
+  $('mpAgain').addEventListener('click', () => mpPost({ type: 'mp-rematch' }));
+  $('mpLobby').addEventListener('click', () => mpPost({ type: 'mp-leave' }));
+  setInterval(mpTick, 250); document.addEventListener('visibilitychange', mpTick);
+  mpPost({ type: 'mp-ready' });
+} else if (REAL) {
   for (const id of ['mToday', 'mNew', 'newBtn']) $(id).hidden = true;
   fetch(`courses/${REAL.id}/${REAL.id}.json`).then(r => r.json()).then(d => { REAL.data = d; startRound(); })
     .catch(() => { $('courseName').textContent = 'Could not load the course. Reload to try again.'; });
