@@ -137,7 +137,7 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
 .act:hover { filter: brightness(1.09); }
 .act.wait { background: #EDF2ED; color: var(--dim); pointer-events: none; }
 .hint { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dimmer); text-align: center; margin-top: 7px; min-height: 14px; }
-/* two-player game (?mp=1): the score / match pill with the shot clock, and the side-by-side card */
+/* multiplayer game (?mp=1, 2–4 players): the score / match pill with the shot clock, and the side-by-side card */
 .mpHud { pointer-events: none; display: flex; max-width: 58%; white-space: nowrap; }
 #mpScore { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 #mpClock { flex: none; } #mpClock.late { color: #C0392B; font-weight: 500; }
@@ -146,6 +146,14 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
 .mpCard .h { font-size: 9px; color: var(--dimmer); background: #F2F6F1; }
 .mpCard .name { text-align: left; padding-left: 7px; }
 .mpCard .won { color: var(--flag); font-weight: 600; background: #EDF5EE; }
+.mpCard .out { color: var(--dimmer); }
+/* 3–4 players: two to a row in the pill, each with their ball's colour */
+#mpScore.grid { display: grid; grid-template-columns: auto auto; gap: 1px 10px; }
+.mpP { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.mpP i { flex: none; width: 7px; height: 7px; border-radius: 50%; border: 1px solid #2C3D2F; }
+.mpP b { font-weight: inherit; max-width: 7ch; overflow: hidden; text-overflow: ellipsis; }
+.mpP.out { color: var(--dimmer); }
+.mpHud.grid { flex-direction: column; align-items: center; } /* the clock goes under the four */
 </style>
 </head>
 <body>
@@ -322,12 +330,12 @@ const fwCvs = document.createElement('canvas'), fwCtx = fwCvs.getContext('2d'); 
 let W = 0, H = 0, DPR = 1;
 const view = { cx: 0, cy: 0, s: 1, tx: 0, ty: 0, ts: 1, ready: false, manual: false, reveal: 0 };
 const QS = new URLSearchParams(location.search);
-const MP_MODE = QS.get('mp') === '1'; // a two-player game: the page around it sends mp-init
+const MP_MODE = QS.get('mp') === '1'; // a multiplayer game (2–4 players): the page around it sends mp-init
 let seed = QS.get('seed') || todayKey();
 // ?course=<id>&holes=front|back|all plays a real course from courses/<id>/<id>.json; anything else is the daily nine
 const MODE_NAME = { front: 'Front 9', back: 'Back 9', all: '18 holes' };
 const REAL = /^[a-z0-9-]{2,40}$/.test(QS.get('course') || '') ? { id: QS.get('course'), mode: MODE_NAME[QS.get('holes')] ? QS.get('holes') : 'all', data: null } : null;
-let MP = null; // the two-player game (?mp=1), set up by the page's mp-init; null in the solo game
+let MP = null; // the multiplayer game (?mp=1), set up by the page's mp-init; null in the solo game
 let st, phase, clubIdx, aimCenter, aimAngle, manualAim, locked, tAim, tPow, power = 0, anim = null, trail = [], fx = [], trapped = null, tickEnd = null;
 
 const hole = () => DH.holeOf(st);
@@ -449,7 +457,7 @@ function fireShot(timeout) {
   if (!timeout) power = DH.powerAt(club(), (performance.now() - tPow) / 1000);
   launch(MP ? mpPlay(timeout) : DH.play(st, aimAngle, clubIdx, power), aimAngle);
 }
-// Animates a shot already played (mine, or in a two-player game one I am watching).
+// Animates a shot already played (mine, or in a multiplayer game one I am watching).
 function launch(res, aim) {
   Snd.hit(res.quality);
   phase = 'flight'; setAct('—', true); $('hint').textContent = ''; $('track').classList.add('idle');
@@ -1382,7 +1390,8 @@ function drawBall(p, height = 0, fill = '#fff') {
 function drawFx(now) {
   fx = fx.filter(f => now - f.t0 < f.dur);
   for (const f of fx) {
-    const t = (now - f.t0) / f.dur, e = 1 - Math.pow(1 - t, 2.4), c = TS(f.p), R = Math.max(f.kind === 'land' ? 7 : 5, 3 * view.s);
+    // t0 can be a little after this frame's now (pushed from a timer or message), so t starts at 0
+    const t = Math.max(0, (now - f.t0) / f.dur), e = 1 - Math.pow(1 - t, 2.4), c = TS(f.p), R = Math.max(f.kind === 'land' ? 7 : 5, 3 * view.s);
     ctx.save(); ctx.globalAlpha = (f.kind === 'land' ? 0.85 : 0.55) * (1 - t); ctx.lineWidth = 1.6; ctx.strokeStyle = f.color || '#3E5C3E';
     ctx.beginPath(); ctx.arc(c.x, c.y, R * (0.35 + e * (f.kind === 'land' ? 1.9 : 1.5)), 0, 6.284); ctx.stroke(); ctx.restore();
   }
@@ -1594,11 +1603,13 @@ addEventListener('keydown', e => {
 });
 addEventListener('resize', resize);
 
-// ── two-player game (?mp=1) ──
+// ── multiplayer game (?mp=1, 2–4 players) ──
 // Players swap swings, not positions: every client plays every swing through the same sim, so all
 // see the same game. The page around the game relays the messages. In: mp-init, mp-swing, mp-left,
 // mp-result. Out: mp-ready, mp-swing (mine, before it animates), mp-done, mp-rematch, mp-leave.
-const MP_COLORS = ['#E2553B', '#3B7BE2', '#E2B53B']; // the other players' balls; mine stays white
+// mp-init { settings, players: [{ slot, name }], me, swings, left?: [slot] }: slots need not run 0..n-1,
+// everything here goes by the index in players. mp-left { slot } may also repeat a slot from left.
+const MP_COLORS = ['#E0382A', '#2E5BDB', '#FFD400']; // the other players' balls (red, blue, yellow: clear of every course's greens and sand); mine stays white
 const MP_IDLE = ['init', 'settle', 'holeend', 'wait']; // nothing moving: mpNext may decide what comes next
 const q4 = x => Math.round(x * 1e4) / 1e4; // as play() rounds them, so the swing I send is the one I play
 const mpPost = m => window.parent.postMessage(m, location.origin);
@@ -1607,14 +1618,26 @@ const mpMine = () => MP.states[MP.meIdx];
 const mpName = i => MP.players[i].name;
 const mpColor = i => i === MP.meIdx ? '#fff' : MP_COLORS[(i - (i > MP.meIdx ? 1 : 0)) % MP_COLORS.length];
 const mpPars = () => MP.states[0].course.holes.map(h => h.par);
+// Every hole scored (done is only set once the last hole is over on this screen), as the finish route sees it.
+const mpFinished = i => MP.states[i].done || MP.states[i].scores.filter(x => x != null).length === MP.states[i].course.holes.length;
+// Out: left before finishing their round. Their ball goes and nobody waits for them; a late swing
+// of theirs still applies to their own round, so every screen keeps the same states.
+const mpOut = i => MP.left.includes(MP.players[i].slot) && !mpFinished(i);
+const mpOuts = () => MP.states.flatMap((s, i) => mpOut(i) ? [i] : []);
+const mpIns = () => MP.states.flatMap((s, i) => mpOut(i) ? [] : [i]);
+const mpAnd = a => a.length > 1 ? `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}` : a.join('');
 // The names of the players who haven't finished hole j (scored it, or moved past it).
-const mpBehind = j => MP.states.flatMap((s, i) => s.done || s.holeIdx > j || s.scores[j] != null ? [] : [mpName(i)]);
-// Take-turns honour on hole k: whoever won the last hole outright, else the previous honour, else the host.
+const mpBehind = j => MP.states.flatMap((s, i) => mpOut(i) || s.done || s.holeIdx > j || s.scores[j] != null ? [] : [mpName(i)]);
+const mpTotal = k => MP.states[k].scores.reduce((a, x) => x != null ? a + x : a, 0);
+const mpToPar = k => S2P(MP.states[k].scores.reduce((a, x, j) => x != null ? a + x - mpPars()[j] : a, 0));
+// Take-turns honour on hole k: whoever still in won the last hole outright, else the previous honour,
+// else the first player still in. Depends only on the swings and who is out, so every screen agrees.
 function mpHonour(k) {
-  let h = 0;
+  const ins = mpIns();
+  let h = ins.length ? ins[0] : 0;
   for (let j = 0; j < k; j++) {
-    const sc = MP.states.map(s => s.scores[j]), lo = Math.min(...sc);
-    if (sc.filter(x => x === lo).length === 1) h = sc.indexOf(lo);
+    const sc = ins.map(i => MP.states[i].scores[j]), lo = Math.min(...sc);
+    if (sc.every(x => x != null) && sc.filter(x => x === lo).length === 1) h = ins[sc.indexOf(lo)];
   }
   return h;
 }
@@ -1623,13 +1646,14 @@ function mpInit(m) {
   const set = m.settings || {}, spec = set.spec || {}, swings = Array.isArray(m.swings) ? m.swings : [];
   const players = (Array.isArray(m.players) ? m.players : []).map((p, i) => ({ slot: p.slot, name: String(p.name || 'Player ' + (i + 1)).slice(0, 24) }));
   const meIdx = players.findIndex(p => p.slot === m.me);
+  const left = (Array.isArray(m.left) ? m.left : []).filter(x => Number.isInteger(x)); // slots that already left (a rejoin)
   if (meIdx < 0 || (spec.kind === 'real' && !/^[a-z0-9-]{2,40}$/.test(spec.id || ''))) return;
   MP = null; mpEarly = []; anim = null; phase = 'init'; setAct('Waiting…', true); // a rematch: nothing from the last game carries over
   const start = data => {
     const r = DH.replayGame(spec, data, players, swings);
     if (r.error) console.warn('nine holes mp:', r.error);
     const mine = swings.filter(w => w.slot === m.me).sort((a, b) => a.hole - b.hole || a.shot - b.shot);
-    MP = { players, meIdx, states: r.states, inbox: r.error ? swings.slice() : [], deadline: 0, over: false, doneSent: false, result: null, note: '',
+    MP = { players, meIdx, states: r.states, inbox: r.error ? swings.slice() : [], deadline: 0, over: false, doneSent: false, result: null, notes: [], left: [],
       timeouts: mine.reduce((n, w) => w.timeout ? n + 1 : 0, 0), // timed-out swings in a row
       settings: { format: set.format === 'match' ? 'match' : 'stroke', pace: set.pace === 'turns' ? 'turns' : 'own', clock: set.clock > 0 ? +set.clock : 30 } };
     st = mpMine();
@@ -1637,7 +1661,9 @@ function mpInit(m) {
     $('courseName').textContent = `${st.course.name} · ${spec.kind === 'real' ? MODE_NAME[spec.mode] : PAL.name}`;
     for (const id of ['end', 'turn', 'mpEnd']) $(id).hidden = true;
     startHole();
-    phase = 'init'; mpNext();
+    phase = 'init';
+    for (const slot of left) mpLeft(slot);
+    mpNext();
     for (const e of mpEarly.splice(0)) mpMessage(e);
   };
   Promise.resolve(spec.kind === 'real' ? fetch(`courses/${spec.id}/${spec.id}.json`).then(r => r.json()) : null).then(start)
@@ -1650,23 +1676,23 @@ function mpNext() {
   if (st.holeIdx !== mpMine().holeIdx) trail = []; // back from watching a shot on another hole (after a rejoin)
   st = mpMine();
   // A rejoin replays me onto the next tee at once; anyone who has since finished the hole behind joins me there.
-  for (const s of MP.states) if (!s.done && s.holeIdx < st.holeIdx && s.scores[s.holeIdx] != null) DH.nextHole(s);
+  MP.states.forEach((s, i) => { if (!mpOut(i) && !s.done && s.holeIdx < st.holeIdx && s.scores[s.holeIdx] != null) DH.nextHole(s); });
   if (MP.over) return endRound();
   const turns = MP.settings.pace === 'turns';
   if (!turns) mpPump();
   const k = st.holeIdx;
   if ((st.done || st.scores[k] != null) && !mpBehind(k).length) {
     if (MP.settings.format === 'match' && DH.matchState(mpPars(), MP.states.map(s => s.scores)).decided) return endRound();
-    for (const s of MP.states) if (!s.done && s.holeIdx === k) DH.nextHole(s);
+    MP.states.forEach((s, i) => { if (!mpOut(i) && !s.done && s.holeIdx === k) DH.nextHole(s); });
     if (st.done) return endRound();
     startHole();
   }
   if (turns && mpPump()) return;
   const over = st.done || st.scores[st.holeIdx] != null;
   const behind = over ? mpBehind(st.holeIdx) : st.holeIdx ? mpBehind(st.holeIdx - 1) : [];
-  if (behind.length) return mpWait(`Waiting for ${behind.join(' and ')}`);
+  if (behind.length) return mpWait(`Waiting for ${mpAnd(behind)}`);
   if (turns) {
-    const n = DH.nextToPlay(MP.states, mpHonour(st.holeIdx));
+    const n = DH.nextToPlay(MP.states, mpHonour(st.holeIdx), mpOuts());
     if (n !== MP.meIdx) { // their clock, roughly, for show: from when their turn began on my screen
       const key = n + ':' + MP.states[n].holeIdx + ':' + MP.states[n].shotIdx;
       if (MP.turnKey !== key) { MP.turnKey = key; MP.turnEnd = Date.now() + MP.settings.clock * 1000; }
@@ -1689,7 +1715,8 @@ function mpPump(silent) {
     if (r === 'early') continue; // keep it until the shots before it arrive
     MP.inbox.splice(i, 1); i = -1;
     if (r === 'bad') console.warn('nine holes mp: bad swing', sw);
-    if (r === 'applied' && MP.settings.pace === 'turns' && !silent) { mpWatch(sw); return true; }
+    // (a late swing from someone who has left applies quietly: their ball is off the course)
+    if (r === 'applied' && MP.settings.pace === 'turns' && !silent && !mpOut(MP.players.findIndex(p => p.slot === sw.slot))) { mpWatch(sw); return true; }
   }
   return false;
 }
@@ -1731,7 +1758,7 @@ function mpTick() {
   if (!MP) return;
   if (document.hidden) mpHidden();
   const end = MP.over ? 0 : MP.deadline || MP.theirs, left = end ? Math.max(0, Math.ceil((end - Date.now()) / 1000)) : null, c = $('mpClock');
-  c.textContent = left == null ? '' : `\u00A0· ${left}s`; c.classList.toggle('late', left != null && left <= 10);
+  c.textContent = left == null ? '' : $('mpHud').classList.contains('grid') ? `${left}s` : `\u00A0· ${left}s`; c.classList.toggle('late', left != null && left <= 10);
   if (MP.deadline && left === 0 && (phase === 'aim' || phase === 'power') && st === mpMine()) {
     const t = DH.timeoutSwing(hole(), st.ball, st.lie);
     clubIdx = t.club; aimAngle = t.aim; power = t.v;
@@ -1753,29 +1780,37 @@ function mpEnd() { mpDone(); mpShowEnd(); setAct('Results'); }
 // The end: the side-by-side card, and the result once the site has checked it.
 function mpShowEnd(note) {
   MP.over = true; MP.deadline = 0; mpPump(true);
-  if (note) MP.note = note;
+  if (note && !MP.notes.includes(note)) MP.notes.push(note);
   const me = MP.players[MP.meIdx].slot, r = (MP.result || []).find(x => x && x.slot === me), match = MP.settings.format === 'match';
   $('mpTag').textContent = `${match ? 'Match play' : 'Stroke play'} · ${MP.states[0].course.name}`;
   $('mpResult').textContent = r ? { win: 'You won', loss: 'You lost', draw: match ? 'Halved' : 'Tied' }[r.result] || 'Game over' : 'Checking the result…';
-  $('mpDetail').textContent = [MP.note, r && r.detail].filter(Boolean).map(String).join(' · ');
+  const detail = r && r.detail != null ? String(r.detail) : ''; // the site's detail may already say who left
+  $('mpDetail').textContent = [...MP.notes.filter(n => !detail.includes(n)), detail].filter(Boolean).join(' · ');
   mpRenderCard();
   $('mpEnd').hidden = false;
+  if (phase === 'wait') mpNext(); // the result came in while I was waiting (the last swing is still on its way)
 }
 function mpRenderCard() {
   const box = $('mpCard'), holes = MP.states[0].course.holes, n = holes.length, wide = n > 9;
   const m = MP.settings.format === 'match' && DH.matchState(mpPars(), MP.states.map(s => s.scores));
   const sum = sc => { const v = sc.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) : '·'; };
   const cell = (text, cls) => { const d = document.createElement('span'); d.textContent = text; if (cls) d.className = cls; box.append(d); };
+  // Stroke play: finishing order (full rounds by total, then rounds cut short, then leavers) and to par.
+  const group = k => mpOut(k) ? 2 : mpFinished(k) ? 0 : 1, order = MP.states.map((s, k) => k);
+  if (!m) order.sort((x, y) => group(x) - group(y) || mpTotal(x) - mpTotal(y) || x - y);
+  const place = k => group(k) ? '' : 1 + order.filter(j => !group(j) && mpTotal(j) < mpTotal(k)).length + ' ';
   box.textContent = '';
-  box.style.gridTemplateColumns = `minmax(0, 2.4fr) repeat(${Math.min(n, 9)}, 1fr) 1.5fr${wide ? ' 1.5fr' : ''}`;
+  box.style.gridTemplateColumns = `minmax(0, ${m ? 2.4 : 3.2}fr) repeat(${Math.min(n, 9)}, 1fr) 1.5fr${wide ? ' 1.5fr' : ''}${m ? '' : ' 2fr'}`;
   for (const [a, b, name] of wide ? [[0, 9, 'OUT'], [9, n, 'IN']] : [[0, n, 'TOT']]) {
-    cell('', 'h'); for (let i = a; i < b; i++) cell(holes[i].index, 'h'); cell(name, 'h'); if (wide) cell(b === n ? 'TOT' : '', 'h');
-    cell('Par', 'name h'); for (let i = a; i < b; i++) cell(holes[i].par, 'h'); cell(sum(mpPars().slice(a, b)), 'h'); if (wide) cell(b === n ? sum(mpPars()) : '', 'h');
-    MP.states.forEach((s, k) => {
-      cell(mpName(k), 'name');
+    cell('', 'h'); for (let i = a; i < b; i++) cell(holes[i].index, 'h'); cell(name, 'h'); if (wide) cell(b === n ? 'TOT' : '', 'h'); if (!m) cell(b === n ? '±' : '', 'h');
+    cell('Par', 'name h'); for (let i = a; i < b; i++) cell(holes[i].par, 'h'); cell(sum(mpPars().slice(a, b)), 'h'); if (wide) cell(b === n ? sum(mpPars()) : '', 'h'); if (!m) cell('', 'h');
+    for (const k of order) {
+      const s = MP.states[k];
+      cell(m ? mpName(k) : place(k) + mpName(k), mpOut(k) ? 'name out' : 'name');
       for (let i = a; i < b; i++) cell(s.scores[i] ?? '·', m && m.holes[i] === k ? 'won' : '');
       cell(sum(s.scores.slice(a, b))); if (wide) cell(b === n ? sum(s.scores) : '');
-    });
+      if (!m) cell(b < n ? '' : mpOut(k) ? 'left' : mpToPar(k), mpOut(k) ? 'out' : '');
+    }
   }
 }
 // The pill: everyone's score to par, or the match; then the shot clock. Called from hud(), which
@@ -1783,33 +1818,64 @@ function mpRenderCard() {
 function mpHud(lie) {
   const sc = MP.states.map(s => s.scores), pars = mpPars(), i = MP.states.indexOf(st);
   let txt;
-  if (MP.settings.format === 'match') { const m = DH.matchState(pars, sc); txt = m.leader == null ? m.label : `${mpName(m.leader)} · ${m.label}`; }
-  else txt = sc.map((s, k) => `${mpName(k)} ${S2P(s.reduce((a, x, j) => x != null ? a + x - pars[j] : a, 0))}`).join(' · ');
-  $('mpScore').textContent = txt; $('mpHud').hidden = false;
+  const box = $('mpScore'), grid = MP.settings.format !== 'match' && MP.states.length > 2;
+  box.classList.toggle('grid', grid); $('mpHud').classList.toggle('grid', grid);
+  if (grid) { // 3–4 players: two to a row, a dot in each one's ball colour, "left" for whoever has gone
+    box.textContent = '';
+    MP.states.forEach((s, k) => {
+      const e = document.createElement('span'), dot = document.createElement('i'), name = document.createElement('b');
+      e.className = mpOut(k) ? 'mpP out' : 'mpP'; dot.style.background = mpColor(k); name.textContent = mpName(k);
+      e.append(dot, name, mpOut(k) ? 'left' : mpToPar(k)); box.append(e);
+    });
+  } else {
+    if (MP.settings.format === 'match') { const m = DH.matchState(pars, sc); txt = m.leader == null ? m.label : `${mpName(m.leader)} · ${m.label}`; }
+    else txt = sc.map((s, k) => `${mpName(k)} ${S2P(s.reduce((a, x, j) => x != null ? a + x - pars[j] : a, 0))}`).join(' · ');
+    box.textContent = txt;
+  }
+  $('mpHud').hidden = false;
   if (lie && i !== MP.meIdx) $('lie').textContent = `${mpName(i).toUpperCase()} · ${$('lie').textContent}`;
 }
 // Everyone else still playing this hole: a coloured ball with their name (canvas text, never markup).
+// Names that would overlap (balls side by side, all on the tee) stack upwards.
 function mpDraw(ballAt, height) {
-  const tag = (p, ht, i) => { const c = TS(p); label(mpName(i), { x: c.x, y: c.y - ht - 13 }, '#23342A', 10); };
+  const cur = MP.states.indexOf(st), tags = cur !== MP.meIdx ? [[ballAt, height, cur]] : [], placed = [];
   MP.states.forEach((s, i) => {
-    if (s === st || s.done || s.holeIdx !== st.holeIdx || s.scores[s.holeIdx] != null) return;
-    drawBall(s.ball, 0, mpColor(i)); tag(s.ball, 0, i);
+    if (s === st || mpOut(i) || s.done || s.holeIdx !== st.holeIdx || s.scores[s.holeIdx] != null) return;
+    drawBall(s.ball, 0, mpColor(i)); tags.push([s.ball, 0, i]);
   });
-  const cur = MP.states.indexOf(st);
-  if (cur !== MP.meIdx) tag(ballAt, height, cur);
+  ctx.save(); ctx.font = `500 10px 'DM Mono', ui-monospace, monospace`;
+  for (const [p, ht, i] of tags) {
+    const c = TS(p), text = mpName(i).length > 14 ? mpName(i).slice(0, 13) + '…' : mpName(i), w = ctx.measureText(text).width;
+    let y = c.y - ht - 13;
+    while (placed.some(q => Math.abs(q.x - c.x) < (q.w + w) / 2 + 4 && Math.abs(q.y - y) < 12)) y -= 12;
+    placed.push({ x: c.x, y, w }); mpLabel(text, c.x, y);
+  }
+  ctx.restore();
+}
+// A name over a ball: dark text with a pale halo, readable on light fairways and the dark haunted rough alike.
+function mpLabel(text, x, y) {
+  ctx.save(); ctx.font = `500 10px 'DM Mono', ui-monospace, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.strokeText(text, x, y);
+  ctx.fillStyle = '#23342A'; ctx.fillText(text, x, y); ctx.restore();
+}
+// Someone has left. 2 players: my game ends, unless they had already finished their round (then I
+// finish mine). 3–4 players: they're out (no ball, skipped in turn, not waited for) and the game
+// ends only when at most one player is still in. Called again for the same slot, it does nothing.
+function mpLeft(slot) {
+  const i = MP.players.findIndex(p => p.slot === slot);
+  if (i < 0 || i === MP.meIdx || MP.left.includes(slot)) return;
+  MP.left.push(slot);
+  const note = `${mpName(i)} left`;
+  if (MP.over || (mpOut(i) && mpIns().length < 2)) { mpShowEnd(note); return mpDone(); }
+  MP.notes.push(note); mpHud();
+  if (phase === 'wait') mpNext(); // perhaps I was waiting for them
+  $('hint').textContent = note;
 }
 function mpMessage(m) {
   if (m.type === 'mp-init') return mpInit(m);
   if (!MP) return void mpEarly.push(m);
   if (m.type === 'mp-swing') mpReceive(m.swing);
-  else if (m.type === 'mp-left') {
-    const i = MP.players.findIndex(p => p.slot === m.slot);
-    if (i < 0 || i === MP.meIdx) return;
-    const note = `${mpName(i)} left`;
-    // Leaving after finishing the round is no forfeit: I finish mine and the site settles it.
-    if (!MP.states[i].done || MP.over) return mpShowEnd(note);
-    MP.note = note; $('hint').textContent = note;
-  }
+  else if (m.type === 'mp-left') mpLeft(m.slot);
   else if (m.type === 'mp-result' && Array.isArray(m.results)) { MP.result = m.results; mpShowEnd(); }
 }
 addEventListener('message', e => {

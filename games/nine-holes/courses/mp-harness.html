@@ -2,30 +2,33 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Nine Holes two-player harness</title>
+<title>Nine Holes multiplayer harness</title>
 <style>
 body { font: 13px system-ui, sans-serif; margin: 8px; background: #E8EDE8; color: #23342A; }
 form { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-bottom: 8px; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 iframe { width: 400px; height: 740px; border: 1px solid #9CAAA1; background: #fff; }
+.many iframe { width: 340px; height: 700px; }
 #log { font: 11px ui-monospace, monospace; white-space: pre; height: 140px; overflow: auto; background: #fff; padding: 4px; margin-top: 8px; }
 </style>
 </head>
 <body>
 <!-- Not shipped: stands in for the site page. Serve with `node server.js`, open /courses/mp-harness.html.
-     It gives the two iframes slots 0 and 1, sends mp-init, relays swings, keeps them for a reload (rejoin)
-     and answers mp-done with a result worked out from the swing log, as the finish route will. -->
+     It gives the iframes their slots (players=2..4, or slots=0,2,3 for gaps), sends mp-init, relays swings,
+     keeps them for a reload (rejoin, with the slots that left), relays mp-left to everyone still there and
+     answers mp-done (and a leave) with a result worked out from the swing log, as the finish route does. -->
 <form>
+  <label>players <select name="players"><option>2</option><option>3</option><option>4</option></select></label>
+  <label>slots <input name="slots" size="7" placeholder="0,2,3" title="optional: the players' slots, e.g. 0,3 or 0,2,3"></label>
   <label>pace <select name="pace"><option>own</option><option>turns</option></select></label>
   <label>format <select name="format"><option>stroke</option><option>match</option></select></label>
   <label>clock <input name="clock" size="3" value="30"></label>
   <label>course <input name="spec" size="22" value="daily:2026-10-23" title="daily:SEED | random:SEED | real:ID:front|back|all"></label>
   <label><input type="checkbox" name="chaos" value="1"> chaos (late, doubled swings)</label>
   <button>Start</button>
-  <button type="button" id="reloadB">Reload B</button>
-  <button type="button" id="leftB">B leaves</button>
+  <span id="buttons"></span>
 </form>
-<div class="row"><iframe id="A" name="A" title="Player A"></iframe><iframe id="B" name="B" title="Player B"></iframe></div>
+<div class="row" id="frames"></div>
 <div id="log"></div>
 <script src="../game.js"></script>
 <script>
@@ -34,48 +37,80 @@ const Q = new URLSearchParams(location.search), form = document.forms[0];
 for (const [k, v] of Q) if (form.elements[k]) form.elements[k].type === 'checkbox' ? form.elements[k].checked = true : form.elements[k].value = v;
 const [kind, a, b] = (Q.get('spec') || 'daily:2026-10-23').split(':');
 const spec = kind === 'real' ? { kind, id: a, mode: b || 'front', day: new Date().toLocaleDateString('en-CA') } : { kind, seed: a };
-const settings = { spec, format: Q.get('format') || 'stroke', pace: Q.get('pace') || 'own', clock: +Q.get('clock') || 30, maxPlayers: 2 };
-const players = [{ slot: 0, name: Q.get('nameA') || 'Adam <img src=x onerror=alert(1)>' }, { slot: 1, name: Q.get('nameB') || 'Ben' }];
-const frames = [document.getElementById('A'), document.getElementById('B')], chaos = Q.get('chaos') === '1';
-const H = window.H = { swings: [], events: [], result: null, settings, players };
+const given = (Q.get('slots') || '').split(',').filter(Boolean).map(Number);
+const slots = given.length >= 2 && given.length <= 4 ? given : [0, 1, 2, 3].slice(0, Math.min(4, Math.max(2, +Q.get('players') || 2)));
+const N = slots.length, ID = 'ABCD', NAMES = ['Adam <img src=x onerror=alert(1)>', 'Ben', 'Cal', 'Dee'];
+const settings = { spec, format: Q.get('format') || 'stroke', pace: Q.get('pace') || 'own', clock: +Q.get('clock') || 30, maxPlayers: N };
+const players = slots.map((slot, k) => ({ slot, name: Q.get('name' + ID[k]) || NAMES[k] }));
+const frames = players.map((p, k) => {
+  const f = document.createElement('iframe'); f.id = f.name = ID[k]; f.title = 'Player ' + ID[k];
+  document.getElementById('frames').append(f); return f;
+});
+if (N > 2) document.getElementById('frames').classList.add('many');
+const chaos = Q.get('chaos') === '1';
+const H = window.H = { swings: [], events: [], result: null, settings, players, left: [] };
 let realData = null;
 const log = (...x) => { const t = x.map(v => typeof v === 'string' ? v : JSON.stringify(v)).join(' '); H.events.push(t); const el = document.getElementById('log'); el.textContent += t + '\n'; el.scrollTop = 1e9; };
-const post = (k, m) => frames[k].contentWindow.postMessage(m, location.origin);
+const gone = k => H.left.includes(players[k].slot);
+const post = (k, m) => { if (!gone(k)) frames[k].contentWindow.postMessage(m, location.origin); };
 // chaos: every relayed swing arrives twice, each up to 0.8 s late, so they come out of order
 const relay = (k, m) => chaos ? [0, 1].forEach(() => setTimeout(() => post(k, m), Math.random() * 800)) : post(k, m);
 
+// As lib/mp/finish-core.ts decides it: leavers (unless their round was done) and three timeouts in a
+// row lose; with at most one player still in it ends at once; match play (2 players) by matchState;
+// otherwise once every round still in is done, lowest total wins, a tie for lowest draws.
 function finish() {
   const r = DH.replayGame(spec, realData, players, H.swings), pars = r.states[0].course.holes.map(h => h.par);
   if (r.error) log('replay error', r.error);
-  let winner = null, detail;
-  const quit = players.findIndex(p => { const w = H.swings.filter(s => s.slot === p.slot).sort((x, y) => x.hole - y.hole || x.shot - y.shot).slice(-3); return w.length === 3 && w.every(s => s.timeout); });
-  const m = settings.format === 'match' && DH.matchState(pars, r.scores);
-  if (m && m.decided) { winner = m.winner; detail = m.label; }
-  else if (!m && r.done.every(Boolean)) { const s = DH.strokeResult(pars, r.scores); winner = s.winner; detail = s.totals.join(' – '); }
-  else if (quit >= 0) { winner = 1 - quit; detail = `${players[quit].name} timed out`; }
-  else return log('mp-done: game not over yet');
-  H.result = players.map((p, i) => ({ slot: p.slot, result: winner == null ? 'draw' : winner === i ? 'win' : 'loss', detail }));
-  log('result', H.result);
-  frames.forEach((f, k) => post(k, { type: 'mp-result', results: H.result }));
+  const timedOut = p => { const w = H.swings.filter(s => s.slot === p.slot).sort((x, y) => x.hole - y.hole || x.shot - y.shot).slice(-3); return w.length === 3 && w.every(s => s.timeout); };
+  const why = players.map((p, k) => r.done[k] ? null : H.left.includes(p.slot) ? 'left' : timedOut(p) ? 'timed out' : null);
+  const note = k => `${players[k].name} ${why[k]}`, outs = players.flatMap((p, k) => why[k] ? [k] : []), ins = players.flatMap((p, k) => why[k] ? [] : [k]);
+  const decide = (keys, detail) => {
+    const best = Math.min(...keys), tied = keys.filter(x => x === best).length > 1, vs = (x, y) => x < y ? 'win' : x > y ? 'loss' : 'draw';
+    H.result = players.map((p, k) => ({ slot: p.slot, result: keys[k] !== best ? 'loss' : tied ? 'draw' : 'win', detail: detail(k),
+      opponents: players.flatMap((o, j) => j === k ? [] : [{ slot: o.slot, result: vs(keys[k], keys[j]) }]) }));
+    log('result', H.result);
+    frames.forEach((f, k) => post(k, { type: 'mp-result', results: H.result }));
+  };
+  const m = settings.format === 'match' && N === 2 && DH.matchState(pars, r.scores);
+  if (m && (m.decided || r.done.every(Boolean))) return decide(players.map((p, k) => m.winner == null || m.winner === k ? 0 : 1), () => m.label);
+  if (!ins.length) return decide(players.map(() => Infinity), () => 'Abandoned');
+  if (outs.length && ins.length === 1) return decide(why.map(w => w ? Infinity : 0), k => why[k] ? note(k) : outs.map(note).join(', '));
+  if (m || !ins.every(k => r.done[k])) return log('finish: game not over yet');
+  const totals = DH.strokeResult(pars, r.scores).totals, keys = players.map((p, k) => why[k] ? Infinity : totals[k]);
+  const notes = outs.map(note).join(', ');
+  decide(keys, k => why[k] ? note(k) : [k, ...ins.filter(j => j !== k)].map(j => keys[j]).join(' v ') + (notes ? `, ${notes}` : ''));
 }
 
 addEventListener('message', e => {
   const k = frames.findIndex(f => f.contentWindow === e.source), m = e.data;
-  if (k < 0 || e.origin !== location.origin || !m) return;
-  if (m.type === 'mp-ready') { log(`${'AB'[k]} ready, ${H.swings.length} swings to catch up`); post(k, { type: 'mp-init', settings, players, me: players[k].slot, swings: H.swings.slice() }); }
-  else if (m.type === 'mp-swing') {
+  if (k < 0 || gone(k) || e.origin !== location.origin || !m) return;
+  if (m.type === 'mp-ready') {
+    log(`${ID[k]} ready, ${H.swings.length} swings to catch up, left: ${H.left}`);
+    post(k, { type: 'mp-init', settings, players, me: players[k].slot, swings: H.swings.slice(), left: H.left.slice() });
+  } else if (m.type === 'mp-swing') {
     const w = m.swing;
     if (!H.swings.some(s => s.slot === w.slot && s.hole === w.hole && s.shot === w.shot)) H.swings.push(w);
-    log(`${'AB'[k]} swing`, w);
+    log(`${ID[k]} swing`, w);
     frames.forEach((f, j) => { if (j !== k) relay(j, { type: 'mp-swing', swing: w }); });
-  } else if (m.type === 'mp-done') { log(`${'AB'[k]} done`); finish(); }
-  else log(`${'AB'[k]}`, m);
+  } else if (m.type === 'mp-done') { log(`${ID[k]} done`); finish(); }
+  else log(`${ID[k]}`, m);
 });
-document.getElementById('reloadB').onclick = () => frames[1].contentWindow.location.reload();
-document.getElementById('leftB').onclick = () => {
-  post(0, { type: 'mp-left', slot: 1 });
-  setTimeout(() => { H.result = [{ slot: 0, result: 'win', detail: 'Walkover' }, { slot: 1, result: 'loss', detail: 'Left the game' }]; post(0, { type: 'mp-result', results: H.result }); }, 1500);
+// Per player but the first: reload (a rejoin) and leave (the page goes; everyone else gets mp-left).
+const leave = k => {
+  if (gone(k)) return;
+  H.left.push(players[k].slot); frames[k].src = 'about:blank'; log(`${ID[k]} left`);
+  frames.forEach((f, j) => post(j, { type: 'mp-left', slot: players[k].slot }));
+  setTimeout(finish, 300);
 };
+H.leave = leave;
+for (let k = 1; k < N; k++) {
+  const r = document.createElement('button'), l = document.createElement('button');
+  r.type = l.type = 'button'; r.id = 'reload' + ID[k]; l.id = 'left' + ID[k];
+  r.textContent = `Reload ${ID[k]}`; l.textContent = `${ID[k]} leaves`;
+  r.onclick = () => frames[k].contentWindow.location.reload(); l.onclick = () => leave(k);
+  document.getElementById('buttons').append(r, ' ', l, ' ');
+}
 Promise.resolve(kind === 'real' ? fetch(`${a}/${a}.json`).then(r => r.json()) : null).then(d => {
   realData = d;
   for (const f of frames) f.src = '../index.html?mp=1';
