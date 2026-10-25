@@ -143,8 +143,12 @@ export type ResultRow = {
   format: FinishSettings['format'];
   result: Outcome;
   detail: string;
+  // This player's outcome against each other player (head to head with friends); id null for a guest.
+  opponents: { id: string | null; name: string; result: Outcome }[];
 };
-export function resultRows(settings: FinishSettings, players: FinishPlayer[], results: SlotResult[]): ResultRow[] {
+export function resultRows(
+  settings: FinishSettings, players: FinishPlayer[], results: (SlotResult & { opponents?: PairResult[] })[],
+): ResultRow[] {
   const label = courseLabel(settings.spec);
   return players.flatMap((p) => {
     const mine = results.find((r) => r.slot === p.slot);
@@ -158,6 +162,10 @@ export function resultRows(settings: FinishSettings, players: FinishPlayer[], re
       format: settings.format,
       result: mine.result,
       detail: mine.detail,
+      opponents: (mine.opponents ?? []).flatMap((o) => {
+        const q = players.find((x) => x.slot === o.slot);
+        return q ? [{ id: !q.guest && q.user_id ? q.user_id : null, name: q.name, result: o.result }] : [];
+      }),
     }];
   });
 }
