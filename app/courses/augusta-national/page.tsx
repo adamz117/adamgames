@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import CoursePlan, { type CourseData } from '@/components/course-plan';
 import CourseRecords from '@/components/course-records';
+import CourseDifficulty from '@/components/course-difficulty';
 import { MODE_LABEL, type CourseMode } from '@/lib/course-rounds';
 import data from '@/public/games/nine-holes/courses/augusta/augusta.json';
 
@@ -34,6 +35,7 @@ export default function AugustaPage() {
         of the 12th, the ponds on the 11th, 15th and 16th, the plunge down the 10th and the climb up the 18th,
         and every white-sand bunker where it really is. Par 72 from the Masters tees.
       </p>
+      <CourseDifficulty id="augusta" detail />
 
       <section className="club-section" style={{ paddingTop: 40 }} aria-label="Ways to play">
         {open.length ? (

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import CoursePlan, { type CourseData } from '@/components/course-plan';
 import CourseRecords from '@/components/course-records';
+import CourseDifficulty from '@/components/course-difficulty';
 import { MODE_LABEL, type CourseMode } from '@/lib/course-rounds';
 import data from '@/public/games/nine-holes/courses/tpc-sawgrass/tpc-sawgrass.json';
 
@@ -34,6 +35,7 @@ export default function TpcSawgrassPage() {
         hole by hole: water on nearly every hole, white-sand waste areas, and the island green on the 17th.
         Par 72 from THE PLAYERS tees.
       </p>
+      <CourseDifficulty id="tpc-sawgrass" detail />
 
       <section className="club-section" style={{ paddingTop: 40 }} aria-label="Ways to play">
         {open.length ? (

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import CoursePlan, { type CourseData } from '@/components/course-plan';
 import CourseRecords from '@/components/course-records';
+import CourseDifficulty from '@/components/course-difficulty';
 import { MODE_LABEL, type CourseMode } from '@/lib/course-rounds';
 import data from '@/public/games/nine-holes/courses/pebble-beach/pebble-beach.json';
 
@@ -34,6 +35,7 @@ export default function PebbleBeachPage() {
         the little 7th on the point, the second shot over the chasm on the 8th, the 9th and 10th along the cliffs,
         and the 18th curving round the sea wall. Over the cliffs is the Pacific. Par 72 from the blue tees.
       </p>
+      <CourseDifficulty id="pebble-beach" detail />
 
       <section className="club-section" style={{ paddingTop: 40 }} aria-label="Ways to play">
         {open.length ? (

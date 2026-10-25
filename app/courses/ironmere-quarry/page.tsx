@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import CoursePlan, { type CourseData } from '@/components/course-plan';
 import CourseRecords from '@/components/course-records';
+import CourseDifficulty from '@/components/course-difficulty';
 import { MODE_LABEL, type CourseMode } from '@/lib/course-rounds';
 import data from '@/public/games/nine-holes/courses/ironmere/ironmere.json';
 
@@ -21,7 +22,7 @@ export default function IronmerePage() {
   return (
     <main className="club-wrap" style={{ paddingBottom: 96 }}>
       <div className="club-grain" aria-hidden="true" />
-      <p className="club-card-note" style={{ paddingTop: 48 }}><Link href="/courses" className="club-link">Courses</Link></p>
+      <p className="club-card-note" style={{ paddingTop: 48 }}><Link href="/courses" className="club-link">Fantasy courses</Link></p>
       <h1 className="club-h2" style={{ fontSize: 'clamp(44px, 7vw, 84px)', marginTop: 10 }}>Ironmere Quarry</h1>
       <p className="club-lede">
         An original course, designed for Nine Holes and built to be the hardest test in the game. Two loops of nine
@@ -29,6 +30,7 @@ export default function IronmerePage() {
         7th twice, a crown of pot bunkers on the 5th and water all down the 18th. Every hazard has a way round it, so
         the player who thinks wins. Made for the 1v1.
       </p>
+      <CourseDifficulty id="ironmere" detail />
 
       <section className="club-section" style={{ paddingTop: 40 }} aria-label="Ways to play">
         <div className="club-modes">

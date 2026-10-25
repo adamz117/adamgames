@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import CoursePlan, { type CourseData } from '@/components/course-plan';
 import CourseRecords from '@/components/course-records';
+import CourseDifficulty from '@/components/course-difficulty';
 import { MODE_LABEL, type CourseMode } from '@/lib/course-rounds';
 import data from '@/public/games/nine-holes/courses/victoria/victoria.json';
 
@@ -33,6 +34,7 @@ export default function VictoriaPage() {
         Pietermaritzburg, KwaZulu-Natal. A parkland course on a steep hillside, traced hole by hole from the
         real thing: every pond, bunker and stand of trees where it really is. Par 71 from the yellow tees.
       </p>
+      <CourseDifficulty id="victoria" detail />
 
       <section className="club-section" style={{ paddingTop: 40 }} aria-label="Ways to play">
         {open.length ? (

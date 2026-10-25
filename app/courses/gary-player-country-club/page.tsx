@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import CoursePlan, { type CourseData } from '@/components/course-plan';
 import CourseRecords from '@/components/course-records';
+import CourseDifficulty from '@/components/course-difficulty';
 import { MODE_LABEL, type CourseMode } from '@/lib/course-rounds';
 import data from '@/public/games/nine-holes/courses/gary-player/gary-player.json';
 
@@ -34,6 +35,7 @@ export default function GaryPlayerPage() {
         Nedbank Golf Challenge, traced hole by hole: the island green on the 9th, the Sun City lake beside the
         17th and 18th, and every bunker where it really is. Par 72 from the championship tees.
       </p>
+      <CourseDifficulty id="gary-player" detail />
 
       <section className="club-section" style={{ paddingTop: 40 }} aria-label="Ways to play">
         {open.length ? (
