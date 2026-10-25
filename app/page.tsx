@@ -7,7 +7,7 @@ import { HANDICAP_MIN, readStats } from '@/lib/nine-holes-stats';
 import { getMyResultsServer } from '@/lib/mp/records-server';
 import { readRecord } from '@/lib/mp/records';
 
-// Three things only: today's nine, your card (or signing up for one), and the real courses.
+// Three things only: today's nine, your card (or signing up for one), and the courses.
 export default async function HomePage() {
   const [profile, raw] = await Promise.all([getProfileServer(), getGameStatsServer('nine-holes')]);
   const results = profile ? await getMyResultsServer() : [];
@@ -49,8 +49,8 @@ export default async function HomePage() {
       <section className="club-wrap club-section">
         <Link href="/courses" className="club-real">
           <span>
-            <span className="club-h2">Real courses</span>
-            <span className="club-lede">Holes from real-life courses, rebuilt for Nine Holes. The first ones are on the way.</span>
+            <span className="club-h2">Courses</span>
+            <span className="club-lede">Real-life courses rebuilt hole by hole, and fantasy courses made for Nine Holes.</span>
           </span>
           <span className="club-real-go">See the courses</span>
         </Link>

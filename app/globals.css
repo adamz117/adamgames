@@ -280,6 +280,8 @@ body {
 .club-diff-pips { display: inline-flex; gap: 3px; }
 .club-diff-pips i { width: 14px; height: 5px; border-radius: 1px; background: rgba(226, 170, 78, 0.18); }
 .club-diff-pips i.on { background: var(--accent); }
+.club-finder { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 36px; }
+.club-finder .club-lobby-input { flex: 1 1 240px; max-width: 440px; }
 .club-courses-h { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 3vw, 34px); margin: 0 0 18px; }
 
 /* ── a real course's page ── */
