@@ -9,11 +9,13 @@ export type Visibility = 'private' | 'public';
 export type CourseSpec =
   | { kind: 'daily' | 'random'; seed: string }
   | { kind: 'real'; id: string; mode: CourseMode; day: string };
-export type LobbySettings = { spec: CourseSpec; format: Format; pace: Pace; clock: 30; maxPlayers: 2 };
+export type LobbySize = 2 | 3 | 4;
+export type LobbySettings = { spec: CourseSpec; format: Format; pace: Pace; clock: 30; maxPlayers: LobbySize };
 export type Swing = { slot: number; hole: number; shot: number; club: number; aim: number; v: number; timeout: boolean };
 
 export const FORMATS: Format[] = ['stroke', 'match'];
 export const PACES: Pace[] = ['own', 'turns'];
+export const LOBBY_SIZES: LobbySize[] = [2, 3, 4];
 // Broadcast refresh hints (swings arrive from the stored log instead).
 export const LOBBY_EVENTS = ['settings', 'ready', 'start', 'left', 'rematch'] as const;
 export type LobbyEvent = (typeof LOBBY_EVENTS)[number];
@@ -44,14 +46,16 @@ function parseSpec(x: unknown): CourseSpec | null {
   return null;
 }
 
-// A fresh object with only the known fields, or null.
+// A fresh object with only the known fields, or null. Match play is for 2 players only.
 export function parseSettings(x: unknown): LobbySettings | null {
   const m = obj(x);
   if (!m) return null;
   const spec = parseSpec(m.spec);
   if (!spec || !FORMATS.includes(m.format as Format) || !PACES.includes(m.pace as Pace)) return null;
-  if (m.clock !== 30 || m.maxPlayers !== 2) return null;
-  return { spec, format: m.format as Format, pace: m.pace as Pace, clock: 30, maxPlayers: 2 };
+  if (m.clock !== 30 || !LOBBY_SIZES.includes(m.maxPlayers as LobbySize)) return null;
+  const maxPlayers = m.maxPlayers as LobbySize;
+  if (m.format === 'match' && maxPlayers !== 2) return null;
+  return { spec, format: m.format as Format, pace: m.pace as Pace, clock: 30, maxPlayers };
 }
 
 // The same ranges as the swings table. Stored rows' extra columns (lobby_id, game) are dropped.

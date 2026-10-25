@@ -1,33 +1,37 @@
 'use client';
 
 import { MODE_LABEL, MODES } from '@/lib/course-rounds';
-import { FORMATS, PACES, type CourseSpec, type LobbySettings, type Visibility } from '@/lib/mp/protocol';
-import { courseChoice, FORMAT_LABEL, PACE_LABEL, REAL_COURSES, specFor } from '@/lib/mp/lobby-ui';
+import { FORMATS, LOBBY_SIZES, PACES, type CourseSpec, type LobbySettings, type Visibility } from '@/lib/mp/protocol';
+import { courseChoice, FORMAT_LABEL, PACE_LABEL, REAL_COURSES, sizeChange, specFor } from '@/lib/mp/lobby-ui';
 
-// The host's controls for the lobby's game: course (and holes), format, pace and who can join.
-function Seg<T extends string>({ label, value, options, onChange }: {
-  label: string; value: T; options: { value: T; label: string }[]; onChange: (v: T) => void;
+// The host's controls for the lobby's game: course (and holes), players, format, pace and who can join.
+function Seg<T extends string | number>({ label, value, options, onChange, hint }: {
+  label: string; value: T; options: { value: T; label: string; disabled?: boolean }[]; onChange: (v: T) => void; hint?: string;
 }) {
   return (
     <div className="club-lobby-field" role="group" aria-label={label}>
       <span className="club-lobby-label">{label}</span>
       <span className="club-lobby-seg">
         {options.map((o) => (
-          <button key={o.value} type="button" aria-pressed={o.value === value} onClick={() => o.value !== value && onChange(o.value)}>
+          <button key={o.value} type="button" aria-pressed={o.value === value} disabled={o.disabled}
+            onClick={() => o.value !== value && onChange(o.value)}>
             {o.label}
           </button>
         ))}
       </span>
+      {hint && <p className="club-lobby-hint">{hint}</p>}
     </div>
   );
 }
 
-export default function SettingsEditor({ settings, visibility, today, onChange }: {
-  settings: LobbySettings; visibility: Visibility; today: string;
+// minSize: the smallest size that fits the players in the lobby now (lobby-ui's minSize).
+export default function SettingsEditor({ settings, visibility, today, minSize, onChange }: {
+  settings: LobbySettings; visibility: Visibility; today: string; minSize: number;
   onChange: (s: LobbySettings, v: Visibility) => void;
 }) {
   const spec = settings.spec;
   const setSpec = (next: CourseSpec) => onChange({ ...settings, spec: next }, visibility);
+  const two = settings.maxPlayers === 2;
   return (
     <div className="club-lobby-settings">
       <div className="club-lobby-field">
@@ -53,8 +57,14 @@ export default function SettingsEditor({ settings, visibility, today, onChange }
           <button type="button" className="club-lobby-quiet" onClick={() => setSpec(specFor('random', 'front', today))}>Deal another</button>
         </div>
       )}
-      <Seg label="Format" value={settings.format} options={FORMATS.map((f) => ({ value: f, label: FORMAT_LABEL[f] }))}
-        onChange={(format) => onChange({ ...settings, format }, visibility)} />
+      <Seg label="Players" value={settings.maxPlayers}
+        options={LOBBY_SIZES.map((n) => ({ value: n, label: String(n), disabled: n < minSize && n !== settings.maxPlayers }))}
+        onChange={(n) => onChange(sizeChange(settings, n), visibility)}
+        hint={minSize > 2 ? 'Fewer seats won’t fit the players in the lobby.' : undefined} />
+      <Seg label="Format" value={settings.format}
+        options={FORMATS.map((f) => ({ value: f, label: FORMAT_LABEL[f], disabled: f === 'match' && !two }))}
+        onChange={(format) => onChange({ ...settings, format }, visibility)}
+        hint={two ? undefined : 'Match play is for 2 players.'} />
       <Seg label="Pace" value={settings.pace} options={PACES.map((p) => ({ value: p, label: PACE_LABEL[p] }))}
         onChange={(pace) => onChange({ ...settings, pace }, visibility)} />
       <Seg label="Who can join" value={visibility}

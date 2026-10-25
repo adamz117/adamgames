@@ -1,4 +1,4 @@
-// Lobbies over Supabase: the rpc functions and tables of 0004_multiplayer.sql, plus the lobby's
+// Lobbies over Supabase: the rpc functions and tables of 0004_multiplayer.sql and 0005_four_players.sql, plus the lobby's
 // Realtime channel. Calls return an error (or null / [] for reads) instead of throwing.
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { closeChannel, freshChannel } from '@/lib/mp/channel';
@@ -14,7 +14,7 @@ export type Lobby = {
   status: LobbyStatus; game: number; players: LobbyPlayer[];
 };
 export type LobbyMember = LobbyPlayer & { userId: string; lastSeen: string };
-export type LobbyRow = { id: string; code: string; settings: LobbySettings; hostName: string; players: number; createdAt: string };
+export type LobbyRow = { id: string; code: string; settings: LobbySettings; hostName: string; players: number; capacity: number; createdAt: string };
 
 const client = () => createBrowserSupabaseClient();
 type Row = Record<string, unknown>;
@@ -81,7 +81,12 @@ export async function listPublicLobbies(): Promise<LobbyRow[]> {
     for (const r of data as Row[]) {
       const settings = parseSettings(r.settings);
       if (!settings) continue;
-      out.push({ id: String(r.id), code: String(r.code), settings, hostName: String(r.host_name ?? 'Member'), players: Number(r.players), createdAt: String(r.created_at) });
+      // capacity comes from 0005; before it, the settings' size.
+      const capacity = Number.isInteger(r.capacity) ? (r.capacity as number) : settings.maxPlayers;
+      out.push({
+        id: String(r.id), code: String(r.code), settings, hostName: String(r.host_name ?? 'Member'),
+        players: Number(r.players), capacity, createdAt: String(r.created_at),
+      });
     }
     return out;
   } catch {
@@ -119,9 +124,17 @@ function rpcVoid(fn: string, args: Row) {
   return update(() => client().rpc(fn, args));
 }
 
-// Host only, while open. The database un-readies everyone on a change.
-export function updateSettings(id: string, settings: LobbySettings, visibility: Visibility) {
-  return update(() => client().from('lobbies').update({ settings, visibility }).eq('id', id));
+// Host only, while open. The database un-readies everyone on a change. Errors: too_many (a size
+// smaller than the players present: the update policy refuses it) or failed (also when no row
+// changed: not the host, or no longer open).
+export async function updateSettings(id: string, settings: LobbySettings, visibility: Visibility): Promise<{ error: string | null }> {
+  try {
+    const { data, error } = await client().from('lobbies').update({ settings, visibility }).eq('id', id).select('id');
+    if (error) return error.code === '42501' ? { error: 'too_many' } : failed(error);
+    return data?.length ? { error: null } : { error: 'failed' };
+  } catch (e) {
+    return failed(e);
+  }
 }
 
 export async function setReady(id: string, ready: boolean) {
