@@ -337,6 +337,14 @@ for (const n of [3, 18]) {
   }
 }
 
+// On every course, no hole's line ever crosses out of bounds: a spike in an OSM outline (Sawgrass's 3rd), a boundary
+// corner clipping a tee shot (Victoria's 4th) or a sliver between the sea and the shore (Pebble's 18th) once did
+for (const id of ['victoria', 'gary-player', 'tpc-sawgrass', 'augusta', 'pebble-beach', 'cypress-point', 'ironmere', 'sunscar', 'cloudspire']) {
+  const c = DH.makeRealCourse(require(`./courses/${id}/${id}.json`), 'all', DAY);
+  for (const h of c.holes) for (let t = 0; t <= 1.0001; t += 0.0025)
+    assert.notEqual(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)), 'ob', `${id} hole ${h.index}: out of bounds on the line at ${(t * 100).toFixed(2)}%`);
+}
+
 // The daily game is untouched
 assert.equal(DH.hashStr(JSON.stringify(DH.makeCourse('2026-10-23'))), 980314489);
 
