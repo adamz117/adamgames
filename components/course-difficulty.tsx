@@ -11,7 +11,7 @@ export default function CourseDifficulty({ id, detail = false }: { id: string; d
       </span>
       <span>
         Difficulty <b className="club-figure">{d.rating}</b>/10 · {d.label}
-        {detail && <> · a club golfer averages {d.overPar} over par here</>}
+        {detail && <> · a club golfer averages {d.overPar > 0 ? `${d.overPar} over par` : d.overPar < 0 ? `${-d.overPar} under par` : 'level par'} here</>}
       </span>
     </span>
   );

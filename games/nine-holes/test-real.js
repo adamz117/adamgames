@@ -230,6 +230,24 @@ for (const n of [3, 18]) {
   assert.equal(DH.surfaceAt(h7, { x: (sea.box[0] + sea.box[2]) / 2, y: (sea.box[1] + sea.box[3]) / 2 }), 'water', 'the Pacific is water, not OB');
 }
 
+// Cypress Point: every tee and pin plays, fairway lines clear of trees, the 15th and 16th carry the Pacific, and no
+// hole's line crosses out of bounds (the rocks and surf between the clifftop boundary and the sea play as water)
+{
+  const cp = DH.makeRealCourse(require('./courses/cypress-point/cypress-point.json'), 'all', DAY);
+  assert.equal(cp.par, 72);
+  assert.equal(cp.turnAfter, 9);
+  for (const h of cp.holes) {
+    assert.equal(DH.surfaceAt(h, { x: 0, y: 0 }), 'tee', `Cypress hole ${h.index} tee`);
+    assert.equal(DH.surfaceAt(h, h.pin), 'green', `Cypress hole ${h.index} pin`);
+    for (let t = h.par === 3 ? 0.75 : 0.3; t <= 0.9; t += 0.1)
+      assert.notEqual(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)), 'trees', `Cypress hole ${h.index} at ${Math.round(t * 100)}%`);
+    for (let t = 0; t <= 1.0001; t += 0.005)
+      assert.notEqual(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)), 'ob', `Cypress hole ${h.index}: out of bounds on the line at ${(t * 100).toFixed(1)}%`);
+  }
+  for (const [n, from, to] of [[15, 0.3, 0.6], [16, 0.15, 0.75]])
+    for (let t = from; t <= to; t += 0.05) assert.equal(DH.surfaceAt(cp.holes[n - 1], DH.pointAt(cp.holes[n - 1].path, cp.holes[n - 1].total * t)), 'water', `Cypress ${n} carries the Pacific at ${Math.round(t * 100)}%`);
+}
+
 // Ironmere Quarry (designed, not traced): every tee and pin plays, fairway lines are clear of trees, the island
 // greens are ringed by water but keep a dry land bridge, the creek crosses the 7th, and no fairway or green is wet
 {

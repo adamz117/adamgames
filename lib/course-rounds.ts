@@ -13,6 +13,7 @@ export const COURSE_PAR: Record<string, Record<CourseMode, number>> = {
   ironmere: { front: 36, back: 36, all: 72 },
   sunscar: { front: 36, back: 36, all: 72 },
   cloudspire: { front: 36, back: 36, all: 72 },
+  'cypress-point': { front: 37, back: 35, all: 72 },
 };
 export const MODE_LABEL: Record<CourseMode, string> = { front: 'Front 9', back: 'Back 9', all: '18 holes' };
 export const MODES: CourseMode[] = ['front', 'back', 'all'];

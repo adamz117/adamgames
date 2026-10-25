@@ -1,0 +1,187 @@
+{
+ "id": "cypress-point",
+ "name": "Cypress Point Club",
+ "place": "Pebble Beach, California",
+ "osmRelation": null,
+ "osmWay": 36435651,
+ "golfpassId": 14937,
+ "tees": "blue",
+ "scorecard": [
+  {
+   "n": 1,
+   "par": 4,
+   "si": 5,
+   "yds": 417
+  },
+  {
+   "n": 2,
+   "par": 5,
+   "si": 1,
+   "yds": 555
+  },
+  {
+   "n": 3,
+   "par": 3,
+   "si": 17,
+   "yds": 157
+  },
+  {
+   "n": 4,
+   "par": 4,
+   "si": 7,
+   "yds": 382
+  },
+  {
+   "n": 5,
+   "par": 5,
+   "si": 11,
+   "yds": 491
+  },
+  {
+   "n": 6,
+   "par": 5,
+   "si": 3,
+   "yds": 522
+  },
+  {
+   "n": 7,
+   "par": 3,
+   "si": 15,
+   "yds": 170
+  },
+  {
+   "n": 8,
+   "par": 4,
+   "si": 9,
+   "yds": 356
+  },
+  {
+   "n": 9,
+   "par": 4,
+   "si": 13,
+   "yds": 292
+  },
+  {
+   "n": 10,
+   "par": 5,
+   "si": 16,
+   "yds": 477
+  },
+  {
+   "n": 11,
+   "par": 4,
+   "si": 4,
+   "yds": 435
+  },
+  {
+   "n": 12,
+   "par": 4,
+   "si": 2,
+   "yds": 405
+  },
+  {
+   "n": 13,
+   "par": 4,
+   "si": 14,
+   "yds": 363
+  },
+  {
+   "n": 14,
+   "par": 4,
+   "si": 8,
+   "yds": 394
+  },
+  {
+   "n": 15,
+   "par": 3,
+   "si": 18,
+   "yds": 139
+  },
+  {
+   "n": 16,
+   "par": 3,
+   "si": 6,
+   "yds": 233
+  },
+  {
+   "n": 17,
+   "par": 4,
+   "si": 10,
+   "yds": 379
+  },
+  {
+   "n": 18,
+   "par": 4,
+   "si": 12,
+   "yds": 343
+  }
+ ],
+ "notes": {
+  "1": "drive over 17-Mile Drive to a fairway bending right",
+  "2": "a long par 5 that starts with a carry over the dunes",
+  "3": "a short par 3 set in the sand dunes",
+  "4": "into the Monterey pines",
+  "5": "uphill through the forest, the green tucked away left",
+  "6": "a par 5 falling towards the sea",
+  "7": "uphill to a green framed by dunes",
+  "8": "the drive has to clear a great sand dune",
+  "9": "a short par 4 in the dunes, sand all round the green",
+  "10": "back up into the forest",
+  "11": "back down out of the forest towards the dunes",
+  "12": "through the dunes, the ocean coming into view",
+  "13": "dunes and sand, the Pacific ahead",
+  "14": "the last of the inland holes, cypress all round",
+  "15": "over a cove of the Pacific to a green ringed by bunkers",
+  "16": "the famous one: 233 yards over the Pacific to a green on the headland, or lay up left",
+  "17": "along the cliffs: the drive carries the ocean to a fairway past the cypress",
+  "18": "uphill through the cypress to the clubhouse"
+ },
+ "hidden": [],
+ "signature": [
+  15,
+  16,
+  17
+ ],
+ "turnAfter": 9,
+ "terrain": {
+  "uphill": [
+   5,
+   7,
+   18
+  ],
+  "downhill": [
+   6
+  ]
+ },
+ "water": "osm",
+ "ponds": [],
+ "landmarks": [],
+ "thresholds": {
+  "glare": {
+   "minL": 999
+  },
+  "sand": {
+   "rOverG": -999,
+   "rOverB": -999,
+   "minL": 150,
+   "maxSpread": 45,
+   "nearPlay": 30
+  },
+  "mown": {
+   "minL7": 55,
+   "gOverR": 28,
+   "maxTex": 9
+  },
+  "tree": {
+   "darkL": 40,
+   "minTex": 14,
+   "maxL": 80
+  },
+  "area": {
+   "tree": 80
+  },
+  "fairway": {
+   "corridor": 24
+  }
+ }
+}
