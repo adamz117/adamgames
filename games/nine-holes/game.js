@@ -942,11 +942,13 @@ function matchState(pars, scores) {
 }
 // Take-turns order. A player who holes out has already moved to the next tee, so the current hole is
 // the lowest one anyone still on the course is playing; anyone past it, done, or whose hole is
-// scored but not yet moved on from (the UI calls nextHole later) is skipped.
-function nextToPlay(states, honour) {
-  const live = states.map((s, i) => i).filter(i => !states[i].done && states[i].scores[states[i].holeIdx] == null);
+// scored but not yet moved on from (the UI calls nextHole later) is skipped. out: indices of players who
+// left, skipped too; an honour they held passes to the next player still in.
+function nextToPlay(states, honour, out = []) {
+  const live = states.map((s, i) => i).filter(i => !out.includes(i) && !states[i].done && states[i].scores[states[i].holeIdx] == null);
   if (!live.length) return -1;
   const cur = Math.min(...live.map(i => states[i].holeIdx)), on = live.filter(i => states[i].holeIdx === cur);
+  for (let n = 0; n < states.length && out.includes(honour); n++) honour = (honour + 1) % states.length;
   if (on.every(i => states[i].shotIdx === 0)) return on.includes(honour) ? honour : on[0];
   let best = on[0], far = -1;
   for (const i of on) { const d = dist(states[i].ball, holeOf(states[i]).pin); if (d > far) { far = d; best = i; } }

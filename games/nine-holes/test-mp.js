@@ -172,6 +172,19 @@ assert.deepEqual(DH.strokeResult(P9.slice(0, 2), [[4, 5], [4]]), { totals: [9, 4
   assert.equal(DH.nextToPlay([scored, at(30)], 0), 1);
   assert.equal(DH.nextToPlay([scored, holed], 0), 1);
   assert.equal(DH.nextToPlay([scored, done], 0), -1);
+  // Players who left (out) are skipped, on the tee and mid-hole, even when farthest or holding the honour
+  assert.equal(DH.nextToPlay([tee(), tee(), tee()], 1, []), 1); // out defaults to nobody
+  assert.equal(DH.nextToPlay([tee(), tee(), tee(), tee()], 1, [1]), 2); // the honour passes to the next player still in
+  assert.equal(DH.nextToPlay([tee(), tee(), tee(), tee()], 2, [2, 3]), 0); // ...round the table
+  assert.equal(DH.nextToPlay([tee(), tee(), tee()], 0, [1]), 0);
+  assert.equal(DH.nextToPlay([at(300), at(150), at(90)], 0, [0]), 1);
+  assert.equal(DH.nextToPlay([at(300), at(150), at(90)], 0, [0, 1]), 2);
+  // A leaver still on an earlier hole doesn't hold the others back
+  const t1 = () => { const s = tee(); s.holeIdx = 1; return s; };
+  assert.equal(DH.nextToPlay([at(300), t1(), t1()], 2), 0);
+  assert.equal(DH.nextToPlay([at(300), t1(), t1()], 2, [0]), 2);
+  assert.equal(DH.nextToPlay([at(300), t1(), t1()], 0, [0]), 1);
+  assert.equal(DH.nextToPlay([at(300), at(150)], 0, [0, 1]), -1);
 }
 
 // timeoutSwing
