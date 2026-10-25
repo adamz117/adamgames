@@ -902,7 +902,16 @@ function paintRealCourse(h, close, RF) {
   fill(R.tees, PAL.tee, PAL.fwEdge, 1);
   fill(R.greens.filter(x => x !== R.ownGreen), PAL.green, PAL.greenEdge, 1.2); // the other holes' greens
   for (const c of R.cart) strokePath(c, 1.1, PAL.cart, G);
-  fill(R.water, PAL.water, PAL.waterEdge, 1.6);
+  waterSheet(R.water, 2.6);
+  // beyond the boundary the sea and lakes go back over the course water's outlines, so none shows out on open water
+  const lakes = (R.landmarks || []).filter(l => l.kind === 'water' && l.pts.length > 2 && onScreen(l.box));
+  if (lakes.length) {
+    G.save(); G.beginPath(); G.rect(-10, -10, W + 20, H + 20);
+    R.boundary.pts.forEach((p, i) => { const q = TS(p); i ? G.lineTo(q.x, q.y) : G.moveTo(q.x, q.y); });
+    G.closePath(); G.clip('evenodd'); G.fillStyle = PAL.water;
+    for (const l of lakes) { polyPath(l.pts); G.fill(); }
+    G.restore();
+  }
   fill(R.bunkers, PAL.sand, PAL.sandEdge, 1.2);
   fill(R.trees, PAL.canopy, PAL.canopy, Math.max(2.2, 1.6 * view.s)); // a dark floor under the crowns, stroked so the cuts between pieces close
   drawCanopy(h);
@@ -912,13 +921,23 @@ function paintRealCourse(h, close, RF) {
   }
 }
 
+// Water as one sheet: every outline first, then every fill over them, so where shapes overlap or meet (the sea and its
+// shore strips, a hand-drawn carry, a stream running into a pool) no edge shows inside the water; only the shore keeps
+// its line (the outer half of the stroke).
+function waterSheet(list, lw) {
+  G.lineWidth = lw; G.strokeStyle = PAL.waterEdge; G.lineJoin = 'round';
+  for (const sh of list) if (onScreen(sh.box)) { polyPath(sh.pts); G.stroke(); }
+  G.fillStyle = PAL.water;
+  for (const sh of list) if (onScreen(sh.box)) { polyPath(sh.pts); G.fill(); }
+}
+
 // Landmarks around the course: lakes as water, buildings as roofs with their names.
 function drawLandmarks(R) {
+  waterSheet((R.landmarks || []).filter(l => l.kind === 'water' && l.pts.length > 2), 2.2);
   for (const l of R.landmarks || []) {
     if (!onScreen(l.box)) continue;
     if (l.pts.length > 2) {
-      polyPath(l.pts); G.fillStyle = l.kind === 'water' ? PAL.water : PAL.roof || '#C9B9A2'; G.fill();
-      G.lineWidth = 1.4; G.strokeStyle = l.kind === 'water' ? PAL.waterEdge : '#8F7F69'; G.stroke();
+      if (l.kind !== 'water') { polyPath(l.pts); G.fillStyle = PAL.roof || '#C9B9A2'; G.fill(); G.lineWidth = 1.4; G.strokeStyle = '#8F7F69'; G.stroke(); }
     } else { const p = TS(l.pts[0]); G.beginPath(); G.arc(p.x, p.y, 5, 0, 6.284); G.fillStyle = PAL.roof || '#C9B9A2'; G.fill(); G.strokeStyle = '#8F7F69'; G.stroke(); }
     if (view.s > 0.25) {
       const c = TS({ x: (l.box[0] + l.box[2]) / 2, y: (l.box[1] + l.box[3]) / 2 });
