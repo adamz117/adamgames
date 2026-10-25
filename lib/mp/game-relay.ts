@@ -81,7 +81,10 @@ export function createGameRelay(d: RelayDeps): GameRelay {
       if (!alive || run !== initRun) return;
       if (l && l.game !== game) return; // a rematch began: the room takes over
       if (l?.settings && rows && swings) {
-        d.post({ type: 'mp-init', settings: l.settings, players: rows.map((p) => ({ slot: p.slot, name: p.name })), me, swings });
+        d.post({
+          type: 'mp-init', settings: l.settings, players: rows.map((p) => ({ slot: p.slot, name: p.name })), me, swings,
+          left: rows.filter((p) => p.leftAt && p.slot !== me).map((p) => p.slot), // already out of the game
+        });
         initSent = true;
         const early = held;
         held = [];
