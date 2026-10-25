@@ -40,6 +40,8 @@ export const COURSE_NAME: Record<string, string> = {
   'gary-player': 'Gary Player Country Club',
   'tpc-sawgrass': 'TPC Sawgrass Stadium Course',
   augusta: 'Augusta National',
+  'pebble-beach': 'Pebble Beach Golf Links',
+  ironmere: 'Ironmere Quarry',
 };
 const MODE_NAME = { front: 'front nine', back: 'back nine', all: '18 holes' } as const;
 
