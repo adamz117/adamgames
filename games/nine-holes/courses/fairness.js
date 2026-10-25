@@ -1,11 +1,13 @@
-// The fairness bot: node courses/ironmere/sim.js [rounds] [course ...]
+// The fairness bot: node courses/fairness.js [rounds] [course ...]
 // Plays like a good golfer: before each shot it tries every club on several lines, simulates each a few
 // times with the game's own physics, and takes the one that leaves the fewest strokes on average; then it
 // swings with a little human error. A hard hole costs it strokes; an unfair one (no safe way to play it)
-// shows up as a hole it can't get round near par even playing well. Writes hardness.json for Ironmere.
+// shows up as a hole it can't get round near par even playing well.
+// SAVE=1 writes each course's per-hole hardness to courses/<id>/hardness.json, which a fantasy course's
+// make.js turns into its stroke index (only when asked, so a rating run never reshuffles a scorecard).
 const fs = require('node:fs');
 const path = require('node:path');
-const DH = require('../../game.js');
+const DH = require('../game.js');
 
 const ROUNDS = +process.argv[2] || 8;
 const SLOPPY = +process.env.SLOPPY || 1; // 2 or 3: a club golfer's timing and aim
@@ -38,7 +40,7 @@ function choose(h, ball, lie, salt) {
 
 const DAYS = Array.from({ length: ROUNDS }, (_, i) => `2026-11-${String(1 + i).padStart(2, '0')}`);
 for (const id of COURSES) {
-  const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', id, id + '.json'), 'utf8'));
+  const data = JSON.parse(fs.readFileSync(path.join(__dirname, id, id + '.json'), 'utf8'));
   const per = data.holes.map(() => []), wet = data.holes.map(() => 0);
   for (const day of DAYS) {
     const st = DH.newRound(day, DH.makeRealCourse(data, 'all', day)), noise = DH.rng(DH.hashStr('human|' + day));
@@ -54,5 +56,5 @@ for (const id of COURSES) {
   const total = DAYS.map((_, r) => per.reduce((a, p) => a + p[r], 0));
   console.log(`\n${data.name}: ${ROUNDS} rounds, average ${mean(total) >= 0 ? '+' : ''}${mean(total).toFixed(1)} (best ${Math.min(...total)}, worst ${Math.max(...total)})`);
   data.holes.forEach((h, i) => console.log(`  ${String(h.n).padStart(2)} par ${h.par} ${String(h.cardYds).padStart(3)}y  avg ${mean(per[i]) >= 0 ? '+' : ''}${mean(per[i]).toFixed(2)}  worst +${Math.max(...per[i])}  penalties ${wet[i]}`));
-  if (id === 'ironmere') fs.writeFileSync(path.join(__dirname, 'hardness.json'), JSON.stringify(per.map(mean)));
+  if (process.env.SAVE) fs.writeFileSync(path.join(__dirname, id, 'hardness.json'), JSON.stringify(per.map(mean)));
 }

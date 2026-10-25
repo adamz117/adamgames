@@ -1,11 +1,11 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>Ironmere preview</title>
+<title>Course preview</title>
 <style>body{margin:0;background:#2a3328}svg{width:800px;height:520px;display:block}text{font:700 22px Arial;fill:#fff;paint-order:stroke;stroke:#000;stroke-width:4px}</style>
 <svg id="s"></svg>
 <script>
-// The whole course from ironmere.json, for checking the layout by eye. ?vb=x,y,w,h zooms (course yards).
-fetch('ironmere.json').then(r => r.json()).then(C => {
+// A designed course from <id>/<id>.json, for checking the layout by eye: preview.html?course=<id>[&vb=x,south,w,h] (course yards).
+fetch(new URLSearchParams(location.search).get('course') + '/' + new URLSearchParams(location.search).get('course') + '.json').then(r => r.json()).then(C => {
   const s = document.getElementById('s'), P = pts => pts.map(p => `${p[0]},${-p[1]}`).join(' ');
   const xs = C.boundary.map(p => p[0]), ys = C.boundary.map(p => -p[1]);
   const vb = new URLSearchParams(location.search).get('vb');

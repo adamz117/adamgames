@@ -1,8 +1,8 @@
 // How hard each course plays in Nine Holes, measured rather than guessed: the fairness bot
-// (games/nine-holes/courses/ironmere/sim.js) plays 16 rounds of 18 holes as a club golfer
+// (games/nine-holes/courses/fairness.js) plays 16 or more rounds of 18 holes as a club golfer
 // (SLOPPY=2.5: it picks sensible lines but its timing and aim are off), and this is its average
 // over par. Re-run it after changing a course or adding one:
-//   SLOPPY=2.5 node courses/ironmere/sim.js 16 <course ids...>
+//   SLOPPY=2.5 node courses/fairness.js 16 <course ids...>
 export const CLUB_AVG: Record<string, number> = {
   'gary-player': 1.6,
   'pebble-beach': 1.9,
@@ -10,6 +10,7 @@ export const CLUB_AVG: Record<string, number> = {
   augusta: 4.3,
   'tpc-sawgrass': 8.0,
   ironmere: 12.8,
+  sunscar: 4.5,
 };
 
 const LABELS = ['Easy', 'Easy', 'Moderate', 'Moderate', 'Testing', 'Testing', 'Hard', 'Hard', 'Brutal', 'Brutal'];

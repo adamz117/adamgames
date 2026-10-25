@@ -256,6 +256,34 @@ for (const n of [3, 18]) {
   assert.ok(creek.includes('water'), 'the creek crosses the 7th');
 }
 
+// Sunscar Canyon (designed): every tee and pin plays, fairway lines are clear of trees, no fairway edge is wet,
+// every hole crosses the river, the 8th's green is a butte with water all round, and the river beyond the boundary is water
+{
+  const sc = DH.makeRealCourse(require('./courses/sunscar/sunscar.json'), 'all', DAY);
+  assert.equal(sc.par, 72);
+  assert.equal(sc.turnAfter, 9);
+  for (const h of sc.holes) {
+    assert.equal(DH.surfaceAt(h, { x: 0, y: 0 }), 'tee', `Sunscar hole ${h.index} tee`);
+    assert.equal(DH.surfaceAt(h, h.pin), 'green', `Sunscar hole ${h.index} pin`);
+    for (let t = h.par === 3 ? 0.75 : 0.3; t <= 0.9; t += 0.05)
+      assert.notEqual(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)), 'trees', `Sunscar hole ${h.index} at ${Math.round(t * 100)}%`);
+    for (const fw of h.real.fairways.filter(f => f.hole === h.index)) for (const p of fw.pts.filter((_, i) => i % 4 === 0))
+      assert.notEqual(DH.surfaceAt(h, p), 'water', `Sunscar hole ${h.index} fairway edge is dry`);
+    const line = []; for (let t = 0; t <= 1; t += 0.004) line.push(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)));
+    assert.ok(line.includes('water'), `Sunscar hole ${h.index} crosses the river`);
+  }
+  const h8 = sc.holes[7], g = h8.green;
+  for (let a = 0; a < 360; a += 30) {
+    const q = { x: g.x + Math.cos(a * Math.PI / 180) * (h8.gr + 16), y: g.y + Math.sin(a * Math.PI / 180) * (h8.gr + 16) };
+    assert.equal(DH.surfaceAt(h8, q), 'water', `Sunscar 8: water round the butte at ${a}°`);
+  }
+  // upstream of the course, well outside the boundary, the river is still water, not out of bounds
+  const h1 = sc.holes[0], { T, th, k } = h1.real, cs = Math.cos(th), sn = Math.sin(th);
+  const frame = ([x, y]) => { const dx = x - T.x, dy = y - T.y; return { x: (dx * cs - dy * sn) * k, y: (dx * sn + dy * cs) * k }; };
+  assert.equal(DH.surfaceAt(h1, frame([-299, 880])), 'water', 'the river beyond the boundary is water');
+  assert.equal(DH.surfaceAt(h1, frame([-160, 880])), 'ob', 'the desert beyond the boundary is out of bounds');
+}
+
 // The daily game is untouched
 assert.equal(DH.hashStr(JSON.stringify(DH.makeCourse('2026-10-23'))), 980314489);
 
