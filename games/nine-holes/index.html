@@ -1538,6 +1538,9 @@ const pinchGap = () => { const [a, b] = [...ptrs.values()]; return Math.hypot(a.
 function goManual() { view.manual = true; $('recenter').hidden = false; }
 cvs.addEventListener('pointerdown', e => {
   try { cvs.setPointerCapture(e.pointerId); } catch (err) {} // throws for a pointer the browser no longer tracks
+  // A primary pointer means no other finger is down, so any still listed lost their lift (phones in an iframe
+  // drop the odd pointerup). Left there, one would turn the next drag into a pinch that zooms right out.
+  if (e.isPrimary) { ptrs.clear(); gesture = null; }
   ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
   if (ptrs.size === 1) gesture = { sx: e.offsetX, sy: e.offsetY, cx: view.cx, cy: view.cy, moved: false };
   else if (ptrs.size === 2) gesture = { pinch: true, d0: pinchGap(), s0: view.s, moved: true };
@@ -1558,6 +1561,10 @@ const endPtr = e => {
 };
 cvs.addEventListener('pointerup', endPtr);
 cvs.addEventListener('pointercancel', endPtr);
+cvs.addEventListener('lostpointercapture', endPtr);
+const dropPtrs = () => { ptrs.clear(); gesture = null; }; // leaving the game mid-touch: nothing is held when it comes back
+addEventListener('blur', dropPtrs);
+document.addEventListener('visibilitychange', () => { if (document.hidden) dropPtrs(); });
 cvs.addEventListener('wheel', e => {
   e.preventDefault(); goManual();
   const before = fromScreen(e.offsetX, e.offsetY);
