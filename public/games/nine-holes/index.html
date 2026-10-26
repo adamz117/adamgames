@@ -476,14 +476,19 @@ function setupAim(keepAim) {
 const TREES_PACE = 1.5, SHORT_PACE_MIN = 0.3;
 let pace = 1, toPin = false; // toPin: the band marks the power to the pin, not the pure strike at 100
 const powerSec = now => (now - tPow) / 1000 * pace;
-function lockAim() {
-  locked = true; phase = 'power'; tPow = performance.now();
+// When the finger (or key) went down, on the performance.now() clock: a tap lasts 50-150 ms and a busy
+// phone runs the handler later still, and the needle keeps moving meanwhile.
+const pressAt = e => { const t = e && e.timeStamp, now = performance.now(); return t > now - 1000 && t <= now + 1 ? t : now; };
+// t: the moment of the press, so the line locks where it was then.
+function lockAim(t = performance.now()) {
+  aimAngle = DH.aimAt(aimCenter, club(), (t - tAim) / 1000);
+  locked = true; phase = 'power'; tPow = t;
   $('track').classList.remove('idle');
   setAct('Swing'); $('hint').textContent = st.lie === 'trees' ? 'In the trees · a quicker swing' : toPin ? 'Stop in the green band' : 'Stop just under 100';
   $('stage').classList.remove('aiming');
 }
-function fireShot(timeout) {
-  if (!timeout) power = DH.powerAt(club(), powerSec(performance.now()));
+function fireShot(timeout, t = performance.now()) {
+  if (!timeout) power = DH.powerAt(club(), powerSec(t)); // the needle where it was at the press
   launch(MP ? mpPlay(timeout) : DH.play(st, aimAngle, clubIdx, power), aimAngle);
 }
 // Animates a shot already played (mine, or in a two-player game one I am watching).
@@ -619,11 +624,11 @@ function reportRound(strokes, par) {
 
 // ── ui ──
 function setAct(text, wait) { const b = $('act'); b.textContent = text; b.classList.toggle('wait', !!wait); }
-function act() {
+function act(t) {
   if (MP && MP.over) return void ($('mpEnd').hidden = false); // the game is over: no more swings
   if (view.fly) { view.fly = null; return; }
-  if (phase === 'aim') lockAim();
-  else if (phase === 'power') fireShot();
+  if (phase === 'aim') lockAim(t);
+  else if (phase === 'power') fireShot(false, t);
   else if (phase === 'holeend') nextHoleUI();
   else if (phase === 'turn') leaveTurn();
   else if (phase === 'done') $(MP ? 'mpEnd' : 'end').hidden = false;
@@ -1596,7 +1601,7 @@ cvs.addEventListener('pointerdown', e => {
   // drop the odd pointerup). Left there, one would turn the next drag into a pinch that zooms right out.
   if (e.isPrimary) { ptrs.clear(); gesture = null; }
   ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
-  if (ptrs.size === 1) gesture = { sx: e.offsetX, sy: e.offsetY, cx: view.cx, cy: view.cy, moved: false };
+  if (ptrs.size === 1) gesture = { sx: e.offsetX, sy: e.offsetY, cx: view.cx, cy: view.cy, moved: false, t0: pressAt(e) };
   else if (ptrs.size === 2) gesture = { pinch: true, d0: pinchGap(), s0: view.s, moved: true };
 });
 cvs.addEventListener('pointermove', e => {
@@ -1610,7 +1615,7 @@ cvs.addEventListener('pointermove', e => {
 const endPtr = e => {
   if (!ptrs.has(e.pointerId)) return;
   ptrs.delete(e.pointerId);
-  if (gesture && !gesture.moved && ptrs.size === 0 && e.type === 'pointerup') tapAt(e.offsetX, e.offsetY);
+  if (gesture && !gesture.moved && ptrs.size === 0 && e.type === 'pointerup') tapAt(e.offsetX, e.offsetY, gesture.t0);
   if (ptrs.size === 0) gesture = null;
   // One finger left of a pinch: carry on as a drag from where it is (a pinch has no drag start, and
   // panning without one put the camera at NaN, which drew no course at all).
@@ -1632,18 +1637,21 @@ cvs.addEventListener('wheel', e => {
   const after = fromScreen(e.offsetX, e.offsetY); // zoom around the cursor
   view.cx = view.tx = view.cx + before.x - after.x; view.cy = view.ty = view.cy + before.y - after.y;
 }, { passive: false });
-function tapAt(x, y) {
+function tapAt(x, y, t) { // t: when the finger went down
   if (MP && MP.over) return;
   if (view.fly) { view.fly = null; return; } // a tap skips the view
   if (phase === 'aim' && !locked) {
     const p = fromScreen(x, y);
     if (dist(p, st.ball) < 1) return;
     aimCenter = Math.atan2(p.x - st.ball.x, p.y - st.ball.y); manualAim = true; tAim = performance.now();
-  } else if (phase === 'power') fireShot();
+  } else if (phase === 'power') fireShot(false, t); // a tap is only known on release; the power is from the press
   else if (phase === 'holeend') nextHoleUI();
 }
 
-$('act').addEventListener('click', act);
+// The big button acts as the finger goes down, not when it lifts; a click with no pointer (keyboard,
+// a screen reader) still works.
+$('act').addEventListener('pointerdown', e => { if (e.button === 0) act(pressAt(e)); });
+$('act').addEventListener('click', e => { if (e.detail === 0) act(); });
 $('turnGo').addEventListener('click', leaveTurn);
 $('clubRail').addEventListener('click', e => { const b = e.target.closest('button'); if (b) pickClub(+b.dataset.i); });
 $('recenter').addEventListener('click', () => { view.manual = false; $('recenter').hidden = true; });
@@ -1663,7 +1671,7 @@ $('newBtn').addEventListener('click', () => startRound(Math.random().toString(36
 $('homeBtn').addEventListener('click', () => { try { window.top.location.href = '/'; } catch (e) { location.href = '/'; } });
 addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('button') && (e.key === ' ' || e.key === 'Enter')) return; // let buttons click themselves
-  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); act(); }
+  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) act(pressAt(e)); }
   else if (e.key >= '1' && e.key <= '9') pickClub(+e.key - 1);
 });
 addEventListener('resize', resize);
