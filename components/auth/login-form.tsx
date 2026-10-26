@@ -13,10 +13,12 @@ export default function LoginForm() {
 
   useEffect(() => {
     // Landing here with a confirmation link (e.g. #access_token=...) already
-    // establishes a session client-side, so skip straight past the form.
+    // establishes a session client-side, so skip straight past the form. Not for a
+    // guest: anyone who joined a lobby without an account has a guest session, and
+    // sending them home left them no way to sign in.
     const supabase = createClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+      if (session && !session.user.is_anonymous) {
         router.push('/');
         router.refresh();
       }
