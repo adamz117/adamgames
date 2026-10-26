@@ -460,6 +460,9 @@ function setupAim(keepAim) {
   if (!keepAim) manualAim = false;
   aimAngle = aimCenter; locked = false; tAim = performance.now(); phase = 'aim'; power = 0;
   const band = DH.targetBand(h, st.ball, st.lie, c);
+  // A short shot's band sits near the start of the track, so the needle slows to reach it about when a
+  // full swing reaches the pure band (a 15 yd chip: 0.3 s and 25 ms to hit it, otherwise).
+  pace = Math.min(1, Math.max(SHORT_PACE_MIN, band.lo * DH.METER_MAX / DH.PURE_LO)) * (st.lie === 'trees' ? TREES_PACE : 1);
   $('track').style.setProperty('--pa', band.lo); $('track').style.setProperty('--pb', band.hi);
   $('tickMid').textContent = band.label;
   $('track').classList.add('idle');
@@ -467,9 +470,10 @@ function setupAim(keepAim) {
   $('stage').classList.add('aiming');
   hud(); renderClubs(); renderCard();
 }
-// Swinging out of the trees is harder: the power needle runs this much faster.
-const TREES_PACE = 1.5;
-const powerSec = now => (now - tPow) / 1000 * (st.lie === 'trees' ? TREES_PACE : 1);
+// How fast the power needle runs for this shot: slower for short shots, faster from the trees.
+const TREES_PACE = 1.5, SHORT_PACE_MIN = 0.3;
+let pace = 1;
+const powerSec = now => (now - tPow) / 1000 * pace;
 function lockAim() {
   locked = true; phase = 'power'; tPow = performance.now();
   $('track').classList.remove('idle');
