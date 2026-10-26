@@ -21,6 +21,7 @@ type Options = {
   onRematch(): void;
   onLeave(): void;
   onFinished(): void;
+  onSaved(): void; // one of my swings is stored
   onError(text: string): void;
 };
 
@@ -42,6 +43,7 @@ export function useGameRelay(o: Options) {
       onRematch: () => latest.current.onRematch(),
       onLeave: () => latest.current.onLeave(),
       onFinished: () => latest.current.onFinished(),
+      onSaved: () => latest.current.onSaved(),
       onError: (t) => latest.current.onError(t),
     });
     relayRef.current = relay;

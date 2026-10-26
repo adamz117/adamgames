@@ -127,6 +127,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
     },
     onLeave: () => void leaveRoom(),
     onFinished: () => refreshRef.current(),
+    onSaved: () => void send('swing'), // the others re-read the log now, not when the change feed gets there
     onError: setNotice,
   });
 
@@ -173,7 +174,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
     let ch: LobbyChannel | null = null;
     openLobbyChannel(me.id, me.userId, {
       onPresence: (ids) => { if (alive) { setPresent(ids); void refresh(); } },
-      onEvent: () => void refresh(),
+      onEvent: (event) => (event === 'swing' ? feed.resync() : void refresh()),
       onSwing: feed.swing,
       onStatus: (status) => { if (status === 'SUBSCRIBED') feed.resync(); }, // catch up after a (re)join
     }).then((opened) => {

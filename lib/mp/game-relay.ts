@@ -25,6 +25,7 @@ export type RelayDeps = {
   onRematch(): void; // "Play again"
   onLeave(): void; // "Leave"
   onFinished?(): void; // the result is recorded
+  onSaved?(): void; // one of my swings is stored: tell the others
   onError?(text: string): void;
   now?(): number;
   sleep?(ms: number): Promise<void>;
@@ -122,7 +123,7 @@ export function createGameRelay(d: RelayDeps): GameRelay {
       }
       fails = 0;
       if (r === 'closed') queue.length = 0; // the game is over (or the swing is bad): stop
-      else queue.shift();
+      else { queue.shift(); d.onSaved?.(); }
     }
     saving = false;
   }

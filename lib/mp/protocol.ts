@@ -16,8 +16,9 @@ export type Swing = { slot: number; hole: number; shot: number; club: number; ai
 
 export const FORMATS: Format[] = ['stroke', 'match'];
 export const PACES: Pace[] = ['own', 'turns'];
-// Broadcast refresh hints (swings arrive from the stored log instead).
-export const LOBBY_EVENTS = ['settings', 'ready', 'start', 'left', 'rematch'] as const;
+// Broadcast refresh hints. 'swing': one was just stored, so re-read the log now (the database's own
+// change feed can lag on phones). Swings themselves only ever come from the stored log.
+export const LOBBY_EVENTS = ['settings', 'ready', 'start', 'left', 'rematch', 'swing'] as const;
 export type LobbyEvent = (typeof LOBBY_EVENTS)[number];
 export const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
