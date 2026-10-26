@@ -717,6 +717,11 @@ function playFocus(h) {
 const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 function updateCamera(now) {
   const h = hole();
+  // A camera that has gone NaN never eases back: start again from the automatic view.
+  if (!(Number.isFinite(view.cx) && Number.isFinite(view.cy) && Number.isFinite(view.s) && view.s > 0)) {
+    view.cx = view.tx = st.ball.x; view.cy = view.ty = st.ball.y; view.s = view.ts = view.autoS || 1;
+    view.manual = false; view.ready = false; $('recenter').hidden = true;
+  }
   if (view.fly && (now - view.fly.t0 > view.fly.dur || view.manual || phase !== 'aim')) view.fly = null;
   if (view.follow && !view.manual) { // in flight: keep the zoom, centre on the ball, keep up with it
     view.tx = view.follow.x; view.ty = view.follow.y; view.ts = view.s;
@@ -1598,6 +1603,12 @@ const endPtr = e => {
   ptrs.delete(e.pointerId);
   if (gesture && !gesture.moved && ptrs.size === 0 && e.type === 'pointerup') tapAt(e.offsetX, e.offsetY);
   if (ptrs.size === 0) gesture = null;
+  // One finger left of a pinch: carry on as a drag from where it is (a pinch has no drag start, and
+  // panning without one put the camera at NaN, which drew no course at all).
+  else if (gesture && gesture.pinch && ptrs.size === 1) {
+    const [p] = ptrs.values();
+    gesture = { sx: p.x, sy: p.y, cx: view.cx, cy: view.cy, moved: true };
+  }
 };
 cvs.addEventListener('pointerup', endPtr);
 cvs.addEventListener('pointercancel', endPtr);
