@@ -20,13 +20,15 @@ html, body { height: 100%; overscroll-behavior: none; }
 body {
   background: linear-gradient(180deg, #EDF1EC 0%, #F5F8F3 42%, #FFFFFF 78%); color: var(--chalk);
   font-family: var(--sans); font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums; /* steady digits: yards, wind, scores and the clock don't jiggle as they change */
   overflow: hidden; display: flex; align-items: center; justify-content: center;
   touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; user-select: none; -webkit-user-select: none; }
 :focus-visible { outline: 2px solid var(--flag); outline-offset: 2px; }
 
-#app { position: relative; width: min(100vw, 540px); height: 100dvh; max-height: 960px; display: flex; flex-direction: column; background: #fff; overflow: hidden; }
+#app { position: relative; width: min(100vw, 540px); height: 100dvh; max-height: 960px; display: flex; flex-direction: column; background: #fff; overflow: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); } /* the panel pads the bottom */
 @media (min-width: 600px) { #app { height: min(100dvh, 900px); border-radius: 16px; border: 1px solid var(--line-soft); box-shadow: 0 24px 60px -28px rgba(35,60,40,.16); } }
 
 /* header + scorecard strip */
@@ -70,7 +72,11 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
 .tags b { font-family: var(--mono); font-weight: 400; font-size: 8.5px; letter-spacing: .11em; padding: 2px 5px 1px; border: 1px solid currentColor; border-radius: 6px; background: rgba(255,255,255,.88); text-shadow: none; }
 .pill { position: absolute; z-index: 4; top: 10px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
   padding: 7px 14px 6px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.94); box-shadow: 0 2px 10px rgba(35,60,40,.08); }
-.courseTools { position: absolute; z-index: 4; top: 64px; right: 11px; display: flex; flex-direction: column; gap: 6px; }
+.courseTools { position: absolute; z-index: 4; top: 64px; right: 11px; display: flex; flex-direction: column; gap: 10px; }
+/* hit slop: small buttons take a tap about 44px across without looking any bigger */
+.courseTools button { position: relative; }
+.courseTools button::after, #menuBtn::after, .recenter::after { content: ''; position: absolute; inset: -6px -8px; }
+#menuBtn::after { inset: -9px -4px; }
 .courseTools button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.94); font-family: var(--mono); font-size: 13px; display: grid; place-items: center; }
 .courseTools svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .courseTools svg path:first-child { fill: currentColor; }

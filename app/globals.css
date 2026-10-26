@@ -543,3 +543,48 @@ li.club-friend-row { border-bottom: 1px solid var(--border); }
   .club-holes { gap: 7px; }
   .club-hole figcaption span { display: none; } /* the hole number alone fits under a phone-sized plate */
 }
+
+/* ── loading placeholders (components/mp/skeleton.tsx) ── */
+.club-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.club-skel {
+  display: block;
+  height: 0.9em;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(236, 234, 220, 0.06) 0%, rgba(236, 234, 220, 0.13) 40%, rgba(236, 234, 220, 0.06) 80%);
+  background-size: 200% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .club-skel { animation: clubSkel 1.4s ease-in-out infinite; }
+}
+@keyframes clubSkel { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.club-skel-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--border); }
+.club-skel-lines { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+.club-skel-room { display: grid; gap: 16px; }
+
+/* steady digits where numbers change in place */
+.club-lobby-row-meta, .club-friend-result, .club-lobby-summary { font-variant-numeric: lining-nums tabular-nums; }
+
+/* undo after removing a friend */
+.club-undo {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 10px 10px 10px 18px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(226, 170, 78, 0.45);
+  font-size: 15px;
+}
+.club-undo span { min-width: 0; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: no-preference) {
+  .club-undo { animation: clubUndoIn 220ms var(--ease-out); }
+}
+@keyframes clubUndoIn { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }

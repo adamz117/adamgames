@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import GuestNameForm from '@/components/mp/guest-name-form';
 import InviteFriends from '@/components/mp/invite-friends';
 import SettingsEditor from '@/components/mp/settings-editor';
+import { Skel } from '@/components/mp/skeleton';
 import { useGameRelay } from '@/components/mp/use-game-relay';
 import {
   getLobby, getPlayers, heartbeat, joinLobby, leaveLobby, openLobbyChannel, rematch, setReady, startLobby,
@@ -194,7 +195,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
 
   // ── views ──
   if (!code) return <Message text={errorText('not_found')} />;
-  if (stage === 'loading') return <Message text="Finding the lobby…" quiet />;
+  if (stage === 'loading') return <RoomSkeleton />;
   if (stage === 'error') return <Message text={errorText(fatal ?? 'failed')} />;
   if (!lobby) return <Message text={errorText('not_found')} />;
 
@@ -221,7 +222,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
     );
   }
 
-  if (!me) return <Message text="Finding the lobby…" quiet />;
+  if (!me) return <RoomSkeleton />;
   if (lobby.status === 'closed') return <Message text={errorText('closed')} />;
 
   if (inGame) {
@@ -387,12 +388,35 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Message({ text, quiet }: { text: string; quiet?: boolean }) {
+// The room's shape while the lobby loads: title, then the invite and players panels.
+function RoomSkeleton() {
   return (
     <Shell>
-      <h1 className="club-h2 club-lobby-title">{quiet ? 'Lobby' : 'No game here'}</h1>
+      <div role="status" style={{ paddingTop: 56 }}>
+        <span className="club-sr-only">Finding the lobby…</span>
+        <Skel w="min(420px, 70%)" h={64} />
+        <div style={{ marginTop: 18 }}><Skel w="min(520px, 85%)" h={16} /></div>
+        <div className="club-lobby-grid" aria-hidden="true">
+          {[0, 1].map((i) => (
+            <div key={i} className="club-lobby-panel club-skel-room">
+              <Skel w="40%" h={26} />
+              <Skel w={i ? '70%' : '55%'} h={44} />
+              <Skel w="85%" h={16} />
+              <Skel w="60%" h={16} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
+function Message({ text }: { text: string }) {
+  return (
+    <Shell>
+      <h1 className="club-h2 club-lobby-title">No game here</h1>
       <p className="club-lobby-lede">{text}</p>
-      {!quiet && <p className="club-lobby-lede"><Link href="/play" className="club-link">Back to the lobbies</Link></p>}
+      <p className="club-lobby-lede"><Link href="/play" className="club-link">Back to the lobbies</Link></p>
     </Shell>
   );
 }

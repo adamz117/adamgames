@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { SkeletonRows } from '@/components/mp/skeleton';
 import { useRouter } from 'next/navigation';
 import GuestNameForm from '@/components/mp/guest-name-form';
 import { createLobby, listPublicLobbies, type LobbyRow } from '@/lib/mp/lobby-client';
@@ -101,7 +102,7 @@ export default function LobbyBrowser({ viewer }: { viewer: Viewer }) {
       <section className="club-lobby-section">
         <h2 className="club-lobby-h3">Open lobbies</h2>
         {lobbies === null ? (
-          <p className="club-lobby-note">Looking for games…</p>
+          <SkeletonRows label="Looking for games…" rows={2} />
         ) : lobbies.length === 0 ? (
           <p className="club-lobby-note">No public lobbies right now. Create one and make it public, or share a private link.</p>
         ) : (

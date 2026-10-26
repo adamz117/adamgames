@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import OnlineDot from '@/components/mp/online-dot';
+import { Skel, SkeletonRows } from '@/components/mp/skeleton';
 import { listFriends, removeFriend, requestFriend, respond, useOnline, type Friend } from '@/lib/mp/friends-client';
 import { getHeadToHeads } from '@/lib/mp/records-client';
 import { formatRecord, gamesPlayed, type HeadToHead, type RecordRow } from '@/lib/mp/records';
@@ -15,6 +16,8 @@ const ADD_ERROR: Record<string, string> = {
   failed: 'That didn’t go through. Try again in a moment.',
 };
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+// How long "Undo" stays up before a removed friend is removed for real.
+const UNDO_MS = 6000;
 const resultWord = (g: RecordRow) => (g.result === 'win' ? 'Won' : g.result === 'loss' ? 'Lost' : g.format === 'match' ? 'Halved' : 'Tied');
 
 // Add by username, requests both ways, and friends with who's online and the record against each.
@@ -43,6 +46,42 @@ export default function FriendsList({ findable }: { findable: boolean }) {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [load]);
 
+  // Removing a friend: they go from the list at once, with an Undo, and only after UNDO_MS (or when
+  // the page closes or moves on) for real.
+  const [removing, setRemoving] = useState<Friend | null>(null);
+  const pending = useRef<{ friend: Friend; timer: number } | null>(null);
+  const undoRef = useRef<HTMLButtonElement>(null);
+  const commitRemove = useCallback(() => {
+    const p = pending.current;
+    if (!p) return;
+    pending.current = null;
+    clearTimeout(p.timer);
+    setRemoving(null);
+    setFriends((list) => list?.filter((f) => f.id !== p.friend.id)); // no flash back while it goes through
+    void removeFriend(p.friend.id).then((r) => {
+      if (r.error) setActionError(`${p.friend.name} couldn’t be removed. Try again in a moment.`);
+      void load();
+    });
+  }, [load]);
+  function startRemove(friend: Friend) {
+    commitRemove(); // one at a time
+    pending.current = { friend, timer: window.setTimeout(commitRemove, UNDO_MS) };
+    setRemoving(friend);
+  }
+  function undo() {
+    const p = pending.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    setRemoving(null);
+  }
+  useEffect(() => {
+    window.addEventListener('pagehide', commitRemove);
+    return () => { window.removeEventListener('pagehide', commitRemove); commitRemove(); };
+  }, [commitRemove]);
+  // The row that had focus is gone: keyboard users land on Undo.
+  useEffect(() => { if (removing) undoRef.current?.focus(); }, [removing]);
+
   async function add(e: React.FormEvent) {
     e.preventDefault();
     const wanted = name.trim();
@@ -68,7 +107,7 @@ export default function FriendsList({ findable }: { findable: boolean }) {
 
   const incoming = friends?.filter((f) => f.status === 'incoming') ?? [];
   const outgoing = friends?.filter((f) => f.status === 'outgoing') ?? [];
-  const accepted = (friends?.filter((f) => f.status === 'accepted') ?? [])
+  const accepted = (friends?.filter((f) => f.status === 'accepted' && f.id !== removing?.id) ?? [])
     .sort((a, b) => Number(online.has(b.id)) - Number(online.has(a.id)));
 
   return (
@@ -116,7 +155,10 @@ export default function FriendsList({ findable }: { findable: boolean }) {
       {actionError && <p className="club-lobby-error" role="alert">{actionError}</p>}
 
       {friends === undefined ? (
-        <p className="club-lobby-note club-lobby-section">Looking for your friends…</p>
+        <section className="club-lobby-section">
+          <h2 className="club-lobby-h3">Friends</h2>
+          <SkeletonRows label="Looking for your friends…" />
+        </section>
       ) : friends === null ? (
         <p className="club-lobby-error club-lobby-section" role="alert">Your friends couldn’t load. Reload the page to try again.</p>
       ) : (
@@ -157,12 +199,19 @@ export default function FriendsList({ findable }: { findable: boolean }) {
             ) : (
               <ul className="club-lobby-list">
                 {accepted.map((f) => (
-                  <FriendRow key={f.id} friend={f} record={records === undefined ? undefined : records?.get(f.id) ?? null} online={online.has(f.id)} busy={busy === f.id} onRemove={() => act(f.id, () => removeFriend(f.id))} />
+                  <FriendRow key={f.id} friend={f} record={records === undefined ? undefined : records?.get(f.id) ?? null} online={online.has(f.id)} busy={busy === f.id} onRemove={() => startRemove(f)} />
                 ))}
               </ul>
             )}
           </section>
         </>
+      )}
+
+      {removing && (
+        <p className="club-undo" role="status">
+          <span>Removed {removing.name} from your friends.</span>
+          <button ref={undoRef} type="button" className="club-lobby-quiet" onClick={undo}>Undo</button>
+        </p>
       )}
     </>
   );
@@ -173,7 +222,6 @@ function FriendRow({ friend, record, online, busy, onRemove }: {
   friend: Friend; record: HeadToHead | null | undefined; online: boolean; busy: boolean; onRemove: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [confirming, setConfirming] = useState(false);
 
   const panel = `friend-${friend.id}`;
   return (
@@ -182,7 +230,7 @@ function FriendRow({ friend, record, online, busy, onRemove }: {
         <span className="club-friend-main">
           <strong><OnlineDot on={online} />{friend.name}</strong>
           <span className="club-figure">
-            {record === undefined ? '…' : record === null ? 'Record unavailable right now' : gamesPlayed(record) === 0 ? 'No games together yet' : formatRecord(record)}
+            {record === undefined ? <Skel w="132px" h={14} /> : record === null ? 'Record unavailable right now' : gamesPlayed(record) === 0 ? 'No games together yet' : formatRecord(record)}
           </span>
         </span>
         <button type="button" className="club-lobby-quiet" aria-expanded={open} aria-controls={panel} onClick={() => setOpen((o) => !o)}>
@@ -192,7 +240,10 @@ function FriendRow({ friend, record, online, busy, onRemove }: {
       {open && (
         <div id={panel} className="club-friend-more">
           {record === undefined ? (
-            <p className="club-lobby-note">Loading…</p>
+            <div role="status" className="club-skel-room" style={{ gap: 10 }}>
+              <span className="club-sr-only">Loading your games together…</span>
+              <Skel w="40%" h={13} /><Skel w="90%" h={16} /><Skel w="82%" h={16} />
+            </div>
           ) : record === null ? (
             <p className="club-lobby-error" role="alert">Your games together couldn’t load. Reload the page to try again.</p>
           ) : record.games.length === 0 ? (
@@ -212,15 +263,7 @@ function FriendRow({ friend, record, online, busy, onRemove }: {
             </>
           )}
           <div className="club-lobby-buttons" style={{ marginTop: 14 }}>
-            {confirming ? (
-              <>
-                <span className="club-lobby-note" style={{ margin: 0 }}>Remove {friend.name} from your friends?</span>
-                <button type="button" className="club-lobby-quiet" disabled={busy} onClick={onRemove}>Remove</button>
-                <button type="button" className="club-lobby-quiet" onClick={() => setConfirming(false)}>Keep</button>
-              </>
-            ) : (
-              <button type="button" className="club-lobby-quiet" onClick={() => setConfirming(true)}>Remove friend</button>
-            )}
+            <button type="button" className="club-lobby-quiet" disabled={busy} onClick={onRemove}>Remove friend</button>
           </div>
         </div>
       )}
