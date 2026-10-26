@@ -462,7 +462,8 @@ function setupAim(keepAim) {
   const band = DH.targetBand(h, st.ball, st.lie, c);
   // A chip's band sits near the start of the track, so within CHIP_YDS of the pin the needle slows to reach
   // it about when a full swing reaches the pure band (a 15 yd chip: 0.3 s and 25 ms to hit it, otherwise).
-  const chip = DH.dist(st.ball, h.pin) <= CHIP_YDS;
+  const chip = DH.dist(st.ball, h.pin) <= DH.CHIP_YDS;
+  toPin = band.label === 'PIN';
   pace = (chip ? Math.min(1, Math.max(SHORT_PACE_MIN, band.lo * DH.METER_MAX / DH.PURE_LO)) : 1) * (st.lie === 'trees' ? TREES_PACE : 1);
   $('track').style.setProperty('--pa', band.lo); $('track').style.setProperty('--pb', band.hi);
   $('tickMid').textContent = band.label;
@@ -472,13 +473,13 @@ function setupAim(keepAim) {
   hud(); renderClubs(); renderCard();
 }
 // How fast the power needle runs for this shot: slower for chips, faster from the trees.
-const TREES_PACE = 1.5, SHORT_PACE_MIN = 0.3, CHIP_YDS = 20;
-let pace = 1;
+const TREES_PACE = 1.5, SHORT_PACE_MIN = 0.3;
+let pace = 1, toPin = false; // toPin: the band marks the power to the pin, not the pure strike at 100
 const powerSec = now => (now - tPow) / 1000 * pace;
 function lockAim() {
   locked = true; phase = 'power'; tPow = performance.now();
   $('track').classList.remove('idle');
-  setAct('Swing'); $('hint').textContent = st.lie === 'trees' ? 'In the trees · a quicker swing' : 'Stop just under 100';
+  setAct('Swing'); $('hint').textContent = st.lie === 'trees' ? 'In the trees · a quicker swing' : toPin ? 'Stop in the green band' : 'Stop just under 100';
   $('stage').classList.remove('aiming');
 }
 function fireShot(timeout) {

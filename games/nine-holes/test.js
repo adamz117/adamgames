@@ -207,4 +207,28 @@ for (const seed of ['a', 'b', 'c', '2026-10-23', ...Array.from({ length: 30 }, (
   assert.deepEqual(re.scores, st.scores);
   if (!seed.startsWith('s')) console.log(seed, st.course.name, st.scores.join(' '), '=', total, `(par ${st.course.par})`);
 }
+// Chips from just off the green: struck inside the band they finish in one-putt range almost every
+// time; mistimed they still scatter.
+{
+  let inBand = 0, inBandOne = 0, off = 0, offOne = 0;
+  for (const day of ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']) for (const hh of DH.makeCourse(day).holes) {
+    if (hh.arch) continue;
+    for (let k = 0; k < 8; k++) {
+      const a = k / 8 * Math.PI * 2, ball = { x: hh.green.x + Math.cos(a) * (hh.gr + 2), y: hh.green.y + Math.sin(a) * (hh.gr + 2) };
+      const lie = DH.surfaceAt(hh, ball);
+      if (lie !== 'fairway' || DH.dist(ball, hh.pin) > DH.CHIP_YDS) continue;
+      const c = DH.CLUBS[DH.autoClub(hh, ball, lie)], b = DH.targetBand(hh, ball, lie, c), aim = Math.atan2(hh.pin.x - ball.x, hh.pin.y - ball.y);
+      for (let s = 0; s < 10; s++) {
+        const r = DH.rng(DH.hashStr(day + hh.index + k + '#' + s));
+        const one = res => res.holed || (res.restSurf === 'green' && DH.puttsFrom(hh, res.rest) <= 1);
+        inBand++; if (one(DH.resolveShot(hh, ball, lie, c, aim, (b.lo + (b.hi - b.lo) * (s + 0.5) / 10) * DH.METER_MAX, r))) inBandOne++;
+        off++; if (one(DH.resolveShot(hh, ball, lie, c, aim, b.hi * DH.METER_MAX * 1.25, DH.rng(DH.hashStr(day + hh.index + k + '#o' + s))))) offOne++;
+      }
+    }
+  }
+  console.log(`chips from the fringe: ${Math.round(100 * inBandOne / inBand)}% one-putt or in when struck in the band, ${Math.round(100 * offOne / off)}% when 25% too hard (${inBand} each)`);
+  assert.ok(inBand > 300);
+  assert.ok(inBandOne / inBand >= 0.95, 'a chip struck in the band finishes in one-putt range');
+  assert.ok(offOne / off < 0.6, 'a mistimed chip does not');
+}
 console.log('ok');

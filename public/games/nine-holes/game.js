@@ -67,6 +67,7 @@ const PURE_LO = 0.945, PURE_HI = 1.0, SOLID = 0.72, METER_MAX = 1.15;
 const HOLE_R = 0.36;        // cup capture radius for a running ball, yards
 const ISLAND_BANK = 28;     // playable deep rough past an island green's lake
 const PORTAL_ADVANCE = 430; // how far a portal carries you on a hole too long to reach the green
+const CHIP_YDS = 20;        // a chip: this close to the pin (the needle slows, and a chip struck in the band is tidy)
 
 // The pure-band bonus ramps across the band so carry never steps backwards as the meter rises.
 function smash(v) {
@@ -716,10 +717,14 @@ function resolveShot(h, ball, lie, club, aim, v, r) {
 
   // Contact adds an absolute miss. Off the tee it is a plain scatter; elsewhere it shrinks for
   // short shots (judging the weight is the hard part, not the line) and a chip always gets halfway.
-  const abs = 2.2 * lm.acc * (pure ? 0.72 : 1);
+  // A chip struck inside the band (the weight judged right) misses by half as much: otherwise its
+  // ~2 yd floor was as big as the one-putt ring, and perfect chips still missed it.
+  const b = lie !== 'tee' && dist(ball, h.pin) <= CHIP_YDS && targetBand(h, ball, lie, club), dialled = b && v >= b.lo * METER_MAX && v <= b.hi * METER_MAX;
+  const tidy = dialled ? 0.5 : 1;
+  const abs = 2.2 * lm.acc * (pure ? 0.72 : 1) * tidy;
   let land;
   if (lie !== 'tee') {
-    const near = Math.min(1, carry / 80), qq = 2.2 * (pure ? 0.72 : 1);
+    const near = Math.min(1, carry / 80), qq = 2.2 * (pure ? 0.72 : 1) * tidy;
     const along = Math.max(qq * Math.pow(lm.acc, 0.4), abs * (0.4 + 0.6 * near));
     const ga = gauss(r), gs = gauss(r), lim = carry * 0.3 + 1.5;
     const da = Math.max(-carry * 0.5, ga * along);
@@ -991,7 +996,7 @@ function replayGame(spec, realData, players, log) {
 }
 
 const api = {
-  CLUBS, LIE, PURE_LO, PURE_HI, SOLID, METER_MAX, ISLAND_BANK, THEMES, themeFor, inLeafPile,
+  CLUBS, LIE, PURE_LO, PURE_HI, SOLID, METER_MAX, CHIP_YDS, ISLAND_BANK, THEMES, themeFor, inLeafPile,
   carryFactor, powerFor, grade, powerAt, aimAt,
   makeCourse, makeRealCourse, realSurface, heightAt, playsLike, holePlaysLike, surfaceAt, resolveShot, rollOut, gustPush, puttRings, puttsFrom, strokeCap,
   millAngle, millBladeOver, millStrike, inMillZone, portalOut, burnCartHit, shoreR, moatR, isleR,
