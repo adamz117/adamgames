@@ -26,7 +26,7 @@ export default async function FriendsPage() {
       <h1 className="club-h2 club-lobby-title">Friends</h1>
       <p className="club-lobby-lede">
         Add friends by username, see who&rsquo;s on the site now, and keep a head-to-head record of
-        every 1v1 you finish together.
+        every game you finish together.
       </p>
       {member ? (
         <FriendsList findable={member.findable} />

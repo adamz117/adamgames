@@ -60,8 +60,8 @@ export default function LobbyBrowser({ viewer }: { viewer: Viewer }) {
         <div className="club-lobby-panel">
           <h2 className="club-lobby-h3">Start a game</h2>
           <p className="club-lobby-note">
-            A private lobby on today’s daily nine. Change the course, format and pace inside, then send
-            your friend the link.
+            A private lobby on today’s daily nine. Change the course, players, format and pace inside, then
+            send your friends the link.
           </p>
           {asking ? (
             <GuestNameForm label="Create lobby" busy={busy} onSubmit={create} onCancel={() => setAsking(false)} />

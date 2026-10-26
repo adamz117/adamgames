@@ -9,7 +9,9 @@ export type Visibility = 'private' | 'public';
 export type CourseSpec =
   | { kind: 'daily' | 'random'; seed: string }
   | { kind: 'real'; id: string; mode: CourseMode; day: string };
-export type LobbySettings = { spec: CourseSpec; format: Format; pace: Pace; clock: 30; maxPlayers: 2 };
+export type PlayerCount = 2 | 3 | 4;
+export const PLAYER_COUNTS: PlayerCount[] = [2, 3, 4];
+export type LobbySettings = { spec: CourseSpec; format: Format; pace: Pace; clock: 30; maxPlayers: PlayerCount };
 export type Swing = { slot: number; hole: number; shot: number; club: number; aim: number; v: number; timeout: boolean };
 
 export const FORMATS: Format[] = ['stroke', 'match'];
@@ -50,8 +52,9 @@ export function parseSettings(x: unknown): LobbySettings | null {
   if (!m) return null;
   const spec = parseSpec(m.spec);
   if (!spec || !FORMATS.includes(m.format as Format) || !PACES.includes(m.pace as Pace)) return null;
-  if (m.clock !== 30 || m.maxPlayers !== 2) return null;
-  return { spec, format: m.format as Format, pace: m.pace as Pace, clock: 30, maxPlayers: 2 };
+  if (m.clock !== 30 || !PLAYER_COUNTS.includes(m.maxPlayers as PlayerCount)) return null;
+  if (m.format === 'match' && m.maxPlayers !== 2) return null; // match play is one against one
+  return { spec, format: m.format as Format, pace: m.pace as Pace, clock: 30, maxPlayers: m.maxPlayers as PlayerCount };
 }
 
 // The same ranges as the swings table. Stored rows' extra columns (lobby_id, game) are dropped.

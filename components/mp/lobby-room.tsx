@@ -233,7 +233,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
           ref={iframeRef}
           src="/games/nine-holes/index.html?mp=1"
           className="club-lobby-game"
-          title="Nine Holes, two players"
+          title="Nine Holes, multiplayer"
         />
       </>
     );
@@ -246,11 +246,12 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
   const mine = active.find((p) => p.slot === me.slot);
   const waitingOn = active.filter((p) => p.userId !== lobby.host && !p.ready);
   const away = active.filter((p) => !here.has(p.slot));
-  const canStart = isHost && active.length === 2 && !away.length && !waitingOn.length;
+  const seats = Math.max(lobby.settings?.maxPlayers ?? 2, ...active.map((p) => p.slot + 1));
+  const canStart = isHost && active.length >= 2 && !away.length && !waitingOn.length;
   const startHint =
-    active.length < 2 ? 'Waiting for a second player.'
-      : away.length ? `Waiting for ${away.map((p) => p.name).join(' and ')} to come back.`
-        : waitingOn.length ? `Waiting for ${waitingOn.map((p) => p.name).join(' and ')} to get ready.`
+    active.length < 2 ? 'Waiting for another player.'
+      : away.length ? `Waiting for ${names(away)} to come back.`
+        : waitingOn.length ? `Waiting for ${names(waitingOn)} to get ready.`
           : isHost ? 'Everyone’s ready.' : `Waiting for ${hostName} to start.`;
   const link = `${location.origin}/play/${code}`;
 
@@ -319,7 +320,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
         <section className="club-lobby-panel">
           <h2 className="club-lobby-h3">Players</h2>
           <ul className="club-lobby-slots">
-            {[0, 1].map((slot) => {
+            {Array.from({ length: seats }, (_, slot) => {
               const p = active.find((x) => x.slot === slot);
               if (!p) return <li key={slot} className="club-lobby-slot empty">Waiting for a player…</li>;
               const host = p.userId === lobby.host;
@@ -356,7 +357,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
           {!lobby.settings ? (
             <p className="club-lobby-note">These settings come from a newer version of the site. Reload the page.</p>
           ) : isHost ? (
-            <SettingsEditor settings={lobby.settings} visibility={lobby.visibility} today={today} onChange={changeSettings} />
+            <SettingsEditor settings={lobby.settings} visibility={lobby.visibility} today={today} present={active.length} onChange={changeSettings} />
           ) : (
             <>
               <p className="club-lobby-summary">{summary(lobby.settings, today)}</p>
@@ -371,7 +372,11 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
 }
 
 const summary = (s: LobbySettings, today: string) =>
-  `${courseText(s.spec, today)} · ${FORMAT_LABEL[s.format]} · ${PACE_LABEL[s.pace]} · 30 s shot clock`;
+  `${courseText(s.spec, today)} · ${s.maxPlayers} players · ${FORMAT_LABEL[s.format]} · ${PACE_LABEL[s.pace]} · 30 s shot clock`;
+
+// "A", "A and B", "A, B and C"
+const names = (ps: { name: string }[]) =>
+  ps.length < 2 ? (ps[0]?.name ?? '') : `${ps.slice(0, -1).map((p) => p.name).join(', ')} and ${ps.at(-1)!.name}`;
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (

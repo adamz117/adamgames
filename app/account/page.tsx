@@ -66,19 +66,20 @@ export default async function AccountPage() {
       </section>
 
       <section className="club-section" style={{ paddingTop: 72 }}>
-        <h2 className="club-h2">Your 1v1 record</h2>
+        <h2 className="club-h2">Your multiplayer record</h2>
         {results.length === 0 ? (
           <>
-            <p className="club-lede">No 1v1 games yet. Open a lobby, send the link to a friend, and your record starts here.</p>
+            <p className="club-lede">No multiplayer games yet. Open a lobby, send the link to your friends, and your record starts here.</p>
             <p style={{ margin: '22px 0 0', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px 22px' }}>
-              <Link href="/play" className="club-button">Play a 1v1</Link>
+              <Link href="/play" className="club-button">Play friends</Link>
               <Link href="/friends" className="club-link">Add friends</Link>
             </p>
           </>
         ) : (
           <>
             <p className="club-lede">
-              Every finished 1v1 game counts, against members and guests alike. Your record against each
+              Every finished game counts, against members and guests alike; with three or four players only
+              first place is a win. Your record against each
               friend is on your <Link href="/friends" className="club-link">friends</Link> page.
             </p>
             <div className="club-boards" style={{ marginTop: 28 }}>

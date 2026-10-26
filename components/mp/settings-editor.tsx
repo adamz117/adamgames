@@ -1,19 +1,19 @@
 'use client';
 
 import { MODE_LABEL, MODES } from '@/lib/course-rounds';
-import { FORMATS, PACES, type CourseSpec, type LobbySettings, type Visibility } from '@/lib/mp/protocol';
+import { FORMATS, PACES, PLAYER_COUNTS, type PlayerCount, type CourseSpec, type LobbySettings, type Visibility } from '@/lib/mp/protocol';
 import { courseChoice, FORMAT_LABEL, PACE_LABEL, REAL_COURSES, specFor } from '@/lib/mp/lobby-ui';
 
 // The host's controls for the lobby's game: course (and holes), format, pace and who can join.
 function Seg<T extends string>({ label, value, options, onChange }: {
-  label: string; value: T; options: { value: T; label: string }[]; onChange: (v: T) => void;
+  label: string; value: T; options: { value: T; label: string; disabled?: boolean }[]; onChange: (v: T) => void;
 }) {
   return (
     <div className="club-lobby-field" role="group" aria-label={label}>
       <span className="club-lobby-label">{label}</span>
       <span className="club-lobby-seg">
         {options.map((o) => (
-          <button key={o.value} type="button" aria-pressed={o.value === value} onClick={() => o.value !== value && onChange(o.value)}>
+          <button key={o.value} type="button" aria-pressed={o.value === value} disabled={o.disabled} onClick={() => o.value !== value && onChange(o.value)}>
             {o.label}
           </button>
         ))}
@@ -22,8 +22,9 @@ function Seg<T extends string>({ label, value, options, onChange }: {
   );
 }
 
-export default function SettingsEditor({ settings, visibility, today, onChange }: {
-  settings: LobbySettings; visibility: Visibility; today: string;
+// present: players in the lobby now, so the host can't make it smaller than that.
+export default function SettingsEditor({ settings, visibility, today, present, onChange }: {
+  settings: LobbySettings; visibility: Visibility; today: string; present: number;
   onChange: (s: LobbySettings, v: Visibility) => void;
 }) {
   const spec = settings.spec;
@@ -53,7 +54,14 @@ export default function SettingsEditor({ settings, visibility, today, onChange }
           <button type="button" className="club-lobby-quiet" onClick={() => setSpec(specFor('random', 'front', today))}>Deal another</button>
         </div>
       )}
-      <Seg label="Format" value={settings.format} options={FORMATS.map((f) => ({ value: f, label: FORMAT_LABEL[f] }))}
+      <Seg label="Players" value={String(settings.maxPlayers)}
+        options={PLAYER_COUNTS.map((n) => ({ value: String(n), label: String(n), disabled: n < present }))}
+        onChange={(v) => {
+          const maxPlayers = Number(v) as PlayerCount; // match play is one against one
+          onChange({ ...settings, maxPlayers, format: maxPlayers > 2 ? 'stroke' : settings.format }, visibility);
+        }} />
+      <Seg label="Format" value={settings.format}
+        options={FORMATS.map((f) => ({ value: f, label: FORMAT_LABEL[f], disabled: f === 'match' && settings.maxPlayers > 2 }))}
         onChange={(format) => onChange({ ...settings, format }, visibility)} />
       <Seg label="Pace" value={settings.pace} options={PACES.map((p) => ({ value: p, label: PACE_LABEL[p] }))}
         onChange={(pace) => onChange({ ...settings, pace }, visibility)} />

@@ -83,6 +83,7 @@ export function createGameRelay(d: RelayDeps): GameRelay {
       if (l?.settings && rows && swings) {
         d.post({ type: 'mp-init', settings: l.settings, players: rows.map((p) => ({ slot: p.slot, name: p.name })), me, swings });
         initSent = true;
+        if (!players.length) players = rows;
         const early = held;
         held = [];
         early.forEach(forward);
@@ -142,6 +143,7 @@ export function createGameRelay(d: RelayDeps): GameRelay {
           d.onFinished?.();
           return;
         }
+        r?.out?.forEach(left); // forfeited, with the rest still playing (a game of three or four)
         if (now() + FINISH_RETRY_MS > loopUntil) return;
         await sleep(FINISH_RETRY_MS);
       }
@@ -151,10 +153,12 @@ export function createGameRelay(d: RelayDeps): GameRelay {
   }
 
   function left(slot: number) {
-    if (slot === me || leftSlots.has(slot)) return;
+    if (leftSlots.has(slot)) return;
     leftSlots.add(slot);
     if (initSent) d.post({ type: 'mp-left', slot });
-    void finish(true);
+    if (slot === me) return; // I was away too long: the game tells me, and nothing is left to wait for
+    // Over once nobody else is left (keep asking until it's recorded); otherwise the rest play on.
+    void finish(!players.some((p) => p.slot !== me && !leftSlots.has(p.slot)));
   }
 
   function markHere() {

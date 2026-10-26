@@ -1,17 +1,21 @@
 // The browser side of POST /api/mp/finish.
 import type { SlotResult } from './finish-core';
 
-export type FinishReply = { status: 'playing' | 'finished'; results: SlotResult[] };
+export type FinishReply = { status: 'playing' | 'finished'; results: SlotResult[]; out: number[] };
 
 const OUTCOMES = ['win', 'loss', 'draw'];
 function parseReply(x: unknown): FinishReply | null {
-  const m = x as { status?: unknown; results?: unknown } | null;
+  const m = x as { status?: unknown; results?: unknown; out?: unknown } | null;
   if (!m || (m.status !== 'playing' && m.status !== 'finished') || !Array.isArray(m.results)) return null;
-  const results = m.results.flatMap((r: { slot?: unknown; result?: unknown; detail?: unknown } | null) =>
+  const results = m.results.flatMap((r: { slot?: unknown; result?: unknown; detail?: unknown; place?: unknown } | null) =>
     r && Number.isInteger(r.slot) && OUTCOMES.includes(r.result as string)
-      ? [{ slot: r.slot as number, result: r.result as SlotResult['result'], detail: typeof r.detail === 'string' ? r.detail : '' }]
+      ? [{
+        slot: r.slot as number, result: r.result as SlotResult['result'], detail: typeof r.detail === 'string' ? r.detail : '',
+        place: Number.isInteger(r.place) ? (r.place as number) : r.result === 'loss' ? 2 : 1,
+      }]
       : []);
-  return { status: m.status, results };
+  const out = Array.isArray(m.out) ? m.out.filter((s): s is number => Number.isInteger(s)) : [];
+  return { status: m.status, results, out };
 }
 
 // The route's answer for game `game`; 'stop' when asking again won't help (4xx: not a member, no

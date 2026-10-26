@@ -25,7 +25,7 @@ export default function GuestNameForm({ label, busy, onSubmit, onCancel }: {
       }}
     >
       <label className="club-lobby-label" htmlFor="guest-name">Your name</label>
-      <p className="club-lobby-note">You’re playing as a guest. Pick a name your opponent will see.</p>
+      <p className="club-lobby-note">You’re playing as a guest. Pick a name the other players will see.</p>
       <div className="club-lobby-inline">
         <input
           id="guest-name"

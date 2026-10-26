@@ -35,9 +35,9 @@ export default async function Nav() {
           Adam Games
         </Link>
         <nav className="club-nav">
-          <Link href="/play" className="club-nav-play" aria-label="Play a friend">
-            <span className="club-nav-long">Play a friend</span>
-            <span className="club-nav-short">1v1</span>
+          <Link href="/play" className="club-nav-play" aria-label="Play friends">
+            <span className="club-nav-long">Play friends</span>
+            <span className="club-nav-short">Play</span>
           </Link>
           <GamesDropdown
             games={GAMES.map(({ id, title, description, href }) => ({ id, title, description, href }))}

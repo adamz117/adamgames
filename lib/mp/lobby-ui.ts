@@ -40,7 +40,7 @@ const ERRORS: Record<string, string> = {
   full: 'This lobby is full.',
   not_open: 'This game has already started without you.',
   closed: 'This lobby has closed.',
-  left: 'You left this game, so it went to your opponent.',
+  left: 'You left this game, so it counts as a loss.',
   over: 'This game is over.',
   bad_name: 'Pick a name of 2 to 20 letters.',
   bad_code: 'Lobby codes are 6 letters and numbers.',

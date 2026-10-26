@@ -1642,7 +1642,7 @@ addEventListener('keydown', e => {
 });
 addEventListener('resize', resize);
 
-// ── two-player game (?mp=1) ──
+// ── multiplayer game (?mp=1), two to four players ──
 // Players swap swings, not positions: every client plays every swing through the same sim, so all
 // see the same game. The page around the game relays the messages. In: mp-init, mp-swing, mp-left,
 // mp-result. Out: mp-ready, mp-swing (mine, before it animates), mp-done, mp-rematch, mp-leave.
@@ -1655,13 +1655,15 @@ const mpMine = () => MP.states[MP.meIdx];
 const mpName = i => MP.players[i].name;
 const mpColor = i => i === MP.meIdx ? '#fff' : MP_COLORS[(i - (i > MP.meIdx ? 1 : 0)) % MP_COLORS.length];
 const mpPars = () => MP.states[0].course.holes.map(h => h.par);
+const mpList = a => a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; // "A, B and C"
+const ORDINAL = ['1st', '2nd', '3rd', '4th'];
 // The names of the players who haven't finished hole j (scored it, or moved past it).
 const mpBehind = j => MP.states.flatMap((s, i) => s.done || s.holeIdx > j || s.scores[j] != null ? [] : [mpName(i)]);
 // Take-turns honour on hole k: whoever won the last hole outright, else the previous honour, else the host.
 function mpHonour(k) {
   let h = 0;
   for (let j = 0; j < k; j++) {
-    const sc = MP.states.map(s => s.scores[j]), lo = Math.min(...sc);
+    const sc = MP.states.map(s => s.scores[j]), lo = Math.min(...sc.filter(x => x != null)); // a player who left has none
     if (sc.filter(x => x === lo).length === 1) h = sc.indexOf(lo);
   }
   return h;
@@ -1712,7 +1714,7 @@ function mpNext() {
   if (turns && mpPump()) return;
   const over = st.done || st.scores[st.holeIdx] != null;
   const behind = over ? mpBehind(st.holeIdx) : st.holeIdx ? mpBehind(st.holeIdx - 1) : [];
-  if (behind.length) return mpWait(`Waiting for ${behind.join(' and ')}`);
+  if (behind.length) return mpWait(`Waiting for ${mpList(behind)}`);
   if (turns) {
     const n = DH.nextToPlay(MP.states, mpHonour(st.holeIdx));
     if (n !== MP.meIdx) { // their clock, roughly, for show: from when their turn began on my screen
@@ -1803,9 +1805,12 @@ function mpShowEnd(note) {
   MP.over = true; MP.deadline = 0; mpPump(true);
   if (note) MP.note = note;
   const me = MP.players[MP.meIdx].slot, r = (MP.result || []).find(x => x && x.slot === me), match = MP.settings.format === 'match';
+  const many = MP.players.length > 2, placed = r && many && r.result === 'loss' && ORDINAL[r.place - 1]; // "You came 3rd"
   $('mpTag').textContent = `${match ? 'Match play' : 'Stroke play'} · ${MP.states[0].course.name}`;
-  $('mpResult').textContent = r ? { win: 'You won', loss: 'You lost', draw: match ? 'Halved' : 'Tied' }[r.result] || 'Game over' : 'Checking the result…';
-  $('mpDetail').textContent = [MP.note, r && r.detail].filter(Boolean).map(String).join(' · ');
+  $('mpResult').textContent = !r ? 'Checking the result…' : placed ? `You came ${placed}`
+    : { win: 'You won', loss: 'You lost', draw: match ? 'Halved' : many ? 'Tied for first' : 'Tied' }[r.result] || 'Game over';
+  const detail = r && r.detail ? String(r.detail) : '';
+  $('mpDetail').textContent = [detail.includes(MP.note) ? '' : MP.note, detail].filter(Boolean).join(' · '); // the result often names who left
   mpRenderCard();
   $('mpEnd').hidden = false;
 }
@@ -1820,7 +1825,7 @@ function mpRenderCard() {
     cell('', 'h'); for (let i = a; i < b; i++) cell(holes[i].index, 'h'); cell(name, 'h'); if (wide) cell(b === n ? 'TOT' : '', 'h');
     cell('Par', 'name h'); for (let i = a; i < b; i++) cell(holes[i].par, 'h'); cell(sum(mpPars().slice(a, b)), 'h'); if (wide) cell(b === n ? sum(mpPars()) : '', 'h');
     MP.states.forEach((s, k) => {
-      cell(mpName(k), 'name');
+      cell(s.gone ? `${mpName(k)} (left)` : mpName(k), 'name');
       for (let i = a; i < b; i++) cell(s.scores[i] ?? '·', m && m.holes[i] === k ? 'won' : '');
       cell(sum(s.scores.slice(a, b))); if (wide) cell(b === n ? sum(s.scores) : '');
     });
@@ -1832,7 +1837,15 @@ function mpHud(lie) {
   const sc = MP.states.map(s => s.scores), pars = mpPars(), i = MP.states.indexOf(st);
   let txt;
   if (MP.settings.format === 'match') { const m = DH.matchState(pars, sc); txt = m.leader == null ? m.label : `${mpName(m.leader)} · ${m.label}`; }
-  else txt = sc.map((s, k) => `${mpName(k)} ${S2P(s.reduce((a, x, j) => x != null ? a + x - pars[j] : a, 0))}`).join(' · ');
+  else {
+    const toPar = sc.map(s => s.reduce((a, x, j) => x != null ? a + x - pars[j] : a, 0));
+    if (MP.players.length === 2) txt = toPar.map((t, k) => `${mpName(k)} ${S2P(t)}`).join(' · ');
+    else { // three or four don't fit a phone: my score and where it puts me (the card has everyone)
+      const live = toPar.filter((_, k) => !MP.states[k].gone), mine = toPar[MP.meIdx];
+      const tied = live.filter(t => t === mine).length > 1;
+      txt = `You ${S2P(mine)} · ${tied ? 'T' : ''}${ORDINAL[live.filter(t => t < mine).length]} of ${MP.players.length}`;
+    }
+  }
   $('mpScore').textContent = txt; $('mpHud').hidden = false;
   if (lie && i !== MP.meIdx) $('lie').textContent = `${mpName(i).toUpperCase()} · ${$('lie').textContent}`;
 }
@@ -1851,12 +1864,21 @@ function mpMessage(m) {
   if (!MP) return void mpEarly.push(m);
   if (m.type === 'mp-swing') mpReceive(m.swing);
   else if (m.type === 'mp-left') {
-    const i = MP.players.findIndex(p => p.slot === m.slot);
-    if (i < 0 || i === MP.meIdx) return;
+    const i = MP.players.findIndex(p => p.slot === m.slot), s = MP.states[i];
+    if (i < 0) return;
+    if (i === MP.meIdx) return mpShowEnd('You were away too long, so you’re out'); // the site counted me as gone
+    if (s.gone) return;
     const note = `${mpName(i)} left`;
+    if (MP.over) return mpShowEnd(note);
     // Leaving after finishing the round is no forfeit: I finish mine and the site settles it.
-    if (!MP.states[i].done || MP.over) return mpShowEnd(note);
-    MP.note = note; $('hint').textContent = note;
+    if (s.done) { MP.note = note; $('hint').textContent = note; return; }
+    // Gone mid-round: their card stops where it is, and nobody waits for them again.
+    s.done = true; s.gone = true;
+    if (!MP.states.some((x, k) => k !== MP.meIdx && !x.gone)) return mpShowEnd(note); // nobody else left: it's over
+    MP.note = MP.note ? `${MP.note}, ${note}` : note;
+    hud();
+    if (phase === 'wait') mpNext(); // whoever we were waiting on may be gone
+    $('hint').textContent = note;
   }
   else if (m.type === 'mp-result' && Array.isArray(m.results)) { MP.result = m.results; mpShowEnd(); }
 }

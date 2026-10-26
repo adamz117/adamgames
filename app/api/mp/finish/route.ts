@@ -1,7 +1,8 @@
 // POST /api/mp/finish { lobbyId, game? }: replays the lobby's stored swing log with the game's own
-// sim and, once the game is decided, records the results once (finish_lobby). Both players' pages
-// call it; a repeat, or a late call for a game before a rematch, returns the stored result.
-// Response: { status: 'playing' | 'finished', results: { slot, result: 'win'|'loss'|'draw', detail }[] }
+// sim and, once the game is decided, records the results once (finish_lobby). Every player's page
+// calls it; a repeat, or a late call for a game before a rematch, returns the stored result.
+// Response: { status: 'playing' | 'finished', results: { slot, result: 'win'|'loss'|'draw', detail, place }[],
+//   out: slots that have forfeited (while playing: in a game of three or four the rest play on) }
 // or { error } with 400 / 401 / 403 / 404 / 409 / 500.
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -12,11 +13,10 @@ import { COURSE_PAR } from '@/lib/course-rounds';
 import { parseSettings, type LobbySettings, type Swing } from '@/lib/mp/protocol';
 import {
   decideResult, resultRows, resultsFromRows,
-  type FinishDH, type FinishPlayer, type Outcome, type SlotResult,
+  type Decision, type FinishDH, type FinishPlayer, type SlotResult, type StoredRow,
 } from '@/lib/mp/finish-core';
 
 type Lobby = { id: string; settings: unknown; status: string; game: number };
-type Stored = { user_id: string; opponent_name: string; result: Outcome; detail: string };
 
 const GAME_DIR = path.join(process.cwd(), 'public/games/nine-holes');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -32,28 +32,26 @@ function loadReal(id: string): unknown {
   return realCache.get(id);
 }
 
-// Replays the current game's swings: its results per slot once decided, [] while it's still on.
-// now null ignores last_seen.
-async function decide(db: SupabaseClient, lobby: Lobby, settings: LobbySettings, players: FinishPlayer[], now: number | null) {
+// Replays the current game's swings. now null ignores last_seen.
+async function decide(db: SupabaseClient, lobby: Lobby, settings: LobbySettings, players: FinishPlayer[], now: number | null): Promise<Decision> {
   const { data, error } = await db
     .from('swings').select('slot, hole, shot, club, aim, v, timeout')
     .eq('lobby_id', lobby.id).eq('game', lobby.game)
     .order('slot').order('hole').order('shot');
   if (error) throw error;
   const realData = settings.spec.kind === 'real' ? loadReal(settings.spec.id) : null;
-  const d = decideResult({ settings, players, swings: (data ?? []) as Swing[], now, DH: loadDH(), realData });
-  return d.status === 'finished' ? d.results : [];
+  return decideResult({ settings, players, swings: (data ?? []) as Swing[], now, DH: loadDH(), realData });
 }
 
 async function storedRows(db: SupabaseClient, lobbyId: string, game: number) {
   const { data, error } = await db
-    .from('match_results').select('user_id, opponent_name, result, detail').eq('lobby_id', lobbyId).eq('game', game);
+    .from('match_results').select('*').eq('lobby_id', lobbyId).eq('game', game); // * : field only exists from 0005
   if (error) throw error;
-  return (data ?? []) as Stored[];
+  return (data ?? []) as StoredRow[];
 }
 
 const fail = (status: number, error: string) => Response.json({ error }, { status });
-const finished = (results: SlotResult[]) => Response.json({ status: 'finished', results });
+const finished = (results: SlotResult[], out: number[] = []) => Response.json({ status: 'finished', results, out });
 
 export async function POST(request: Request) {
   let body: { lobbyId?: unknown; game?: unknown } | null;
@@ -98,7 +96,8 @@ export async function POST(request: Request) {
     // again, ignoring last_seen so every later call gets the same answer.
     if (lobby.status === 'finished') {
       const rows = await storedRows(db, lobby.id, g);
-      const fallback = !rows.length && settings ? await decide(db, lobby, settings, players, null) : [];
+      const again = !rows.length && settings ? await decide(db, lobby, settings, players, null) : null;
+      const fallback = again?.status === 'finished' ? again.results : [];
       return finished(resultsFromRows(players, rows, fallback));
     }
     if (lobby.status !== 'playing') return fail(409, 'not_playing');
@@ -107,8 +106,18 @@ export async function POST(request: Request) {
       return fail(500, 'server_error');
     }
 
-    const results = await decide(db, lobby, settings, players, Date.now());
-    if (!results.length) return Response.json({ status: 'playing', results: [] });
+    const d = await decide(db, lobby, settings, players, Date.now());
+    // A player who dropped off stays out (they can't store swings once left), so the rest play on
+    // and every later decision, last_seen or not, agrees. (Only while the game goes on: a finished
+    // game keeps its players for a rematch, as in 1v1.)
+    const dropped = d.status === 'finished' ? [] : players.filter((p) => d.out.includes(p.slot) && !p.left_at).map((p) => p.slot);
+    if (dropped.length) {
+      const { error } = await db.from('lobby_players').update({ left_at: new Date().toISOString() })
+        .eq('lobby_id', lobby.id).in('slot', dropped).is('left_at', null);
+      if (error) throw error;
+    }
+    if (d.status !== 'finished') return Response.json({ status: 'playing', results: [], out: d.out });
+    const results = d.results;
 
     // Writes only if this game is still in play; returns the stored rows either way, which win
     // over this call's decision when another call got there first.
@@ -116,7 +125,7 @@ export async function POST(request: Request) {
       p_lobby: lobby.id, p_game: lobby.game, p_rows: resultRows(settings, players, results),
     });
     if (error) throw error;
-    return finished(resultsFromRows(players, (data ?? []) as Stored[], results));
+    return finished(resultsFromRows(players, (data ?? []) as StoredRow[], results), d.out);
   } catch (e) {
     console.error('mp finish', lobbyId, e);
     return fail(500, 'server_error');

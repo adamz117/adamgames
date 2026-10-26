@@ -5,7 +5,7 @@ import { cleanRows, RESULT_COLUMNS, type RecordRow } from '@/lib/mp/records';
 const MAX_ROWS = 1000;
 
 // The signed-in member's own results, newest first, for server-rendered pages. Guests and
-// signed-out visitors get none; so does a failed read (the page just shows no 1v1 record).
+// signed-out visitors get none; so does a failed read (the page just shows no multiplayer record).
 export async function getMyResultsServer(): Promise<RecordRow[]> {
   try {
     const supabase = await createServerSupabaseClient();

@@ -259,4 +259,18 @@ assert.deepEqual(DH.strokeResult(P9.slice(0, 2), [[4, 5], [4]]), { totals: [9, 4
   assert.equal(DH.applySwing(done, { slot: 1, hole: 9, shot: 0, club: 0, aim: 0, v: 0.5 }), 'bad');
 }
 
+// Four players: every round replays from one mixed log, and a player marked done (gone) is skipped
+{
+  const rounds = [0, 1, 2, 3].map((slot) => DH.newRound('2026-10-23', null, '#p' + slot));
+  const log = rounds.flatMap((st, slot) => playLive(st, slot, slot * 2));
+  const r = DH.replayGame({ kind: 'daily', seed: '2026-10-23' }, null, [0, 1, 2, 3].map((slot) => ({ slot })), [...log].reverse());
+  assert.equal(r.error, null);
+  assert.deepEqual(r.done, [true, true, true, true]);
+  assert.deepEqual(r.scores, rounds.map((st) => st.scores));
+  assert.equal(DH.strokeResult(P9, r.scores).totals.length, 4);
+  const c = DH.makeCourse('2026-10-23'), tee = () => DH.newRound(c.seed, c, '#p');
+  const gone = tee(); gone.done = true;
+  assert.equal(DH.nextToPlay([tee(), gone, tee(), tee()], 1), 0, 'honour on a player who left passes on');
+}
+
 console.log('mp ok');
