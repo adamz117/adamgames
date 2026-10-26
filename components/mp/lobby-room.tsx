@@ -14,7 +14,7 @@ import {
 } from '@/lib/mp/lobby-client';
 import { ensureSession } from '@/lib/mp/session-client';
 import { parseCode, presentPlayers, type LobbyEvent, type LobbySettings, type Visibility } from '@/lib/mp/protocol';
-import { courseText, errorText, FORMAT_LABEL, PACE_LABEL, todayKey } from '@/lib/mp/lobby-ui';
+import { courseText, errorText, FORMAT_LABEL, minSize, nameList, PACE_LABEL, startCheck, todayKey } from '@/lib/mp/lobby-ui';
 import type { Viewer } from '@/lib/mp/viewer';
 
 type Me = { id: string; userId: string; slot: number; name: string };
@@ -141,7 +141,11 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
       try {
         do {
           again = false;
-          const [l, rows] = await Promise.all([getLobby(code), getPlayers(me.id)]);
+          // The players after the lobby, so a game that has just started comes with the server's list
+          // (the start drops absent players' slots), which the relay then plays with.
+          const l = await getLobby(code);
+          if (!alive) return;
+          const rows = await getPlayers(me.id);
           if (!alive) return;
           if (l) setLobby(l);
           // My row is gone (quiet for 60 s before the start, or a rematch removed it): join again.
@@ -233,7 +237,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
           ref={iframeRef}
           src="/games/nine-holes/index.html?mp=1"
           className="club-lobby-game"
-          title="Nine Holes, two players"
+          title={`Nine Holes, ${players.filter((p) => !p.leftAt).length} players`}
         />
       </>
     );
@@ -241,17 +245,20 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
 
   // The room, while open.
   const isHost = lobby.host === me.userId;
+  const size = lobby.settings?.maxPlayers ?? 2;
   const active = players.filter((p) => !p.leftAt);
   const here = new Set([...presentSlots, me.slot]);
   const mine = active.find((p) => p.slot === me.slot);
-  const waitingOn = active.filter((p) => p.userId !== lobby.host && !p.ready);
-  const away = active.filter((p) => !here.has(p.slot));
-  const canStart = isHost && active.length === 2 && !away.length && !waitingOn.length;
+  const check = startCheck(active.map((p) => ({ name: p.slot === me.slot ? 'you' : p.name, ready: p.ready, host: p.userId === lobby.host, here: here.has(p.slot) })), size);
+  const seats = minSize(active.filter((p) => here.has(p.slot)).map((p) => p.slot));
+  const canStart = isHost && check.can;
+  const awayNote = check.away.length ? ` ${nameList(check.away)} ${check.away.length > 1 ? 'are' : 'is'} away and may be left out if the game starts now.` : '';
   const startHint =
-    active.length < 2 ? 'Waiting for a second player.'
-      : away.length ? `Waiting for ${away.map((p) => p.name).join(' and ')} to come back.`
-        : waitingOn.length ? `Waiting for ${waitingOn.map((p) => p.name).join(' and ')} to get ready.`
-          : isHost ? 'Everyone’s ready.' : `Waiting for ${hostName} to start.`;
+    check.why === 'alone' ? (check.away.length ? `Waiting for ${nameList(check.away)} to come back.` : 'Waiting for a second player.')
+      : check.why === 'too_many' ? `There are more players here than this lobby holds (${size}).`
+        : check.why === 'waiting' ? `Waiting for ${nameList(check.waitingOn)} to get ready.${awayNote}`
+          : (isHost ? 'Everyone’s ready.' : `Waiting for ${hostName} to start.`) + awayNote;
+  const openSlots = Math.max(0, size - active.length);
   const link = `${location.origin}/play/${code}`;
 
   async function copyLink() {
@@ -269,8 +276,8 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
     setPlayers((ps) => ps.map((p) => ({ ...p, ready: false }))); // the database un-readies everyone too
     const r = await updateSettings(me.id, settings, visibility);
     setNotice(r.error ? errorText(r.error) : null);
-    await send('settings');
-    refreshRef.current();
+    if (!r.error) await send('settings');
+    refreshRef.current(); // also puts back the stored settings after a refusal
   }
 
   async function toggleReady() {
@@ -301,30 +308,30 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
       </p>
 
       <div className="club-lobby-grid">
-        <section className="club-lobby-panel">
-          <h2 className="club-lobby-h3">Invite</h2>
-          <p className="club-lobby-label">Code</p>
-          <p className="club-lobby-code" aria-label={`Lobby code ${code.split('').join(' ')}`}>{code}</p>
-          <p className="club-lobby-label">Link</p>
-          <div className="club-lobby-inline">
-            <input className="club-lobby-input" value={link} readOnly onFocus={(e) => e.target.select()} aria-label="Lobby link" />
-            <button type="button" className="club-button club-lobby-small" onClick={copyLink}>Copy</button>
-          </div>
-          {copied && (
-            <p className="club-lobby-note" role="status">{copied === 'yes' ? 'Link copied.' : 'Couldn’t copy. Select the link and copy it yourself.'}</p>
-          )}
-          <InviteFriends lobbyId={me.id} />
-        </section>
+        {openSlots > 0 && (
+          <section className="club-lobby-panel">
+            <h2 className="club-lobby-h3">Invite</h2>
+            <p className="club-lobby-label">Code</p>
+            <p className="club-lobby-code" aria-label={`Lobby code ${code.split('').join(' ')}`}>{code}</p>
+            <p className="club-lobby-label">Link</p>
+            <div className="club-lobby-inline">
+              <input className="club-lobby-input" value={link} readOnly onFocus={(e) => e.target.select()} aria-label="Lobby link" />
+              <button type="button" className="club-button club-lobby-small" onClick={copyLink}>Copy</button>
+            </div>
+            {copied && (
+              <p className="club-lobby-note" role="status">{copied === 'yes' ? 'Link copied.' : 'Couldn’t copy. Select the link and copy it yourself.'}</p>
+            )}
+            <InviteFriends lobbyId={me.id} />
+          </section>
+        )}
 
-        <section className="club-lobby-panel">
-          <h2 className="club-lobby-h3">Players</h2>
+        <section className={openSlots > 0 ? 'club-lobby-panel' : 'club-lobby-panel club-lobby-wide'}>
+          <h2 className="club-lobby-h3">Players <span className="club-lobby-count">{active.length}/{size}</span></h2>
           <ul className="club-lobby-slots">
-            {[0, 1].map((slot) => {
-              const p = active.find((x) => x.slot === slot);
-              if (!p) return <li key={slot} className="club-lobby-slot empty">Waiting for a player…</li>;
+            {active.map((p) => {
               const host = p.userId === lobby.host;
               return (
-                <li key={slot} className="club-lobby-slot">
+                <li key={p.slot} className="club-lobby-slot">
                   <strong>{p.name}</strong>
                   <span className="club-lobby-tags">
                     {p.slot === me.slot && <span>You</span>}
@@ -335,6 +342,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
                 </li>
               );
             })}
+            {Array.from({ length: openSlots }, (_, i) => <li key={`open-${i}`} className="club-lobby-slot empty">Open slot</li>)}
           </ul>
           <div className="club-lobby-buttons">
             {isHost ? (
@@ -356,7 +364,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
           {!lobby.settings ? (
             <p className="club-lobby-note">These settings come from a newer version of the site. Reload the page.</p>
           ) : isHost ? (
-            <SettingsEditor settings={lobby.settings} visibility={lobby.visibility} today={today} onChange={changeSettings} />
+            <SettingsEditor settings={lobby.settings} visibility={lobby.visibility} today={today} minSize={seats} onChange={changeSettings} />
           ) : (
             <>
               <p className="club-lobby-summary">{summary(lobby.settings, today)}</p>
@@ -371,7 +379,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
 }
 
 const summary = (s: LobbySettings, today: string) =>
-  `${courseText(s.spec, today)} · ${FORMAT_LABEL[s.format]} · ${PACE_LABEL[s.pace]} · 30 s shot clock`;
+  `${courseText(s.spec, today)} · ${s.maxPlayers} players · ${FORMAT_LABEL[s.format]} · ${PACE_LABEL[s.pace]} · 30 s shot clock`;
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (

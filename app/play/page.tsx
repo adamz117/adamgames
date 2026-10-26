@@ -11,8 +11,8 @@ export default async function PlayPage() {
       <div className="club-grain" aria-hidden="true" />
       <h1 className="club-h2 club-lobby-title">Play a friend</h1>
       <p className="club-lobby-lede">
-        Nine Holes, one against one. Same course, same wind, every shot played on both screens. Pick
-        stroke or match play, and play at your own pace or take turns.
+        Nine Holes for 2 to 4 players. Same course, same wind, every shot played on every screen.
+        Stroke play for any group, match play for two, at your own pace or taking turns.
       </p>
       {viewer === 'member' && (
         <p className="club-lobby-lede">

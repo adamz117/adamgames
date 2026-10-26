@@ -1,6 +1,7 @@
-// 1v1 records, read from the player's own match_results rows. Pure: records-client.ts and
+// Multiplayer records, read from the player's own match_results rows. Pure: records-client.ts and
 // records-server.ts do the fetching. Overall counts every finished game (guests too); head to
-// head only the games against one signed-in opponent (guests have no opponent_id).
+// head the games against one signed-in player, using that game's outcome against them (rows from
+// before 2026-10-25 have no opponents list, so they fall back to opponent_id).
 import type { Format } from './protocol';
 import type { Outcome } from './finish-core';
 
@@ -14,15 +15,27 @@ export type RecordRow = {
   result: Outcome;
   detail: string;
   played_at: string;
+  opponents: { id: string | null; name: string; result: Outcome }[];
 };
 export type Tally = { win: number; loss: number; draw: number };
 export type MpRecord = Tally & { stroke: Tally; match: Tally };
 export type HeadToHead = Tally & { games: RecordRow[] };
 
-export const RESULT_COLUMNS = 'lobby_id, game, opponent_id, opponent_name, course_label, format, result, detail, played_at';
+export const RESULT_COLUMNS = 'lobby_id, game, opponent_id, opponent_name, course_label, format, result, detail, played_at, opponents';
 export const HEAD_TO_HEAD_GAMES = 5;
 
 const isStr = (x: unknown): x is string => typeof x === 'string';
+const isOutcome = (x: unknown): x is Outcome => x === 'win' || x === 'loss' || x === 'draw';
+
+// The opponents list, keeping only well-formed entries.
+function parseOpponents(x: unknown): RecordRow['opponents'] {
+  if (!Array.isArray(x)) return [];
+  return x.flatMap((o) => {
+    if (!o || typeof o !== 'object') return [];
+    const { id, name, result } = o as Record<string, unknown>;
+    return (id === null || isStr(id)) && isStr(name) && isOutcome(result) ? [{ id, name, result }] : [];
+  });
+}
 
 // A row checked field by field; anything off is dropped.
 function parseRow(x: unknown): RecordRow | null {
@@ -36,7 +49,7 @@ function parseRow(x: unknown): RecordRow | null {
   return {
     lobby_id: r.lobby_id, game: typeof r.game === 'number' ? r.game : 1, opponent_id: r.opponent_id,
     opponent_name: r.opponent_name, course_label: r.course_label, format: r.format, result: r.result,
-    detail: r.detail, played_at: r.played_at,
+    detail: r.detail, played_at: r.played_at, opponents: parseOpponents(r.opponents),
   };
 }
 
@@ -61,9 +74,15 @@ export function readRecord(rows: unknown): MpRecord {
   };
 }
 
-// The record against one opponent and the last few games together (rows newest first).
+// The record against one opponent and the last few games together (rows newest first). Each game
+// counts with your outcome against them, which in a 3–4 player game can differ from your overall result.
 export function headToHead(rows: unknown, friendId: string | null | undefined): HeadToHead {
-  const mine = friendId ? cleanRows(rows).filter((r) => r.opponent_id === friendId) : [];
+  if (!friendId) return { ...tally([]), games: [] };
+  const mine = cleanRows(rows).flatMap((r) => {
+    const vs = r.opponents.find((o) => o.id === friendId);
+    if (vs) return [{ ...r, result: vs.result }];
+    return !r.opponents.length && r.opponent_id === friendId ? [r] : [];
+  });
   return { ...tally(mine), games: mine.slice(0, HEAD_TO_HEAD_GAMES) };
 }
 
