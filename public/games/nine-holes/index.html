@@ -467,14 +467,17 @@ function setupAim(keepAim) {
   $('stage').classList.add('aiming');
   hud(); renderClubs(); renderCard();
 }
+// Swinging out of the trees is harder: the power needle runs this much faster.
+const TREES_PACE = 1.5;
+const powerSec = now => (now - tPow) / 1000 * (st.lie === 'trees' ? TREES_PACE : 1);
 function lockAim() {
   locked = true; phase = 'power'; tPow = performance.now();
   $('track').classList.remove('idle');
-  setAct('Swing'); $('hint').textContent = 'Stop just under 100';
+  setAct('Swing'); $('hint').textContent = st.lie === 'trees' ? 'In the trees · a quicker swing' : 'Stop just under 100';
   $('stage').classList.remove('aiming');
 }
 function fireShot(timeout) {
-  if (!timeout) power = DH.powerAt(club(), (performance.now() - tPow) / 1000);
+  if (!timeout) power = DH.powerAt(club(), powerSec(performance.now()));
   launch(MP ? mpPlay(timeout) : DH.play(st, aimAngle, clubIdx, power), aimAngle);
 }
 // Animates a shot already played (mine, or in a two-player game one I am watching).
@@ -1517,8 +1520,8 @@ function frame(now) {
   if (!st || !W) return;
   if (phase === 'aim' && !locked) aimAngle = DH.aimAt(aimCenter, club(), (now - tAim) / 1000);
   if (phase === 'power') {
-    power = DH.powerAt(club(), (now - tPow) / 1000);
-    const end = ((now - tPow) / 1000 / (club().climb * 2)) % 1 < 0.5 ? 0 : 1; // rising or falling
+    power = DH.powerAt(club(), powerSec(now));
+    const end = (powerSec(now) / (club().climb * 2)) % 1 < 0.5 ? 0 : 1; // rising or falling
     if (tickEnd !== end) { if (tickEnd != null) Snd.tick(end === 0); tickEnd = end; }
   } else tickEnd = null;
   const pct = Math.max(0, Math.min(1, power / DH.METER_MAX)) * 100 + '%';
