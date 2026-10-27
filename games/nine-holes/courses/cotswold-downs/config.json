@@ -1,0 +1,152 @@
+{
+ "id": "cotswold-downs",
+ "name": "Cotswold Downs",
+ "place": "Hillcrest, KwaZulu-Natal",
+ "golfpassId": 17931,
+ "tees": "white",
+ "scorecard": [
+  {
+   "n": 1,
+   "par": 5,
+   "si": 6,
+   "yds": 496
+  },
+  {
+   "n": 2,
+   "par": 4,
+   "si": 8,
+   "yds": 396
+  },
+  {
+   "n": 3,
+   "par": 4,
+   "si": 12,
+   "yds": 365
+  },
+  {
+   "n": 4,
+   "par": 4,
+   "si": 4,
+   "yds": 375
+  },
+  {
+   "n": 5,
+   "par": 3,
+   "si": 18,
+   "yds": 163
+  },
+  {
+   "n": 6,
+   "par": 4,
+   "si": 14,
+   "yds": 294
+  },
+  {
+   "n": 7,
+   "par": 3,
+   "si": 16,
+   "yds": 161
+  },
+  {
+   "n": 8,
+   "par": 4,
+   "si": 2,
+   "yds": 372
+  },
+  {
+   "n": 9,
+   "par": 5,
+   "si": 10,
+   "yds": 504
+  },
+  {
+   "n": 10,
+   "par": 4,
+   "si": 7,
+   "yds": 298
+  },
+  {
+   "n": 11,
+   "par": 4,
+   "si": 13,
+   "yds": 328
+  },
+  {
+   "n": 12,
+   "par": 4,
+   "si": 3,
+   "yds": 378
+  },
+  {
+   "n": 13,
+   "par": 5,
+   "si": 9,
+   "yds": 484
+  },
+  {
+   "n": 14,
+   "par": 3,
+   "si": 17,
+   "yds": 170
+  },
+  {
+   "n": 15,
+   "par": 4,
+   "si": 11,
+   "yds": 361
+  },
+  {
+   "n": 16,
+   "par": 3,
+   "si": 15,
+   "yds": 160
+  },
+  {
+   "n": 17,
+   "par": 4,
+   "si": 1,
+   "yds": 412
+  },
+  {
+   "n": 18,
+   "par": 5,
+   "si": 5,
+   "yds": 476
+  }
+ ],
+ "notes": {
+  "2": "downhill, a pond guards the left of the green",
+  "5": "signature par 3: from a cliff-top tee down to a green across the river",
+  "6": "short par 4 to the smallest green, pot bunkers short right",
+  "7": "par 3 over the wetland",
+  "9": "par 5 with a marshy stretch in the fairway",
+  "10": "short and steeply uphill",
+  "11": "steeply uphill onto the plateau",
+  "14": "a huge green with a big bunker in front",
+  "17": "stroke 1: dogleg right, down off the plateau to a green behind water",
+  "18": "risk and reward: carry the water off the tee, wetland in front of the raised green"
+ },
+ "hidden": [],
+ "signature": [
+  5
+ ],
+ "terrain": {
+  "uphill": [
+   10,
+   11
+  ],
+  "downhill": [
+   2,
+   5,
+   17
+  ]
+ },
+ "turnAfter": 9,
+ "water": "osm",
+ "thresholds": {
+  "area": {
+   "greenMin": 1000000000
+  }
+ },
+ "thresholdsWhy": "bent greens are no brighter than the paspalum round them, so colour finds the wrong patch: every green is a round one on the GolfPass front/back midpoint, sized by greenScale to half the GolfPass depth"
+}

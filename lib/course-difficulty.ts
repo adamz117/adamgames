@@ -14,6 +14,7 @@ export const CLUB_AVG: Record<string, number> = {
   cloudspire: 3.7,
   'cypress-point': -1.8,
   'champagne-sports': 0.4,
+  'cotswold-downs': -3.4,
 };
 
 const LABELS = ['Easy', 'Easy', 'Moderate', 'Moderate', 'Testing', 'Testing', 'Hard', 'Hard', 'Brutal', 'Brutal'];

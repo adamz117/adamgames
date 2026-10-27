@@ -357,9 +357,28 @@ for (const n of [3, 18]) {
   }
 }
 
+// Cotswold Downs: every tee and pin plays, fairway lines clear of trees, water crosses the 5th (the stream round
+// its green), the 17th (the pond before the green) and the 18th (the dam off the tee, the wetland before the green)
+{
+  const data = require('./courses/cotswold-downs/cotswold-downs.json'), cd = DH.makeRealCourse(data, 'all', DAY);
+  assert.equal(cd.par, 72);
+  assert.equal(cd.turnAfter, 9);
+  for (const h of cd.holes) {
+    assert.equal(DH.surfaceAt(h, { x: 0, y: 0 }), 'tee', `Cotswold hole ${h.index} tee`);
+    assert.equal(DH.surfaceAt(h, h.pin), 'green', `Cotswold hole ${h.index} pin`);
+    for (let t = h.par === 3 ? 0.75 : 0.3; t <= 0.9; t += 0.05)
+      assert.notEqual(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)), 'trees', `Cotswold hole ${h.index} at ${Math.round(t * 100)}%`);
+  }
+  for (const n of [5, 17, 18]) {
+    const h = cd.holes[n - 1], line = [];
+    for (let t = 0; t <= 1; t += 0.004) line.push(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)));
+    assert.ok(line.includes('water'), `Cotswold ${n} crosses water`);
+  }
+}
+
 // On every course, no hole's line ever crosses out of bounds: a spike in an OSM outline (Sawgrass's 3rd), a boundary
 // corner clipping a tee shot (Victoria's 4th) or a sliver between the sea and the shore (Pebble's 18th) once did
-for (const id of ['victoria', 'gary-player', 'tpc-sawgrass', 'augusta', 'pebble-beach', 'cypress-point', 'ironmere', 'sunscar', 'cloudspire', 'champagne-sports']) {
+for (const id of ['victoria', 'gary-player', 'tpc-sawgrass', 'augusta', 'pebble-beach', 'cypress-point', 'ironmere', 'sunscar', 'cloudspire', 'champagne-sports', 'cotswold-downs']) {
   const c = DH.makeRealCourse(require(`./courses/${id}/${id}.json`), 'all', DAY);
   for (const h of c.holes) for (let t = 0; t <= 1.0001; t += 0.0025)
     assert.notEqual(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)), 'ob', `${id} hole ${h.index}: out of bounds on the line at ${(t * 100).toFixed(2)}%`);
