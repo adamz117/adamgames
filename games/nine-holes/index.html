@@ -1773,12 +1773,12 @@ const dev = {
     hole().wspd = Math.max(0, Math.min(60, +mph)); hud(); dev.info();
     return true;
   },
-  perfect() { // the current club, on the line (the locked one, or the target), dead centre of the band
+  perfect() { // the best swing there is from here, found by trying them (DH.bestSwing): a hole-out when one exists
     if (!dev.ok() || (phase !== 'aim' && phase !== 'power') || (MP && st !== mpMine())) return false;
-    const h = hole(), b = DH.targetBand(h, st.ball, st.lie, club()), aim = locked ? aimAngle : aimCenter;
-    power = (b.lo + b.hi) / 2 * DH.METER_MAX; locked = true; aimAngle = aim;
-    launch(MP ? mpPlay(false) : DH.play(st, aim, clubIdx, power), aim); // in multiplayer, an ordinary swing to the others
-    return true;
+    const b = DH.bestSwing(st);
+    clubIdx = b.club; aimAngle = aimCenter = b.aim; power = b.v; locked = true; renderClubs();
+    launch(MP ? mpPlay(false) : DH.play(st, b.aim, b.club, b.v), b.aim); // in multiplayer, an ordinary swing to the others
+    return b.result.holed ? 'holed' : true;
   },
 };
 function devShow(open) {

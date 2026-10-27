@@ -273,4 +273,26 @@ assert.deepEqual(DH.strokeResult(P9.slice(0, 2), [[4, 5], [4]]), { totals: [9, 4
   assert.equal(DH.nextToPlay([tee(), gone, tee(), tee()], 1), 0, 'honour on a player who left passes on');
 }
 
+// bestSwing (the dev tools' perfect swing): what it predicts is exactly what play() does with that swing,
+// each player's own scatter included, and from in range it holes out nearly every time
+{
+  let n = 0, holed = 0;
+  for (const seed of ['2026-10-23', '2026-10-24']) {
+    const c = DH.makeCourse(seed);
+    c.holes.forEach((h, hi) => {
+      const spots = [{ x: h.green.x + h.gr + 3, y: h.green.y }, DH.pointAt(h.path, Math.max(0, h.total - 100))];
+      if (h.par === 3) spots.push({ x: 0, y: 0 });
+      for (const ball of spots) for (const salt of ['#p0', '#p1']) {
+        const st = DH.newRound(c.seed, c, salt); st.holeIdx = hi; st.ball = { ...ball };
+        const sf = DH.surfaceAt(h, ball); st.lie = ball.x === 0 && ball.y === 0 ? 'tee' : sf === 'water' || sf === 'ob' ? 'rough' : sf;
+        const b = DH.bestSwing(st), r = DH.play(st, b.aim, b.club, b.v);
+        assert.equal(!!r.holed, !!b.result.holed, `${seed} hole ${hi + 1}: holed as predicted`);
+        assert.deepEqual(r.rest, b.result.rest, `${seed} hole ${hi + 1}: stops where predicted`);
+        n++; if (r.holed) holed++;
+      }
+    });
+  }
+  assert.ok(holed / n >= 0.85, `perfect swings hole out from in range (${holed}/${n})`);
+}
+
 console.log('mp ok');

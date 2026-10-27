@@ -903,6 +903,42 @@ function play(st, aim, clubIdx, v) {
   return res;
 }
 
+// The best swing from where the ball lies (the developer tools' perfect swing), found by trying them: a
+// shot's scatter is fixed by its key, so resolveShot with that key's rng is exactly what play() will do.
+// Holes out when any swing does; otherwise the lowest cost (a penalty worst, then off the green by distance
+// and lie, then putts). Coarse over four clubs, then finer round the best; stops early on a hole-out, or
+// at budgetMs with the best so far. Returns { club, aim, v, result } for play(st, aim, club, v).
+const BEST_LIE_COST = { tee: 0, fairway: 0, green: 0, portal: 0, cart: 2, bridge: 2, rough: 8, bunker: 15, leaves: 15, deep: 20, trees: 30 };
+function bestSwing(st, budgetMs = 1500) {
+  const h = holeOf(st), key = st.seed + st.salt + '#' + st.holeIdx + '#' + st.shotIdx, t0 = Date.now();
+  const cost = r => r.penalty ? 1e6 : r.holed ? -1
+    : (inMillZone(h, r.rest) ? 40 : 0) + (r.restSurf === 'green' ? puttsFrom(h, r.rest) - 1 + dist(r.rest, h.pin) / 100
+      : 10 + dist(r.rest, h.pin) + (BEST_LIE_COST[r.restSurf] ?? 10));
+  const one = (ci, aim, v) => {
+    aim = q4(aim); v = q4(clamp(v, 0.02, METER_MAX));
+    const r = resolveShot(h, st.ball, st.lie, CLUBS[ci], aim, v, rng(hashStr(key)));
+    return { club: ci, aim, v, result: r, c: cost(r) };
+  };
+  let best = null;
+  const take = s => { if (!best || s.c < best.c) best = s; return s; };
+  const done = () => best.c < 0 || Date.now() - t0 > budgetMs;
+  const auto = autoClub(h, st.ball, st.lie);
+  const clubs = [auto, auto + 1, auto - 1, auto + 2].filter(i => i >= 0 && i < CLUBS.length && clubAllowed(CLUBS[i], st.lie));
+  const dv = (METER_MAX - 0.04) / 24, tried = [];
+  for (const ci of clubs) { // coarse: every 1° within 6° of the club's default line, the whole power track
+    const a0 = aimTarget(h, st.ball, st.lie, CLUBS[ci]);
+    for (let da = -6; da <= 6; da++) for (let k = 0; k <= 24; k++) tried.push(take(one(ci, a0 + rad(da), 0.04 + k * dv)));
+    if (done()) return best;
+  }
+  const around = (s, aStep, vStep, n) => { // a (2n+1)^2 grid round one swing
+    for (let i = -n; i <= n && !done(); i++) for (let j = -n; j <= n; j++) take(one(s.club, s.aim + i * aStep, s.v + j * vStep));
+  };
+  for (const s of tried.sort((a, b) => a.c - b.c).slice(0, 3)) { around(s, rad(0.1), dv / 10, 10); if (done()) return best; }
+  around(best, rad(0.01), 0.002, 10);
+  if (!done()) around(best, rad(0.001), 0.0002, 10);
+  return best;
+}
+
 function nextHole(st) {
   if (st.holeIdx >= st.course.holes.length - 1) { st.done = true; return; }
   st.holeIdx++; st.strokes = 0; st.shotIdx = 0; st.ball = { x: 0, y: 0 }; st.lie = 'tee';
@@ -1001,7 +1037,7 @@ const api = {
   makeCourse, makeRealCourse, realSurface, heightAt, playsLike, holePlaysLike, surfaceAt, resolveShot, rollOut, gustPush, puttRings, puttsFrom, strokeCap,
   millAngle, millBladeOver, millStrike, inMillZone, portalOut, burnCartHit, shoreR, moatR, isleR,
   clubAllowed, autoClub, aimTarget, targetBand,
-  newRound, play, nextHole, holeOf,
+  newRound, play, nextHole, holeOf, bestSwing,
   courseFromSpec, timeoutSwing, strokeResult, matchState, nextToPlay, applySwing, replayGame,
   nearest, pointAt, normalAt, tangentAt, dist, dirOf, add, rng, hashStr,
 };
