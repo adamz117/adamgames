@@ -1,6 +1,7 @@
 // Self-check for the multiplayer rules: node test-mp.js
 const assert = require('node:assert/strict');
 const DH = require('./game.js');
+const q4 = x => Math.round(x * 1e4) / 1e4;
 const victoria = require('./courses/victoria/victoria.json');
 
 // A fixed, deterministic way to swing: the suggested club, a line wobbling round the suggested one,
@@ -308,6 +309,37 @@ assert.deepEqual(DH.strokeResult(P9.slice(0, 2), [[4, 5], [4]]), { totals: [9, 4
   assert.deepEqual(DH.sidesDone(teams, players, states, [2]), [true, true]);
   assert.equal(DH.sideOf(teams, 3), 1);
   assert.deepEqual([...DH.TEAM_MODES], ['bestball', 'alternate', 'scramble']);
+}
+
+// 2v2 alternate shot: one ball a side, partners take turns (one tees off on odd holes, the other on even);
+// the replay gives the same rounds from the stored swings in any order, the one whose turn it was counting
+{
+  const teams = { mode: 'alternate', sides: [[0, 2], [1, 3]] }, spec = { kind: 'daily', seed: '2026-10-23' };
+  assert.deepEqual([0, 1, 2, 3].map(k => DH.hitterOf(teams, 0, k >> 1, k & 1)), [0, 2, 2, 0], 'hole 1: slot 0 tees off, hole 2: slot 2');
+  assert.equal(DH.hitterOf(teams, 0, 0, 1, [2]), 0, 'a partner who left: the other hits every shot');
+  const live = teams.sides.map((m, sd) => {
+    const st = DH.newRound(spec.seed, null, '#t' + sd), log = [];
+    for (let n = sd; !st.done; n++) {
+      const h = DH.holeOf(st), sw = swingFor(st, n), slot = DH.hitterOf(teams, sd, st.holeIdx, st.shotIdx);
+      log.push({ slot, hole: st.holeIdx, shot: st.shotIdx, club: sw.club, aim: q4(sw.aim), v: q4(sw.v) });
+      if (DH.play(st, sw.aim, sw.club, sw.v).score != null) DH.nextHole(st);
+    }
+    return { st, log };
+  });
+  const log = live.flatMap(x => x.log), players = [0, 1, 2, 3].map(slot => ({ slot }));
+  const r = DH.replayGame(spec, null, players, [...log].reverse(), teams);
+  assert.equal(r.error, null);
+  assert.equal(r.states.length, 2, 'a ball a side');
+  assert.deepEqual(r.scores, live.map(x => x.st.scores));
+  assert.deepEqual(r.done, [true, true]);
+  // the partner whose turn it wasn't also hit that shot: theirs doesn't count
+  const extra = { ...log[1], slot: log[1].slot === 0 ? 2 : 0, aim: 0.3 };
+  assert.deepEqual(DH.replayGame(spec, null, players, [extra, ...log], teams).scores, r.scores);
+  // a swing applies to its side's ball, from either partner
+  const sts = teams.sides.map((_, sd) => DH.newRound(spec.seed, null, '#t' + sd));
+  assert.equal(DH.applySwing(sts, { ...log[0], slot: 2 }, teams), 'applied');
+  assert.equal(sts[0].shotIdx, 1);
+  assert.equal(DH.applySwing(sts, { ...log[0], slot: 7 }, teams), 'bad', 'not on either side');
 }
 
 console.log('mp ok');

@@ -987,6 +987,12 @@ function matchState(pars, scores) {
 const TEAM_MODES = ['bestball', 'alternate', 'scramble'];
 const teamBall = teams => !!teams && teams.mode !== 'bestball';
 const sideOf = (teams, slot) => teams.sides.findIndex(m => m.includes(slot));
+// Alternate shot: who hits a side's next shot. One partner tees off on the odd holes, the other on the even, then
+// they take turns; once one has gone the other hits every shot.
+function hitterOf(teams, side, hole, shot, gone = []) {
+  const m = teams.sides[side], live = m.filter(slot => !gone.includes(slot));
+  return live.length === 1 ? live[0] : m[(hole + shot) % 2];
+}
 // Each side's score per hole: best ball counts a hole once every member still playing has finished it.
 function sideScores(teams, players, states, gone = []) {
   if (teamBall(teams)) return states.map(s => s.scores);
@@ -1024,8 +1030,9 @@ function nextToPlay(states, honour) {
 // Swings must come in shot order: an earlier one is a 'duplicate', a later one is 'early' (the state is
 // untouched, so the caller can retry once the missing shots arrive), an illegal one is 'bad'. A tee shot
 // on the next hole moves a player on from a scored hole first. st.last keeps play()'s result for the animation.
-function applySwing(states, sw) {
-  const st = sw && states.find(s => s.salt === '#p' + sw.slot);
+// teams (a 2v2 with one ball a side): the swing goes to its player's side's ball, whoever of the two hits it.
+function applySwing(states, sw, teams) {
+  const st = sw && (teamBall(teams) ? states[sideOf(teams, sw.slot)] : states.find(s => s.salt === '#p' + sw.slot));
   if (!st || !Number.isInteger(sw.hole) || !Number.isInteger(sw.shot)) return 'bad';
   if (sw.hole < st.holeIdx || (sw.hole === st.holeIdx && sw.shot < st.shotIdx)) return 'duplicate';
   const moveOn = st.scores[st.holeIdx] != null, hole = st.holeIdx + (moveOn ? 1 : 0), shot = moveOn ? 0 : st.shotIdx;
@@ -1040,8 +1047,11 @@ function applySwing(states, sw) {
 // Rebuilds every player's round from a swing log ([{ slot, hole, shot, club, aim, v }], any order
 // across players). Each player's swings must run 0, 1, 2… per hole; a gap or duplicate stops that
 // player there and sets error.
-function replayGame(spec, realData, players, log) {
+// teams: a 2v2. With one ball a side (alternate shot) the states are the sides' balls (salt '#t' + side), and
+// a shot both partners hit counts once: the one whose turn it was.
+function replayGame(spec, realData, players, log, teams) {
   const course = courseFromSpec(spec, realData);
+  if (teamBall(teams)) return replayTeams(course, players, log, teams);
   const states = players.map(p => newRound(course.seed, course, '#p' + p.slot));
   let error = null;
   const fail = msg => { if (!error) error = msg; };
@@ -1058,6 +1068,25 @@ function replayGame(spec, realData, players, log) {
   return { states, scores: states.map(s => s.scores), done: states.map(s => s.done), error };
 }
 
+function replayTeams(course, players, log, teams) {
+  const states = teams.sides.map((_, sd) => newRound(course.seed, course, '#t' + sd));
+  let error = null;
+  const fail = msg => { if (!error) error = msg; };
+  for (const e of log) if (!players.some(p => p.slot === e.slot) || sideOf(teams, e.slot) < 0) fail(`unknown slot ${e.slot}`);
+  teams.sides.forEach((m, sd) => {
+    const st = states[sd], turn = e => (hitterOf(teams, sd, e.hole, e.shot) === e.slot ? 0 : 1);
+    const mine = log.filter(e => m.includes(e.slot) && players.some(p => p.slot === e.slot))
+      .sort((a, b) => a.hole - b.hole || a.shot - b.shot || turn(a) - turn(b));
+    for (const e of mine) {
+      const r = applySwing(states, e, teams), at = `side ${sd} hole ${e.hole} shot ${e.shot}`;
+      if (r === 'duplicate') continue; // the partner whose turn it wasn't hit it too: the first one counts
+      if (r !== 'applied') { fail(r === 'early' ? `missing shot before ${at}` : st.done ? `swing after the round: ${at}` : `bad swing ${at}`); break; }
+      if (st.scores[st.holeIdx] != null) nextHole(st);
+    }
+  });
+  return { states, scores: states.map(s => s.scores), done: states.map(s => s.done), error };
+}
+
 const api = {
   CLUBS, LIE, PURE_LO, PURE_HI, SOLID, METER_MAX, CHIP_YDS, ISLAND_BANK, THEMES, themeFor, inLeafPile,
   carryFactor, powerFor, grade, powerAt, aimAt,
@@ -1066,7 +1095,7 @@ const api = {
   clubAllowed, autoClub, aimTarget, targetBand,
   newRound, play, nextHole, holeOf, bestSwing,
   courseFromSpec, timeoutSwing, strokeResult, matchState, nextToPlay, applySwing, replayGame,
-  TEAM_MODES, teamBall, sideOf, sideScores, sidesDone,
+  TEAM_MODES, teamBall, sideOf, sideScores, sidesDone, hitterOf,
   nearest, pointAt, normalAt, tangentAt, dist, dirOf, add, rng, hashStr,
 };
 root.DH = api;
