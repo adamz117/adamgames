@@ -227,13 +227,15 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
   if (lobby.status === 'closed') return <Message text={errorText('closed')} />;
 
   if (inGame) {
+    // /play/<code>?dev=1 opens the game's developer tools (in multiplayer: the perfect swing only)
+    const devTools = new URLSearchParams(location.search).get('dev') === '1';
     return (
       <>
         {notice && <p className="club-lobby-toast" role="status">{notice}</p>}
         <iframe
           key={game}
           ref={iframeRef}
-          src="/games/nine-holes/index.html?mp=1"
+          src={`/games/nine-holes/index.html?mp=1${devTools ? '&dev=1' : ''}`}
           className="club-lobby-game"
           title="Nine Holes, multiplayer"
         />

@@ -145,6 +145,14 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
 .hint { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dimmer); text-align: center; margin-top: 7px; min-height: 14px; }
 /* two-player game (?mp=1): the score / match pill with the shot clock, and the side-by-side card */
 .mpHud { pointer-events: none; display: flex; max-width: 58%; white-space: nowrap; }
+/* developer tools (?dev=1) */
+#devBtn { font-size: 14px; color: var(--flag); }
+.devPanel { z-index: 8; width: min(340px, 92%); }
+.devPanel small { margin: 4px 0 2px; }
+.devRow { display: grid; grid-template-columns: 3.2em minmax(0, 1fr) auto; gap: 8px; align-items: center; margin-top: 10px; font-size: 13px; }
+.devRow select, .devRow input { width: 100%; min-height: 36px; font: inherit; }
+.devRow .btn { width: auto; min-height: 36px; padding: 0 12px; font-size: 13px; }
+#devWindV { font-family: var(--mono); font-size: 11px; min-width: 4.5em; text-align: right; }
 /* the leaderboard, always on the left of the course: place, name, score to par, holes played. Taps go
    through it to the course. */
 .mpSide { position: absolute; z-index: 3; left: 8px; top: 96px; pointer-events: none; width: 128px; max-width: 40%;
@@ -183,6 +191,18 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
     <div class="courseTools">
       <button id="soundBtn" aria-label="Sound" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z"/><path class="on" d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.6a6 6 0 0 1 0 8.8"/><path class="off" d="M11 6l4 4M15 6l-4 4"/></svg></button>
       <button id="helpBtn" aria-label="How to play">?</button>
+      <button id="devBtn" aria-label="Developer tools" aria-expanded="false" hidden>⚙</button>
+    </div>
+    <div class="pop devPanel" id="devPanel" role="dialog" aria-label="Developer tools" hidden>
+      <b>Developer tools</b>
+      <small id="devInfo"></small>
+      <div class="devSolo">
+        <div class="devRow"><label for="devHole">Hole</label><select id="devHole"></select><button class="btn ghost" id="devGo">Go</button></div>
+        <div class="devRow"><label for="devLie">Lie</label><select id="devLie"></select><button class="btn ghost" id="devPlace">Place ball…</button></div>
+        <div class="devRow"><label for="devWind">Wind</label><input type="range" id="devWind" min="0" max="30" step="1"><span id="devWindV"></span></div>
+      </div>
+      <div class="row"><button class="btn" id="devPerfect">Perfect swing</button><button class="btn ghost" id="devClose">Close</button></div>
+      <small id="devNote"></small>
     </div>
     <button class="recenter" id="recenter" hidden>Recenter</button>
     <div class="toast" id="toast" role="status"><div class="big" id="tBig"></div><div class="sub" id="tSub"></div></div>
@@ -320,6 +340,14 @@ const PALETTES = {
     fwEdge: '#468A35', fw: '#8ED063', stripeA: '#76BB4D', stripeB: '#A7DB7B', spine: '#BCE595',
     trees: ['#2C4A28', '#375730', '#44653A'], lit: 'rgba(206,224,170,0.32)', canopy: '#253F22', roof: '#CFC2A8',
     water: '#4A8BA6', waterEdge: '#2F6E8A', sand: '#F2EBD6', sandEdge: '#CBB98F', tee: '#B9E390', bench: '#6E4A2A', cart: '#C5AE88', sea: ['#A9D6EA', '#6FAACB'] },
+  // Cotswold Downs: lush paspalum in the hills above Durban, dense dark coastal bush in the valleys, reedy
+  // wetlands and dams with green-brown water, tan sand, red-roofed estate houses beyond the boundary
+  'cotswold-downs': { name: 'Valleys & dams', scene: 'parkland', real: true,
+    green: '#CDEFA6', collar: '#93C873', greenEdge: '#3F7F32', close: ['#DDF6BC', '#BFE597', '#9ED374'],
+    g: ['#78A35C', '#6E9953', '#638E4A'], ob: '#7A8C5E', deep: '#3A6230', roughSoft: '#5E9443', rough: '#70A653',
+    fwEdge: '#3F8236', fw: '#8FD066', stripeA: '#77BD4E', stripeB: '#A9DD80', spine: '#BDE69A',
+    trees: ['#1F4426', '#2A522E', '#376238'], lit: 'rgba(196,226,170,0.30)', canopy: '#1A3A21', roof: '#B9705A',
+    water: '#4E7F86', waterEdge: '#2F5F66', sand: '#EEE2C4', sandEdge: '#C6AE80', tee: '#B9E390', bench: '#6B4426', cart: '#C3B08E', sea: ['#A9D6EA', '#6FAACB'] },
   // Pebble Beach: clifftop links on the Pacific, dark Monterey cypress, deep blue sea with white surf at the shore
   'pebble-beach': { name: 'Cypress & cliffs', scene: 'parkland', real: true,
     green: '#CDEFA6', collar: '#93C873', greenEdge: '#3F7F32', close: ['#DDF6BC', '#BFE597', '#9ED374'],
@@ -374,6 +402,9 @@ let W = 0, H = 0, DPR = 1;
 const view = { cx: 0, cy: 0, s: 1, tx: 0, ty: 0, ts: 1, ready: false, manual: false, reveal: 0 };
 const QS = new URLSearchParams(location.search);
 const MP_MODE = QS.get('mp') === '1'; // a two-player game: the page around it sends mp-init
+// Developer tools (?dev=1). Solo: everything, and rounds are not saved. Multiplayer: only the perfect swing,
+// which sends an ordinary swing, so every player's game and the site still agree.
+const DEV = QS.get('dev') === '1';
 let seed = QS.get('seed') || todayKey();
 // ?course=<id>&holes=front|back|all plays a real course from courses/<id>/<id>.json; anything else is the daily nine
 const MODE_NAME = { front: 'Front 9', back: 'Back 9', all: '18 holes' };
@@ -640,7 +671,7 @@ function endRound() {
 }
 // Embedded on adamgames, the page around the game adds the round to the player's record.
 function reportRound(strokes, par) {
-  if (window.parent === window) return;
+  if (window.parent === window || DEV) return; // a solo round played with the dev tools never counts
   if (REAL) return window.parent.postMessage({ type: 'nine-holes-real-round', course: REAL.id, mode: REAL.mode, strokes, par, day: todayKey() }, location.origin);
   window.parent.postMessage({ type: 'nine-holes-round', strokes, par, course: st.course.name, seed }, location.origin);
 }
@@ -1662,6 +1693,7 @@ cvs.addEventListener('wheel', e => {
 }, { passive: false });
 function tapAt(x, y, t) { // t: when the finger went down
   if (MP && MP.over) return;
+  if (DEV && devPlacing) { devPlacing = false; const p = fromScreen(x, y); return void dev.ball(p.x, p.y); }
   if (view.fly) { view.fly = null; return; } // a tap skips the view
   if (phase === 'aim' && !locked) {
     const p = fromScreen(x, y);
@@ -1698,6 +1730,83 @@ addEventListener('keydown', e => {
   else if (e.key >= '1' && e.key <= '9') pickClub(+e.key - 1);
 });
 addEventListener('resize', resize);
+
+// ── developer tools (?dev=1) ──
+// Solo: jump to a hole, put the ball anywhere, set its lie or the wind, play a perfect swing; rounds played with
+// them are never saved (reportRound). Multiplayer: the perfect swing only. Every client replays every swing from
+// the shared log, so moving my ball or changing the wind would only change my screen. window.dev for the console.
+let devPlacing = false;
+const DEV_LIES = ['tee', 'fairway', 'rough', 'deep', 'bunker', 'leaves', 'cart', 'trees', 'green'];
+const dev = {
+  // only between shots: never while a ball, a putt or the arm is moving
+  ok: () => !!st && !anim && ['aim', 'power', 'settle', 'holeend', 'turn', 'done'].includes(phase),
+  solo: () => !MP && dev.ok(),
+  info() {
+    if (!st) return '';
+    const h = hole(), t = `Hole ${h.index} (par ${h.par}) · ${(LIE[st.lie] || LIE.fairway).label} · ${Math.round(dist(st.ball, h.pin))} yds to pin · ball ${st.ball.x.toFixed(1)}, ${st.ball.y.toFixed(1)} · wind ${Math.round(h.wspd)} mph · needle ×${pace.toFixed(2)}`;
+    $('devInfo').textContent = t;
+    return t;
+  },
+  hole(n) { // to the tee of hole n; holes before it that weren't played count as par
+    const i = Math.round(n) - 1;
+    if (!dev.solo() || !(i >= 0 && i < st.course.holes.length)) return false;
+    st.scores = st.course.holes.slice(0, i).map((h, j) => st.scores[j] ?? h.par);
+    Object.assign(st, { holeIdx: i, ball: { x: 0, y: 0 }, lie: 'tee', strokes: 0, shotIdx: 0, done: false });
+    for (const id of ['end', 'turn']) $(id).hidden = true;
+    startHole(); dev.info();
+    return true;
+  },
+  ball(x, y) { // anywhere on this hole (yards from its tee); the lie comes from what's there
+    if (!dev.solo() || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+    const surf = DH.surfaceAt(hole(), { x, y });
+    st.ball = { x, y }; st.lie = surf === 'water' || surf === 'ob' ? 'rough' : surf;
+    clubIdx = DH.autoClub(hole(), st.ball, st.lie); setupAim(); dev.info();
+    return true;
+  },
+  lie(name) {
+    if (!dev.solo() || !DEV_LIES.includes(name)) return false;
+    st.lie = name; clubIdx = DH.autoClub(hole(), st.ball, st.lie); setupAim(); dev.info();
+    return true;
+  },
+  wind(mph) {
+    if (!dev.solo() || !Number.isFinite(+mph)) return false;
+    hole().wspd = Math.max(0, Math.min(60, +mph)); hud(); dev.info();
+    return true;
+  },
+  perfect() { // the current club, on the line (the locked one, or the target), dead centre of the band
+    if (!dev.ok() || (phase !== 'aim' && phase !== 'power') || (MP && st !== mpMine())) return false;
+    const h = hole(), b = DH.targetBand(h, st.ball, st.lie, club()), aim = locked ? aimAngle : aimCenter;
+    power = (b.lo + b.hi) / 2 * DH.METER_MAX; locked = true; aimAngle = aim;
+    launch(MP ? mpPlay(false) : DH.play(st, aim, clubIdx, power), aim); // in multiplayer, an ordinary swing to the others
+    return true;
+  },
+};
+function devShow(open) {
+  $('devPanel').hidden = !open; $('devBtn').setAttribute('aria-expanded', open);
+  if (!open || !st) return;
+  for (const el of document.querySelectorAll('.devSolo')) el.hidden = !!MP;
+  $('devNote').textContent = MP
+    ? 'Multiplayer: only the perfect swing, on your turn. Moving the ball or the wind would only change your screen.'
+    : 'Solo rounds played with these on are not saved. Console: dev.hole(5), dev.ball(x, y), dev.lie(\'trees\'), dev.wind(0), dev.perfect(), dev.info().';
+  if (!MP) {
+    $('devHole').innerHTML = st.course.holes.map((h, i) => `<option value="${i + 1}"${i === st.holeIdx ? ' selected' : ''}>${h.index} · par ${h.par} · ${h.len} yds</option>`).join('');
+    $('devLie').innerHTML = DEV_LIES.map(l => `<option value="${l}"${l === st.lie ? ' selected' : ''}>${LIE[l].label.toLowerCase()}</option>`).join('');
+    $('devWind').value = Math.round(hole().wspd); $('devWindV').textContent = `${Math.round(hole().wspd)} mph`;
+  }
+  dev.info();
+}
+if (DEV) {
+  window.dev = dev;
+  $('devBtn').hidden = false;
+  $('devBtn').addEventListener('click', () => devShow($('devPanel').hidden));
+  $('devClose').addEventListener('click', () => devShow(false));
+  $('devGo').addEventListener('click', () => { dev.hole(+$('devHole').value); devShow(false); });
+  $('devLie').addEventListener('change', () => dev.lie($('devLie').value));
+  $('devPlace').addEventListener('click', () => { devShow(false); devPlacing = true; $('hint').textContent = 'Dev: tap the course to place the ball'; });
+  $('devWind').addEventListener('input', () => { dev.wind(+$('devWind').value); $('devWindV').textContent = `${$('devWind').value} mph`; });
+  $('devPerfect').addEventListener('click', () => { devShow(false); dev.perfect(); });
+  addEventListener('keydown', e => { if (e.key === '`') { e.preventDefault(); devShow($('devPanel').hidden); } });
+}
 
 // ── multiplayer game (?mp=1), two to four players ──
 // Players swap swings, not positions: every client plays every swing through the same sim, so all

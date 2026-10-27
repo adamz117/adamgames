@@ -9,11 +9,12 @@ import { saveRealRound } from '@/lib/course-rounds-client';
 type Search = { [key: string]: string | string[] | undefined };
 
 // ?course=victoria&holes=front|back|all opens a real course; anything else is today's nine.
+// ?dev=1 passes through: the game's developer tools (a round played with them isn't saved)
 function gameSrc(q: Search) {
   const course = typeof q.course === 'string' ? q.course : '', holes = typeof q.holes === 'string' ? q.holes : 'all';
-  const pars = COURSE_PAR[course];
-  if (!pars || !(holes in pars)) return '/games/nine-holes/index.html';
-  return `/games/nine-holes/index.html?course=${course}&holes=${holes as CourseMode}`;
+  const pars = COURSE_PAR[course], dev = q.dev === '1';
+  if (!pars || !(holes in pars)) return `/games/nine-holes/index.html${dev ? '?dev=1' : ''}`;
+  return `/games/nine-holes/index.html?course=${course}&holes=${holes as CourseMode}${dev ? '&dev=1' : ''}`;
 }
 
 export default function NineHolesPage({ searchParams }: { searchParams: Promise<Search> }) {
