@@ -1031,7 +1031,9 @@ function nextToPlay(states, honour) {
 // untouched, so the caller can retry once the missing shots arrive), an illegal one is 'bad'. A tee shot
 // on the next hole moves a player on from a scored hole first. st.last keeps play()'s result for the animation.
 // teams (a 2v2 with one ball a side): the swing goes to its player's side's ball, whoever of the two hits it.
-function applySwing(states, sw, teams) {
+// Scramble returns 'pending' until the side's shot settles (gone: the slots that have left).
+function applySwing(states, sw, teams, gone = []) {
+  if (teams && teams.mode === 'scramble') return applyScramble(states, sw, teams, gone);
   const st = sw && (teamBall(teams) ? states[sideOf(teams, sw.slot)] : states.find(s => s.salt === '#p' + sw.slot));
   if (!st || !Number.isInteger(sw.hole) || !Number.isInteger(sw.shot)) return 'bad';
   if (sw.hole < st.holeIdx || (sw.hole === st.holeIdx && sw.shot < st.shotIdx)) return 'duplicate';
@@ -1044,14 +1046,61 @@ function applySwing(states, sw, teams) {
   st.last = play(st, sw.aim, sw.club, sw.v);
   return 'applied';
 }
+// ── scramble ── Both partners hit from the side's ball, each with their own scatter (salt '#p' + slot), and the
+// side plays on from the better ball. A shot settles once every partner still there has hit, or at once when a
+// ball is holed. The side's state then becomes the chosen ball's round; st.cand is the last swing's ball (to show)
+// and st.pick the one the side plays (null while the shot waits).
+const SCRAMBLE_LIE = { tee: 0, fairway: 0, green: 0, portal: 0, cart: 2, bridge: 2, rough: 8, bunker: 15, leaves: 15, deep: 20, trees: 30 };
+function scrambleCost(h, res, ball = res.rest, lie = res.restSurf) {
+  if (res.holed) return -1;
+  if (res.penalty) return 1e6 + dist(ball, h.pin);
+  if (res.putts) return res.putts - 1 + dist(ball, h.pin) / 1000;
+  return 10 + dist(ball, h.pin) + (SCRAMBLE_LIE[lie] ?? 10);
+}
+const cloneRound = st => ({ ...st, ball: { ...st.ball }, scores: [...st.scores], log: [...st.log], aces: [...st.aces], pend: null, cand: null, pick: null, last: null });
+function applyScramble(states, sw, teams, gone) {
+  const sd = sw ? sideOf(teams, sw.slot) : -1, st = states[sd];
+  if (!st || !Number.isInteger(sw.hole) || !Number.isInteger(sw.shot)) return 'bad';
+  if (sw.hole < st.holeIdx || (sw.hole === st.holeIdx && sw.shot < st.shotIdx)) return 'duplicate';
+  const moveOn = st.scores[st.holeIdx] != null, hole = st.holeIdx + (moveOn ? 1 : 0), shot = moveOn ? 0 : st.shotIdx;
+  if (st.done || hole >= st.course.holes.length || sw.hole < hole) return 'bad';
+  if (sw.hole !== hole || sw.shot !== shot) return 'early';
+  if (!Number.isInteger(sw.club) || !CLUBS[sw.club] || !clubAllowed(CLUBS[sw.club], moveOn ? 'tee' : st.lie)
+    || !Number.isFinite(sw.aim) || !Number.isFinite(sw.v) || sw.v < 0 || sw.v > METER_MAX) return 'bad';
+  if (!st.pend || st.pend.hole !== hole || st.pend.shot !== shot) st.pend = { hole, shot, cands: [] };
+  if (st.pend.cands.some(c => c.slot === sw.slot)) return 'duplicate';
+  const t = cloneRound(st);
+  if (moveOn) nextHole(t);
+  t.salt = '#p' + sw.slot;
+  const res = play(t, sw.aim, sw.club, sw.v);
+  st.pend.cands.push({ slot: sw.slot, st: t, res });
+  st.cand = { slot: sw.slot, res }; st.pick = null;
+  return settleSide(st, teams, sd, gone) ? 'applied' : 'pending';
+}
+function settleSide(st, teams, sd, gone) {
+  const pend = st.pend;
+  if (!pend || !pend.cands.length) return false;
+  const live = teams.sides[sd].filter(x => !gone.includes(x));
+  if (!pend.cands.some(c => c.res.holed) && !live.every(x => pend.cands.some(c => c.slot === x))) return false;
+  const h = holeOf(pend.cands[0].st), cost = c => scrambleCost(h, c.res, c.st.ball, c.st.lie);
+  const best = pend.cands.reduce((a, c) => (cost(c) < cost(a) || (cost(c) === cost(a) && c.slot < a.slot) ? c : a));
+  const salt = st.salt, cand = st.cand;
+  Object.assign(st, best.st, { salt, pend: null, cand, pick: { slot: best.slot, res: best.res }, last: best.res });
+  return true;
+}
+// After someone leaves: settle any shot that was only waiting for them. Returns the sides settled.
+function settleScramble(states, teams, gone = []) {
+  return states.flatMap((st, sd) => (st.pend && settleSide(st, teams, sd, gone) ? [sd] : []));
+}
+
 // Rebuilds every player's round from a swing log ([{ slot, hole, shot, club, aim, v }], any order
 // across players). Each player's swings must run 0, 1, 2… per hole; a gap or duplicate stops that
 // player there and sets error.
 // teams: a 2v2. With one ball a side (alternate shot) the states are the sides' balls (salt '#t' + side), and
 // a shot both partners hit counts once: the one whose turn it was.
-function replayGame(spec, realData, players, log, teams) {
+function replayGame(spec, realData, players, log, teams, gone = []) {
   const course = courseFromSpec(spec, realData);
-  if (teamBall(teams)) return replayTeams(course, players, log, teams);
+  if (teamBall(teams)) return replayTeams(course, players, log, teams, gone);
   const states = players.map(p => newRound(course.seed, course, '#p' + p.slot));
   let error = null;
   const fail = msg => { if (!error) error = msg; };
@@ -1068,7 +1117,7 @@ function replayGame(spec, realData, players, log, teams) {
   return { states, scores: states.map(s => s.scores), done: states.map(s => s.done), error };
 }
 
-function replayTeams(course, players, log, teams) {
+function replayTeams(course, players, log, teams, gone) {
   const states = teams.sides.map((_, sd) => newRound(course.seed, course, '#t' + sd));
   let error = null;
   const fail = msg => { if (!error) error = msg; };
@@ -1078,11 +1127,13 @@ function replayTeams(course, players, log, teams) {
     const mine = log.filter(e => m.includes(e.slot) && players.some(p => p.slot === e.slot))
       .sort((a, b) => a.hole - b.hole || a.shot - b.shot || turn(a) - turn(b));
     for (const e of mine) {
-      const r = applySwing(states, e, teams), at = `side ${sd} hole ${e.hole} shot ${e.shot}`;
-      if (r === 'duplicate') continue; // the partner whose turn it wasn't hit it too: the first one counts
+      if (st.pend && (e.hole !== st.pend.hole || e.shot !== st.pend.shot)) settleSide(st, teams, sd, gone); // scramble: a shot left waiting
+      const r = applySwing(states, e, teams, gone), at = `side ${sd} hole ${e.hole} shot ${e.shot}`;
+      if (r === 'duplicate' || r === 'pending') continue; // alternate: the partner whose turn it wasn't hit it too
       if (r !== 'applied') { fail(r === 'early' ? `missing shot before ${at}` : st.done ? `swing after the round: ${at}` : `bad swing ${at}`); break; }
       if (st.scores[st.holeIdx] != null) nextHole(st);
     }
+    if (st.pend) { settleSide(st, teams, sd, gone); if (!st.pend && st.scores[st.holeIdx] != null) nextHole(st); }
   });
   return { states, scores: states.map(s => s.scores), done: states.map(s => s.done), error };
 }
@@ -1095,7 +1146,7 @@ const api = {
   clubAllowed, autoClub, aimTarget, targetBand,
   newRound, play, nextHole, holeOf, bestSwing,
   courseFromSpec, timeoutSwing, strokeResult, matchState, nextToPlay, applySwing, replayGame,
-  TEAM_MODES, teamBall, sideOf, sideScores, sidesDone, hitterOf,
+  TEAM_MODES, teamBall, sideOf, sideScores, sidesDone, hitterOf, scrambleCost, settleScramble,
   nearest, pointAt, normalAt, tangentAt, dist, dirOf, add, rng, hashStr,
 };
 root.DH = api;

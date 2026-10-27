@@ -150,7 +150,9 @@ function decideTeams({ settings, teams, players, swings, now, DH, realData }: {
 }): Decision {
   const spec = settings.spec, ball = teams.mode !== 'bestball', label = TEAM_LABEL[teams.mode];
   const sideOf = (slot: number) => teams.sides.findIndex((m) => m.includes(slot));
-  const r = DH.replayGame(spec, realData, players.map((p) => ({ slot: p.slot })), swings, teams);
+  // scramble: those who pressed Leave are gone for certain, so their partner's shots settle without them
+  const left = teams.mode === 'scramble' ? players.filter((p) => p.left_at).map((p) => p.slot) : [];
+  const r = DH.replayGame(spec, realData, players.map((p) => ({ slot: p.slot })), swings, teams, left);
   const pars = r.states[0].course.holes.map((h) => h.par);
   // Forfeits, as in a game of players: a round already finished can't be forfeited, and a bad swing only lets
   // its own player (best ball) or side (one ball) forfeit.
@@ -158,7 +160,7 @@ function decideTeams({ settings, teams, players, swings, now, DH, realData }: {
   const broken = players.map((p) => {
     const mine = ball ? teams.sides[sideOf(p.slot)] : [p.slot];
     return DH.replayGame(spec, realData, mine.filter((s) => players.some((q) => q.slot === s)).map((slot) => ({ slot })),
-      swings.filter((s) => mine.includes(s.slot)), ball ? teams : undefined).error != null;
+      swings.filter((s) => mine.includes(s.slot)), ball ? teams : undefined, left).error != null;
   });
   const anyBroken = broken.some(Boolean);
   const why = players.map((p, k) => (doneOf(p, k) || (anyBroken && !broken[k]) ? null : forfeit(p, swings, now)));
@@ -176,8 +178,10 @@ function decideTeams({ settings, teams, players, swings, now, DH, realData }: {
     return finished((sd) => (sideOut[sd] ? 'loss' : 'win'), () => note);
   }
   const playing: Decision = { status: 'playing', results: [], out };
-  if (r.error) return playing;
-  const scores = DH.sideScores(teams, players, r.states, out), done = DH.sidesDone(teams, players, r.states, out);
+  // Scramble: a shot only waiting for someone who has gone settles with the partner's ball, so replay knowing who.
+  const g = teams.mode === 'scramble' && out.length ? DH.replayGame(spec, realData, players.map((p) => ({ slot: p.slot })), swings, teams, out) : r;
+  if (g.error) return playing;
+  const scores = DH.sideScores(teams, players, g.states, out), done = DH.sidesDone(teams, players, g.states, out);
   if (settings.format === 'match') {
     const m = DH.matchState(pars, scores);
     if (!m.decided && !done.every(Boolean)) return playing;

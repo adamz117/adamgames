@@ -560,6 +560,7 @@ function settleShot() {
   anim = null;
   trail.push({ a: r.from, b: r.rest });
   fx.push({ kind: 'stop', p: r.rest, t0: performance.now(), dur: 520 });
+  if (r.scramble) return mpScrambleRest(r);
   if (r.holed && !r.arm) return finishHole();
   if (r.penalty) toast(r.note, r.note === 'OUT OF BOUNDS' ? 'RE-TEE · ONE PENALTY STROKE' : 'DROP · ONE PENALTY STROKE', 'var(--flag)');
   else if (r.rock) { Snd.knock(); toast('KICKED FORWARD', `${Math.round(r.total)} YDS · OFF THE ${ROCK_NAME[r.rock]}`, 'var(--gold)'); }
@@ -1831,6 +1832,9 @@ const mpHitter = k => {
   return DH.hitterOf(MP.teams, k, b.holeIdx + (moveOn ? 1 : 0), moveOn ? 0 : b.shotIdx, [...MP.goneSet]);
 };
 const mpAlternate = () => !!MP.teams && MP.teams.mode === 'alternate';
+const mpScramble = () => !!MP.teams && MP.teams.mode === 'scramble';
+// Scramble: the shot to show is the swing's own ball, carrying the side's pick once the shot has settled.
+const mpScrambleShot = b => ({ ...b.cand.res, scramble: { slot: b.cand.slot, pick: b.pick } });
 // A partner's swing on my side's ball: it moves my ball, so it is watched, never applied out of sight.
 const mpOnMyBall = sw => mpTeamBall() && sw.slot !== mpMySlot() && mpBallOf(sw.slot) === MP.myBall;
 const mpName = i => MP.players[i].name;
@@ -1899,6 +1903,11 @@ function mpNext() {
   const behind = over ? mpBehind(st.holeIdx) : st.holeIdx ? mpBehind(st.holeIdx - 1) : [];
   if (behind.length) return mpWait(`Waiting for ${mpList(behind)}`);
   const n = turns ? DH.nextToPlay(MP.states, mpHonour(st.holeIdx)) : MP.myBall;
+  const pend = mpScramble() && n === MP.myBall && MP.states[n].pend;
+  if (pend && pend.cands.some(c => c.slot === mpMySlot())) { // I've hit this one: my partner hasn't yet
+    const still = MP.teams.sides[n].filter(x => x !== mpMySlot() && !MP.goneSet.has(x) && !pend.cands.some(c => c.slot === x));
+    return mpWait(`Waiting for ${mpList(still.map(mpSlotName))}`);
+  }
   const hitter = mpAlternate() ? mpHitter(n) : null; // alternate shot: which partner hits ball n
   if (n !== MP.myBall || (hitter != null && hitter !== mpMySlot())) { // their clock, roughly, for show: from when their turn began on my screen
     const key = n + ':' + MP.states[n].holeIdx + ':' + MP.states[n].shotIdx;
@@ -1919,11 +1928,11 @@ function mpPump(silent) {
   for (let i = 0; i < MP.inbox.length; i++) {
     const sw = MP.inbox[i];
     if (silent && !MP.over && mpOnMyBall(sw)) continue; // my ball moves only where I can see it
-    const r = DH.applySwing(MP.states, sw, MP.teams);
+    const r = DH.applySwing(MP.states, sw, MP.teams, [...MP.goneSet]);
     if (r === 'early') continue; // keep it until the shots before it arrive
     MP.inbox.splice(i, 1); i = -1;
     if (r === 'bad') console.warn('nine holes mp: bad swing', sw);
-    if (r === 'applied' && (MP.settings.pace === 'turns' || mpOnMyBall(sw)) && !silent) { mpWatch(sw); return true; }
+    if ((r === 'applied' || r === 'pending') && (MP.settings.pace === 'turns' || mpOnMyBall(sw)) && !silent) { mpWatch(sw); return true; }
   }
   return false;
 }
@@ -1941,7 +1950,7 @@ function mpWatch(sw) {
   const i = MP.players.findIndex(p => p.slot === sw.slot), b = mpBallOf(sw.slot);
   if (MP.states[b].holeIdx !== st.holeIdx) trail = [];
   st = MP.states[b]; clubIdx = sw.club; MP.theirs = 0;
-  launch(st.last, sw.aim);
+  launch(mpScramble() ? mpScrambleShot(st) : st.last, sw.aim);
   setAct(`${mpName(i)}’s shot`, true);
   if (sw.timeout) $('hint').textContent = `${mpName(i)} ran out of time`;
 }
@@ -1952,8 +1961,8 @@ function mpPlay(timeout) {
   mpPost({ type: 'mp-swing', swing });
   MP.timeouts = timeout ? MP.timeouts + 1 : 0;
   if (MP.timeouts >= 3) { MP.over = true; mpDone(); } // three in a row counts as leaving; the site settles it
-  DH.applySwing(MP.states, swing, MP.teams);
-  return st.last;
+  DH.applySwing(MP.states, swing, MP.teams, [...MP.goneSet]);
+  return mpScramble() ? mpScrambleShot(st) : st.last;
 }
 function mpHoleEnd() {
   const mine = st === mpMine();
@@ -1986,6 +1995,24 @@ function mpHidden() {
 }
 function mpDone() { if (!MP.doneSent) { MP.doneSent = true; mpPost({ type: 'mp-done' }); } }
 function mpEnd() { mpDone(); mpShowEnd(); setAct('Results'); }
+// Scramble: a ball at rest. Still waiting for a partner: say how it went and wait. Settled: the side plays on from
+// its pick (which may be the partner's ball), holed, putted out or onto the next shot.
+function mpScrambleRest(r) {
+  const word = r.holed ? 'IN THE HOLE' : { pure: 'PURED', overswing: 'OVERSWING', solid: 'SOLID', controlled: 'EASED' }[r.quality];
+  if (!r.scramble.pick) {
+    toast(word, `${Math.round(r.total)} YDS`, 'var(--chalk)');
+    phase = 'settle'; hud();
+    return void setTimeout(() => { if (phase === 'settle') mpNext(); }, 620);
+  }
+  mpScramblePlayOn(r.scramble.pick);
+}
+function mpScramblePlayOn(pick) {
+  const name = pick.slot === mpMySlot() ? 'YOUR' : `${mpSlotName(pick.slot).toUpperCase()}’S`;
+  if (!pick.res.holed) toast(`PLAYING ${name} BALL`, `${Math.round(dist(pick.res.rest, hole().pin))} YDS TO PIN`, 'var(--gold)');
+  if (pick.res.holed) return finishHole();
+  afterRest(pick.res);
+}
+
 // ── 2v2 ── MP.teams: { mode, sides: [[slot, slot], [slot, slot]] } or null.
 function mpTeamsOf(t) {
   if (!t || !DH.TEAM_MODES.includes(t.mode) || !Array.isArray(t.sides) || t.sides.length !== 2) return null;
@@ -2107,6 +2134,9 @@ function mpDraw(ballAt, height) {
     if (s === st || s.done || s.holeIdx !== st.holeIdx || s.scores[s.holeIdx] != null) return;
     drawBall(s.ball, 0, mpColor(i)); tag(s.ball, 0, i);
   });
+  for (const [i, s] of MP.states.entries()) for (const c of (s.pend && s.holeIdx === st.holeIdx ? s.pend.cands : [])) {
+    const p = c.st.ball, q = TS(p); drawBall(p, 0, mpColor(i)); label(mpSlotName(c.slot), { x: q.x, y: q.y - 13 }, '#23342A', 10);
+  }
   const cur = MP.states.indexOf(st);
   if (cur !== MP.myBall) tag(ballAt, height, cur);
 }
@@ -2128,6 +2158,10 @@ function mpMessage(m) {
     // ball plays on while the partner is still there (in alternate shot they now hit every shot).
     const k = mpBallOf(m.slot), ballGone = !mpTeamBall() || MP.teams.sides[k].every(x => MP.goneSet.has(x) || !MP.players.some(p => p.slot === x));
     if (ballGone) { s.done = true; s.gone = true; }
+    if (mpScramble()) {
+      const settled = DH.settleScramble(MP.states, MP.teams, [...MP.goneSet]);
+      if (settled.includes(MP.myBall) && phase === 'wait') { st = mpMine(); hud(); $('hint').textContent = note; return mpScramblePlayOn(st.pick); }
+    }
     if (!MP.states.some((x, j) => j !== MP.myBall && !x.gone)) return mpShowEnd(note); // nobody else left: it's over
     MP.note = MP.note ? `${MP.note}, ${note}` : note;
     hud();

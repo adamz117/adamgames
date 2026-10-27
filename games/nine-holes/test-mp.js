@@ -342,4 +342,48 @@ assert.deepEqual(DH.strokeResult(P9.slice(0, 2), [[4, 5], [4]]), { totals: [9, 4
   assert.equal(DH.applySwing(sts, { ...log[0], slot: 7 }, teams), 'bad', 'not on either side');
 }
 
+// 2v2 scramble: both partners hit from the side's ball (each their own scatter) and it plays on from the better;
+// a shot settles once both have hit, at once on a hole-out, or with one ball once a partner has gone
+{
+  const teams = { mode: 'scramble', sides: [[0, 2], [1, 3]] }, spec = { kind: 'daily', seed: '2026-10-23' }, players = [0, 1, 2, 3].map(slot => ({ slot }));
+  const fresh = () => teams.sides.map((_, sd) => DH.newRound(spec.seed, null, '#t' + sd));
+  const sts = fresh(), h = DH.holeOf(sts[0]), club = DH.autoClub(h, sts[0].ball, sts[0].lie), aim = q4(DH.aimTarget(h, sts[0].ball, sts[0].lie, DH.CLUBS[club]));
+  const a0 = { slot: 0, hole: 0, shot: 0, club, aim, v: 0.95 }, a2 = { slot: 2, hole: 0, shot: 0, club, aim: q4(aim + 0.02), v: 0.8 };
+  assert.equal(DH.applySwing(sts, a0, teams), 'pending', 'waits for the partner');
+  assert.equal(sts[0].shotIdx, 0, 'the side ball has not moved');
+  assert.equal(sts[0].cand.slot, 0, 'my candidate is there to show');
+  assert.equal(DH.applySwing(sts, a0, teams), 'duplicate');
+  assert.equal(DH.applySwing(sts, a2, teams), 'applied', 'both in: it settles');
+  assert.equal(sts[0].shotIdx, 1);
+  // it plays on from the better ball, scored as the game scores it
+  const solo = slot => { const t = DH.newRound(spec.seed, null, '#p' + slot); return DH.play(t, slot ? a2.aim : a0.aim, club, slot ? a2.v : a0.v); };
+  const both = [solo(0), solo(2)], better = DH.scrambleCost(h, both[0]) <= DH.scrambleCost(h, both[1]) ? 0 : 1;
+  assert.deepEqual(sts[0].ball, both[better].rest);
+  assert.equal(sts[0].pick.slot, [0, 2][better]);
+  // the same in the other order, and in a replay
+  const sts2 = fresh(); DH.applySwing(sts2, a2, teams); DH.applySwing(sts2, a0, teams);
+  assert.deepEqual(sts2[0].ball, sts[0].ball);
+  assert.deepEqual(DH.replayGame(spec, null, players, [a2, a0], teams).states[0].scores, sts[0].scores);
+  // a partner who has gone: one ball settles it (live, and in a replay that knows who went)
+  const sts3 = fresh(); DH.applySwing(sts3, a0, teams);
+  assert.deepEqual(DH.settleScramble(sts3, teams, [2]), [0], 'side 0 settled');
+  assert.deepEqual(sts3[0].ball, both[0].rest);
+  const r1 = DH.replayGame(spec, null, players, [a0], teams, [2]);
+  assert.equal(r1.error, null);
+  assert.deepEqual(r1.states[0].scores, sts3[0].scores, 'the replay settles it the same way');
+  assert.deepEqual(DH.replayGame(spec, null, players, [a0], teams).states[0].scores, [], 'not knowing Cal went, it still waits');
+  // a whole round, both partners hitting every shot: the replay matches the live game, swings in any order
+  const live = fresh(), log = [];
+  for (let n = 0; !live[0].done && n < 200; n++) {
+    const b = live[0], mv = b.scores[b.holeIdx] != null, hh = mv ? b.course.holes[b.holeIdx + 1] : DH.holeOf(b), ball = mv ? { x: 0, y: 0 } : b.ball, lie = mv ? 'tee' : b.lie;
+    const c = DH.autoClub(hh, ball, lie), t = DH.aimTarget(hh, ball, lie, DH.CLUBS[c]), hole = b.holeIdx + (mv ? 1 : 0), shot = mv ? 0 : b.shotIdx;
+    for (const [slot, dv] of [[0, 0.97], [2, 0.85]]) { const sw = { slot, hole, shot, club: c, aim: q4(t + (slot ? 0.03 : -0.01)), v: dv }; log.push(sw); if (DH.applySwing(live, sw, teams) === 'applied') break; }
+    if (live[0].scores[live[0].holeIdx] != null) DH.nextHole(live[0]);
+  }
+  assert.ok(live[0].done, 'the round finishes');
+  const rr = DH.replayGame(spec, null, players, [...log].reverse(), teams);
+  assert.equal(rr.error, null);
+  assert.deepEqual(rr.states[0].scores, live[0].scores);
+}
+
 console.log('mp ok');
