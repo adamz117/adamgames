@@ -15,7 +15,8 @@ import {
 } from '@/lib/mp/lobby-client';
 import { ensureSession } from '@/lib/mp/session-client';
 import { parseCode, presentPlayers, type LobbyEvent, type LobbySettings, type Visibility } from '@/lib/mp/protocol';
-import { courseText, errorText, FORMAT_LABEL, PACE_LABEL, todayKey } from '@/lib/mp/lobby-ui';
+import { courseText, errorText, FORMAT_LABEL, PACE_LABEL, swapSides, todayKey } from '@/lib/mp/lobby-ui';
+import { TEAM_LABEL } from '@/lib/mp/finish-core';
 import type { Viewer } from '@/lib/mp/viewer';
 
 type Me = { id: string; userId: string; slot: number; name: string };
@@ -76,6 +77,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
   const [players, setPlayers] = useState<LobbyMember[]>([]);
   const [present, setPresent] = useState<string[]>([]);
   const [me, setMe] = useState<Me | null>(null);
+  const [pick, setPick] = useState<number | null>(null); // 2v2: the seat the host tapped, to swap with one on the other side
 
   const channelRef = useRef<LobbyChannel | null>(null);
   const refreshRef = useRef<() => void>(() => {});
@@ -251,9 +253,11 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
   const waitingOn = active.filter((p) => p.userId !== lobby.host && !p.ready);
   const away = active.filter((p) => !here.has(p.slot));
   const seats = Math.max(lobby.settings?.maxPlayers ?? 2, ...active.map((p) => p.slot + 1));
-  const canStart = isHost && active.length >= 2 && !away.length && !waitingOn.length;
+  const teams = lobby.settings?.teams;
+  const canStart = isHost && active.length >= 2 && (!teams || active.length === 4) && !away.length && !waitingOn.length;
   const startHint =
     active.length < 2 ? 'Waiting for another player.'
+      : teams && active.length < 4 ? 'A 2v2 needs all four players.'
       : away.length ? `Waiting for ${names(away)} to come back.`
         : waitingOn.length ? `Waiting for ${names(waitingOn)} to get ready.`
           : isHost ? 'Everyone’s ready.' : `Waiting for ${hostName} to start.`;
@@ -276,6 +280,16 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
     setNotice(r.error ? errorText(r.error) : null);
     await send('settings');
     refreshRef.current();
+  }
+
+  // 2v2: tap a seat, then a seat on the other side, to swap them (empty seats too, to arrange before people join)
+  function tapSeat(slot: number) {
+    if (!teams || !lobby?.settings) return;
+    if (pick === null || pick === slot) return setPick(pick === slot ? null : slot);
+    const sides = swapSides(teams.sides, pick, slot);
+    if (sides === teams.sides) return setPick(slot); // same side: pick this one instead
+    setPick(null);
+    void changeSettings({ ...lobby.settings, teams: { ...teams, sides } }, lobby.visibility);
   }
 
   async function toggleReady() {
@@ -323,24 +337,34 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
 
         <section className="club-lobby-panel">
           <h2 className="club-lobby-h3">Players</h2>
-          <ul className="club-lobby-slots">
-            {Array.from({ length: seats }, (_, slot) => {
-              const p = active.find((x) => x.slot === slot);
-              if (!p) return <li key={slot} className="club-lobby-slot empty">Waiting for a player…</li>;
-              const host = p.userId === lobby.host;
-              return (
-                <li key={slot} className="club-lobby-slot">
-                  <strong>{p.name}</strong>
-                  <span className="club-lobby-tags">
-                    {p.slot === me.slot && <span>You</span>}
-                    {p.guest && <span>Guest</span>}
-                    {!here.has(p.slot) && <span className="away">Away</span>}
-                    {host ? <span>Host</span> : <span className={p.ready ? 'ready' : ''}>{p.ready ? 'Ready' : 'Not ready'}</span>}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+          {(teams ? teams.sides.map((side, k) => ({ title: `Team ${'AB'[k]}`, slots: side as number[] })) : [{ title: '', slots: Array.from({ length: seats }, (_, i) => i) }]).map((group) => (
+            <div key={group.title || 'all'}>
+              {group.title && <h3 className="club-lobby-label">{group.title}</h3>}
+              <ul className="club-lobby-slots">
+                {group.slots.map((slot) => {
+                  const p = active.find((x) => x.slot === slot);
+                  const who = p ? <strong>{p.name}</strong> : <span>Waiting for a player…</span>;
+                  return (
+                    <li key={slot} className={p ? 'club-lobby-slot' : 'club-lobby-slot empty'}>
+                      {teams && isHost ? (
+                        <button type="button" className="club-lobby-seat" aria-pressed={pick === slot} onClick={() => tapSeat(slot)}
+                          aria-label={`${p ? p.name : 'Empty seat'}, ${group.title}: ${pick === slot ? 'picked, tap a player on the other team to swap' : 'tap to swap teams'}`}>{who}</button>
+                      ) : who}
+                      {p && (
+                        <span className="club-lobby-tags">
+                          {p.slot === me.slot && <span>You</span>}
+                          {p.guest && <span>Guest</span>}
+                          {!here.has(p.slot) && <span className="away">Away</span>}
+                          {p.userId === lobby.host ? <span>Host</span> : <span className={p.ready ? 'ready' : ''}>{p.ready ? 'Ready' : 'Not ready'}</span>}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+          {teams && isHost && <p className="club-lobby-note">Tap a player, then one on the other team, to swap them.</p>}
           <div className="club-lobby-buttons">
             {isHost ? (
               <button type="button" className="club-button" disabled={!canStart || busy} onClick={start}>Start the game</button>
@@ -376,7 +400,7 @@ export default function LobbyRoom({ code: rawCode, viewer }: { code: string; vie
 }
 
 const summary = (s: LobbySettings, today: string) =>
-  `${courseText(s.spec, today)} · ${s.maxPlayers} players · ${FORMAT_LABEL[s.format]} · ${PACE_LABEL[s.pace]} · 30 s shot clock`;
+  `${courseText(s.spec, today)} · ${s.teams ? `2v2 ${TEAM_LABEL[s.teams.mode].toLowerCase()}` : `${s.maxPlayers} players`} · ${FORMAT_LABEL[s.format]} · ${PACE_LABEL[s.pace]} · 30 s shot clock`;
 
 // "A", "A and B", "A, B and C"
 const names = (ps: { name: string }[]) =>

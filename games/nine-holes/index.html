@@ -174,6 +174,7 @@ header { display: flex; align-items: baseline; gap: 10px; flex: none; padding: 1
 .mpCard .h { font-size: 9px; color: var(--dimmer); background: #F2F6F1; }
 .mpCard .name { text-align: left; padding-left: 7px; }
 .mpCard .won { color: var(--flag); font-weight: 600; background: #EDF5EE; }
+.mpCard .side { font-weight: 600; }
 </style>
 </head>
 <body>
@@ -1847,7 +1848,8 @@ function mpInit(m) {
     const mine = swings.filter(w => w.slot === m.me).sort((a, b) => a.hole - b.hole || a.shot - b.shot);
     MP = { players, meIdx, states: r.states, inbox: r.error ? swings.slice() : [], deadline: 0, over: false, doneSent: false, result: null, note: '',
       timeouts: mine.reduce((n, w) => w.timeout ? n + 1 : 0, 0), // timed-out swings in a row
-      settings: { format: set.format === 'match' ? 'match' : 'stroke', pace: set.pace === 'turns' ? 'turns' : 'own', clock: set.clock > 0 ? +set.clock : 30 } };
+      settings: { format: set.format === 'match' ? 'match' : 'stroke', pace: set.pace === 'turns' ? 'turns' : 'own', clock: set.clock > 0 ? +set.clock : 30 },
+      teams: mpTeamsOf(set.teams) };
     st = mpMine();
     PAL = PALETTES[st.course.theme] || PALETTES.victoria;
     $('courseName').textContent = `${st.course.name} · ${spec.kind === 'real' ? MODE_NAME[spec.mode] : PAL.name}`;
@@ -1968,15 +1970,36 @@ function mpHidden() {
 }
 function mpDone() { if (!MP.doneSent) { MP.doneSent = true; mpPost({ type: 'mp-done' }); } }
 function mpEnd() { mpDone(); mpShowEnd(); setAct('Results'); }
+// ── 2v2 ── MP.teams: { mode, sides: [[slot, slot], [slot, slot]] } or null.
+function mpTeamsOf(t) {
+  if (!t || !DH.TEAM_MODES.includes(t.mode) || !Array.isArray(t.sides) || t.sides.length !== 2) return null;
+  const sides = t.sides.map(m => (Array.isArray(m) && m.length === 2 && m.every(x => Number.isInteger(x) && x >= 0 && x <= 3) ? [m[0], m[1]] : null));
+  return sides.every(Boolean) && new Set(sides.flat()).size === 4 ? { mode: t.mode, sides } : null;
+}
+const TEAM_NAME = { bestball: 'Best ball', alternate: 'Alternate shot', scramble: 'Scramble' };
+const mpMySide = () => DH.sideOf(MP.teams, MP.players[MP.meIdx].slot);
+const mpGoneSlots = () => MP.players.filter((p, k) => MP.states[k] && MP.states[k].gone).map(p => p.slot);
+// What the scores are kept by: the players, or in a 2v2 the two sides (best ball: each side's best ball).
+function mpUnits() {
+  if (!MP.teams) return MP.states.map((s, k) => ({ name: mpName(k), scores: s.scores, done: s.done, gone: !!s.gone, me: k === MP.meIdx }));
+  const gone = mpGoneSlots(), sc = DH.sideScores(MP.teams, MP.players, MP.states, gone), dn = DH.sidesDone(MP.teams, MP.players, MP.states, gone), mine = mpMySide();
+  const seated = slot => MP.players.some(p => p.slot === slot) && !gone.includes(slot);
+  return MP.teams.sides.map((m, k) => ({
+    name: m.filter(slot => MP.players.some(p => p.slot === slot)).map(slot => mpName(MP.players.findIndex(p => p.slot === slot))).join(' & '),
+    scores: sc[k], done: dn[k], gone: !m.some(seated), me: k === mine,
+  }));
+}
+
 // The end: the side-by-side card, and the result once the site has checked it.
 function mpShowEnd(note) {
   MP.over = true; MP.deadline = 0; mpPump(true);
   if (note) MP.note = note;
   const me = MP.players[MP.meIdx].slot, r = (MP.result || []).find(x => x && x.slot === me), match = MP.settings.format === 'match';
   const many = MP.players.length > 2, placed = r && many && r.result === 'loss' && ORDINAL[r.place - 1]; // "You came 3rd"
-  $('mpTag').textContent = `${match ? 'Match play' : 'Stroke play'} · ${MP.states[0].course.name}`;
-  $('mpResult').textContent = !r ? 'Checking the result…' : placed ? `You came ${placed}`
-    : { win: 'You won', loss: 'You lost', draw: match ? 'Halved' : many ? 'Tied for first' : 'Tied' }[r.result] || 'Game over';
+  $('mpTag').textContent = `${MP.teams ? `2v2 ${TEAM_NAME[MP.teams.mode].toLowerCase()} · ` : ''}${match ? 'Match play' : 'Stroke play'} · ${MP.states[0].course.name}`;
+  $('mpResult').textContent = !r ? 'Checking the result…'
+    : MP.teams ? { win: 'Your team won', loss: 'Your team lost', draw: match ? 'Halved' : 'Tied' }[r.result] || 'Game over'
+    : placed ? `You came ${placed}` : { win: 'You won', loss: 'You lost', draw: match ? 'Halved' : many ? 'Tied for first' : 'Tied' }[r.result] || 'Game over';
   const detail = r && r.detail ? String(r.detail) : '';
   $('mpDetail').textContent = [detail.includes(MP.note) ? '' : MP.note, detail].filter(Boolean).join(' · '); // the result often names who left
   mpRenderCard();
@@ -1984,7 +2007,7 @@ function mpShowEnd(note) {
 }
 function mpRenderCard() {
   const box = $('mpCard'), holes = MP.states[0].course.holes, n = holes.length, wide = n > 9;
-  const m = MP.settings.format === 'match' && DH.matchState(mpPars(), MP.states.map(s => s.scores));
+  const units = mpUnits(), m = MP.settings.format === 'match' && DH.matchState(mpPars(), units.map(u => u.scores));
   const sum = sc => { const v = sc.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) : '·'; };
   const cell = (text, cls) => { const d = document.createElement('span'); d.textContent = text; if (cls) d.className = cls; box.append(d); };
   box.textContent = '';
@@ -1992,19 +2015,23 @@ function mpRenderCard() {
   for (const [a, b, name] of wide ? [[0, 9, 'OUT'], [9, n, 'IN']] : [[0, n, 'TOT']]) {
     cell('', 'h'); for (let i = a; i < b; i++) cell(holes[i].index, 'h'); cell(name, 'h'); if (wide) cell(b === n ? 'TOT' : '', 'h');
     cell('Par', 'name h'); for (let i = a; i < b; i++) cell(holes[i].par, 'h'); cell(sum(mpPars().slice(a, b)), 'h'); if (wide) cell(b === n ? sum(mpPars()) : '', 'h');
-    MP.states.forEach((s, k) => {
-      cell(s.gone ? `${mpName(k)} (left)` : mpName(k), 'name');
-      for (let i = a; i < b; i++) cell(s.scores[i] ?? '·', m && m.holes[i] === k ? 'won' : '');
-      cell(sum(s.scores.slice(a, b))); if (wide) cell(b === n ? sum(s.scores) : '');
-    });
+    const rows = MP.teams && MP.teams.mode !== 'bestball' ? [] : MP.states.map((s, k) => ({ name: s.gone ? `${mpName(k)} (left)` : mpName(k), scores: s.scores, won: !MP.teams && k }));
+    if (MP.teams) units.forEach((u, k) => rows.push({ name: u.me ? 'Us' : 'Them', scores: u.scores, won: k, side: true }));
+    for (const row of rows) {
+      cell(row.name, row.side ? 'name side' : 'name');
+      for (let i = a; i < b; i++) cell(row.scores[i] ?? '·', m && row.won !== false && m.holes[i] === row.won ? 'won' : '');
+      cell(sum(row.scores.slice(a, b))); if (wide) cell(b === n ? sum(row.scores) : '');
+    }
   }
 }
 // The pill: everyone's score to par, or the match; then the shot clock. Called from hud(), which
 // passes lie = true to name whoever's ball I'm watching.
 function mpHud(lie) {
-  const sc = MP.states.map(s => s.scores), pars = mpPars(), i = MP.states.indexOf(st);
+  const units = mpUnits(), sc = units.map(u => u.scores), pars = mpPars(), i = MP.states.indexOf(st);
+  const toParOf = s => s.reduce((a, x, j) => x != null ? a + x - pars[j] : a, 0);
   let txt;
-  if (MP.settings.format === 'match') { const m = DH.matchState(pars, sc); txt = m.leader == null ? m.label : `${mpName(m.leader)} · ${m.label}`; }
+  if (MP.settings.format === 'match') { const m = DH.matchState(pars, sc); txt = m.leader == null ? m.label : `${MP.teams ? (units[m.leader].me ? 'Us' : 'Them') : mpName(m.leader)} · ${m.label}`; }
+  else if (MP.teams) { const k = units.findIndex(u => u.me); txt = `Us ${S2P(toParOf(sc[k]))} · Them ${S2P(toParOf(sc[1 - k]))}`; }
   else {
     const toPar = sc.map(s => s.reduce((a, x, j) => x != null ? a + x - pars[j] : a, 0));
     if (MP.players.length === 2) txt = toPar.map((t, k) => `${mpName(k)} ${S2P(t)}`).join(' · ');
@@ -2023,14 +2050,15 @@ function mpHud(lie) {
 let mpSideKey = '';
 function mpSideRender() {
   const pars = mpPars(), list = $('mpRank'), match = MP.settings.format === 'match';
-  const rows = MP.states.map((s, k) => {
-    const played = s.scores.filter(x => x != null).length;
-    const toPar = s.scores.reduce((a, x, j) => x != null ? a + x - pars[j] : a, 0), strokes = s.scores.reduce((a, x) => a + (x || 0), 0);
-    const thru = s.gone ? '—' : s.done ? 'F' : String(played);
-    return { k, s, toPar, strokes, played, thru };
+  const units = mpUnits();
+  const rows = units.map((u, k) => {
+    const played = u.scores.filter(x => x != null).length;
+    const toPar = u.scores.reduce((a, x, j) => x != null ? a + x - pars[j] : a, 0);
+    const thru = u.gone ? '—' : u.done ? 'F' : String(played);
+    return { k, s: u, u, toPar, played, thru };
   });
   if (match) {
-    const m = DH.matchState(pars, MP.states.map(s => s.scores));
+    const m = DH.matchState(pars, units.map(u => u.scores));
     rows.forEach(r => { r.won = m.holes.filter(w => w === r.k).length; });
     rows.sort((a, b) => b.won - a.won || a.k - b.k);
   } else rows.sort((a, b) => a.s.gone - b.s.gone || a.toPar - b.toPar || b.played - a.played || a.k - b.k);
@@ -2041,17 +2069,18 @@ function mpSideRender() {
   list.textContent = '';
   for (const r of rows) {
     const li = document.createElement('li'), span = (cls, t) => { const e = document.createElement('span'); e.className = cls; e.textContent = t; li.append(e); };
-    if (r.k === MP.meIdx) li.classList.add('me');
+    if (r.u.me) li.classList.add('me');
     if (r.s.gone) li.classList.add('gone');
     const ahead = match ? live.filter(o => o.won > r.won).length : live.filter(o => o.toPar < r.toPar).length;
     const tied = !r.s.gone && live.filter(o => (match ? o.won === r.won : o.toPar === r.toPar)).length > 1;
     span('pos', r.s.gone ? '—' : (tied ? 'T' : '') + (ahead + 1));
-    span('who', mpName(r.k));
+    span('who', r.u.name);
     span('par', match ? String(r.won) : r.played ? S2P(r.toPar) : 'E');
     span('thru', r.thru);
     list.append(li);
   }
-  $('mpSideHead').textContent = match ? 'Match · won · thru' : 'Leaderboard · thru'; // the pill has the match status
+  $('mpSideHead').textContent = MP.teams ? `${TEAM_NAME[MP.teams.mode]} · ${match ? 'won · ' : ''}thru`
+    : match ? 'Match · won · thru' : 'Leaderboard · thru'; // the pill has the match status
   $('mpSide').hidden = false;
 }
 // Everyone else still playing this hole: a coloured ball with their name (canvas text, never markup).

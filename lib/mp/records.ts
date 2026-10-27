@@ -70,6 +70,7 @@ function against(r: RecordRow, friendId: string): Outcome | null {
   if (!r.field.length) return r.opponent_id === friendId ? r.result : null;
   const me = r.field.find((e) => r.user_id && e.id === r.user_id), them = r.field.find((e) => e.id === friendId);
   if (!me || !them || me === them) return null;
+  if (me.team != null && me.team === them.team) return null; // partners in a 2v2: not head to head
   return me.place < them.place ? 'win' : me.place > them.place ? 'loss' : 'draw';
 }
 

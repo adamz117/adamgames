@@ -1,8 +1,9 @@
 'use client';
 
 import { MODE_LABEL, MODES } from '@/lib/course-rounds';
-import { FORMATS, PACES, PLAYER_COUNTS, type PlayerCount, type CourseSpec, type LobbySettings, type Visibility } from '@/lib/mp/protocol';
-import { courseChoice, FORMAT_LABEL, PACE_LABEL, REAL_COURSES, specFor } from '@/lib/mp/lobby-ui';
+import { FORMATS, PACES, PLAYER_COUNTS, type PlayerCount, type TeamMode, type CourseSpec, type LobbySettings, type Visibility } from '@/lib/mp/protocol';
+import { courseChoice, DEFAULT_SIDES, FORMAT_LABEL, PLAYABLE_TEAM_MODES, PACE_LABEL, REAL_COURSES, specFor } from '@/lib/mp/lobby-ui';
+import { TEAM_LABEL } from '@/lib/mp/finish-core';
 
 // The host's controls for the lobby's game: course (and holes), format, pace and who can join.
 function Seg<T extends string>({ label, value, options, onChange }: {
@@ -57,11 +58,23 @@ export default function SettingsEditor({ settings, visibility, today, present, o
       <Seg label="Players" value={String(settings.maxPlayers)}
         options={PLAYER_COUNTS.map((n) => ({ value: String(n), label: String(n), disabled: n < present }))}
         onChange={(v) => {
-          const maxPlayers = Number(v) as PlayerCount; // match play is one against one
-          onChange({ ...settings, maxPlayers, format: maxPlayers > 2 ? 'stroke' : settings.format }, visibility);
+          const next: LobbySettings = { ...settings, maxPlayers: Number(v) as PlayerCount };
+          if (next.maxPlayers !== 4) delete next.teams; // teams need four
+          if (next.maxPlayers > 2 && !next.teams) next.format = 'stroke'; // match play: one against one, or side against side
+          onChange(next, visibility);
         }} />
+      {settings.maxPlayers === 4 && (
+        <Seg label="Teams" value={settings.teams?.mode ?? 'off'}
+          options={[{ value: 'off', label: 'Off' }, ...PLAYABLE_TEAM_MODES.map((m) => ({ value: m, label: TEAM_LABEL[m] }))]}
+          onChange={(v) => {
+            const next: LobbySettings = { ...settings, teams: { mode: v as TeamMode, sides: settings.teams?.sides ?? DEFAULT_SIDES } };
+            if (v === 'off') { delete next.teams; next.format = 'stroke'; }
+            onChange(next, visibility);
+          }} />
+      )}
       <Seg label="Format" value={settings.format}
-        options={FORMATS.map((f) => ({ value: f, label: FORMAT_LABEL[f], disabled: f === 'match' && settings.maxPlayers > 2 }))}
+        // match play is one against one, or side against side in a 2v2
+        options={FORMATS.map((f) => ({ value: f, label: FORMAT_LABEL[f], disabled: f === 'match' && settings.maxPlayers > 2 && !settings.teams }))}
         onChange={(format) => onChange({ ...settings, format }, visibility)} />
       <Seg label="Pace" value={settings.pace} options={PACES.map((p) => ({ value: p, label: PACE_LABEL[p] }))}
         onChange={(pace) => onChange({ ...settings, pace }, visibility)} />

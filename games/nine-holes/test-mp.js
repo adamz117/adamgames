@@ -295,4 +295,19 @@ assert.deepEqual(DH.strokeResult(P9.slice(0, 2), [[4, 5], [4]]), { totals: [9, 4
   assert.ok(holed / n >= 0.85, `perfect swings hole out from in range (${holed}/${n})`);
 }
 
+// 2v2 best ball: each side's hole is its members' best, once every member still playing has finished it
+{
+  const teams = { mode: 'bestball', sides: [[0, 2], [1, 3]] };
+  const players = [0, 1, 2, 3].map(slot => ({ slot }));
+  const st = sc => ({ scores: sc, done: sc.length === 3, course: { holes: [{}, {}, {}] } });
+  const states = [st([4, 5, 3]), st([5, 4, 4]), st([3, 6]), st([5, 3, 4])]; // slot 2 hasn't finished the 3rd
+  assert.deepEqual(DH.sideScores(teams, players, states), [[3, 5, null], [5, 3, 4]]);
+  assert.deepEqual(DH.sideScores(teams, players, states, [2]), [[3, 5, 3], [5, 3, 4]], 'a member who left drops out');
+  assert.deepEqual(DH.sideScores(teams, players, states, [0, 2]).map(s => s.slice(0, 2)), [[null, null], [5, 3]], 'a side with nobody left has no score');
+  assert.deepEqual(DH.sidesDone(teams, players, states), [false, true]);
+  assert.deepEqual(DH.sidesDone(teams, players, states, [2]), [true, true]);
+  assert.equal(DH.sideOf(teams, 3), 1);
+  assert.deepEqual([...DH.TEAM_MODES], ['bestball', 'alternate', 'scramble']);
+}
+
 console.log('mp ok');

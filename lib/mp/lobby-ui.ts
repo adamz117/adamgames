@@ -3,7 +3,7 @@
 import { COURSE_PAR } from '../course-rounds';
 import type { CourseMode } from '../course-rounds';
 import { COURSE_NAME, courseLabel } from './finish-core';
-import type { CourseSpec, Format, LobbySettings, Pace } from './protocol';
+import type { CourseSpec, Format, LobbySettings, Pace, TeamMode } from './protocol';
 
 // The same day key the game seeds today's nine with.
 export const todayKey = () => new Date().toLocaleDateString('en-CA');
@@ -32,6 +32,17 @@ export function courseText(spec: CourseSpec, today: string): string {
   return courseLabel(spec);
 }
 export const FORMAT_LABEL: Record<Format, string> = { stroke: 'Stroke play', match: 'Match play' };
+// The 2v2 formats the game can play so far (the lobby offers only these).
+export const PLAYABLE_TEAM_MODES: TeamMode[] = ['bestball'];
+// A new 2v2: seats 1 and 3 against 2 and 4, until the host moves players round.
+export const DEFAULT_SIDES: [[number, number], [number, number]] = [[0, 2], [1, 3]];
+// The sides after the host swaps two players (on different sides); unchanged if they're on the same side.
+export function swapSides(sides: [[number, number], [number, number]], a: number, b: number): [[number, number], [number, number]] {
+  const sa = sides.findIndex((m) => m.includes(a)), sb = sides.findIndex((m) => m.includes(b));
+  if (sa < 0 || sb < 0 || sa === sb) return sides;
+  const swap = (m: [number, number]): [number, number] => m.map((x) => (x === a ? b : x === b ? a : x)) as [number, number];
+  return [swap(sides[0]), swap(sides[1])];
+}
 export const PACE_LABEL: Record<Pace, string> = { own: 'Own pace', turns: 'Take turns' };
 
 // Plain words for the lobby functions' error codes.

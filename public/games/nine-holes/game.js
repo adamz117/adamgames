@@ -981,6 +981,33 @@ function matchState(pars, scores) {
     : !up ? 'All square' : up === left ? `Dormie ${up}` : `${up} up`;
   return { holes, up, leader, decided, winner: decided ? leader : null, label };
 }
+// ── 2v2 teams ── teams: { mode, sides: [[slot, slot], [slot, slot]] }. Best ball: everyone plays their own ball
+// (a state per player) and a side's hole is its members' best. Alternate shot and scramble: one ball per side
+// (a state per side). gone: slots that have left; their finished holes still count.
+const TEAM_MODES = ['bestball', 'alternate', 'scramble'];
+const teamBall = teams => !!teams && teams.mode !== 'bestball';
+const sideOf = (teams, slot) => teams.sides.findIndex(m => m.includes(slot));
+// Each side's score per hole: best ball counts a hole once every member still playing has finished it.
+function sideScores(teams, players, states, gone = []) {
+  if (teamBall(teams)) return states.map(s => s.scores);
+  const n = states[0].course.holes.length;
+  return teams.sides.map(m => {
+    const idx = m.map(slot => players.findIndex(p => p.slot === slot)).filter(k => k >= 0);
+    const live = idx.filter(k => !gone.includes(players[k].slot));
+    return Array.from({ length: n }, (_, i) => {
+      if (!live.length || live.some(k => states[k].scores[i] == null)) return null;
+      return Math.min(...idx.map(k => states[k].scores[i]).filter(x => x != null));
+    });
+  });
+}
+// Whether each side has finished its round (every member still playing has; a side with nobody left has not).
+function sidesDone(teams, players, states, gone = []) {
+  if (teamBall(teams)) return states.map(s => s.done);
+  return teams.sides.map(m => {
+    const live = m.map(slot => players.findIndex(p => p.slot === slot)).filter(k => k >= 0 && !gone.includes(players[k].slot));
+    return live.length > 0 && live.every(k => states[k].done);
+  });
+}
 // Take-turns order. A player who holes out has already moved to the next tee, so the current hole is
 // the lowest one anyone still on the course is playing; anyone past it, done, or whose hole is
 // scored but not yet moved on from (the UI calls nextHole later) is skipped.
@@ -1039,6 +1066,7 @@ const api = {
   clubAllowed, autoClub, aimTarget, targetBand,
   newRound, play, nextHole, holeOf, bestSwing,
   courseFromSpec, timeoutSwing, strokeResult, matchState, nextToPlay, applySwing, replayGame,
+  TEAM_MODES, teamBall, sideOf, sideScores, sidesDone,
   nearest, pointAt, normalAt, tangentAt, dist, dirOf, add, rng, hashStr,
 };
 root.DH = api;

@@ -588,3 +588,7 @@ li.club-friend-row { border-bottom: 1px solid var(--border); }
   .club-undo { animation: clubUndoIn 220ms var(--ease-out); }
 }
 @keyframes clubUndoIn { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* 2v2: the host taps seats to swap players between teams */
+.club-lobby-seat { padding: 0; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: 8px; }
+.club-lobby-seat[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--accent); padding: 2px 8px; }

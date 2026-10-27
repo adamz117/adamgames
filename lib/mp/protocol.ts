@@ -11,7 +11,12 @@ export type CourseSpec =
   | { kind: 'real'; id: string; mode: CourseMode; day: string };
 export type PlayerCount = 2 | 3 | 4;
 export const PLAYER_COUNTS: PlayerCount[] = [2, 3, 4];
-export type LobbySettings = { spec: CourseSpec; format: Format; pace: Pace; clock: 30; maxPlayers: PlayerCount };
+// 2v2 (four players only): best ball (everyone plays their own ball, a side counts its best), alternate shot
+// (one ball a side, partners take turns) or scramble (both hit, the side plays on from the better ball).
+export type TeamMode = 'bestball' | 'alternate' | 'scramble';
+export const TEAM_MODES: TeamMode[] = ['bestball', 'alternate', 'scramble'];
+export type Teams = { mode: TeamMode; sides: [[number, number], [number, number]] };
+export type LobbySettings = { spec: CourseSpec; format: Format; pace: Pace; clock: 30; maxPlayers: PlayerCount; teams?: Teams };
 export type Swing = { slot: number; hole: number; shot: number; club: number; aim: number; v: number; timeout: boolean };
 
 export const FORMATS: Format[] = ['stroke', 'match'];
@@ -54,8 +59,20 @@ export function parseSettings(x: unknown): LobbySettings | null {
   const spec = parseSpec(m.spec);
   if (!spec || !FORMATS.includes(m.format as Format) || !PACES.includes(m.pace as Pace)) return null;
   if (m.clock !== 30 || !PLAYER_COUNTS.includes(m.maxPlayers as PlayerCount)) return null;
-  if (m.format === 'match' && m.maxPlayers !== 2) return null; // match play is one against one
-  return { spec, format: m.format as Format, pace: m.pace as Pace, clock: 30, maxPlayers: m.maxPlayers as PlayerCount };
+  const out: LobbySettings = { spec, format: m.format as Format, pace: m.pace as Pace, clock: 30, maxPlayers: m.maxPlayers as PlayerCount };
+  if (m.teams === undefined) return m.format === 'match' && m.maxPlayers !== 2 ? null : out; // match play is one against one
+  const teams = parseTeams(m.teams);
+  if (!teams || m.maxPlayers !== 4) return null; // two sides of two; match play is then side against side
+  return { ...out, teams };
+}
+
+// Two sides of two distinct seats, together every seat 0 to 3.
+function parseTeams(x: unknown): Teams | null {
+  const t = obj(x);
+  if (!t || !TEAM_MODES.includes(t.mode as TeamMode) || !Array.isArray(t.sides) || t.sides.length !== 2) return null;
+  const sides = t.sides.map((m) => (Array.isArray(m) && m.length === 2 && m.every((s) => intIn(s, 0, 3)) ? [m[0] as number, m[1] as number] : null));
+  if (sides.some((m) => !m) || new Set(sides.flat()).size !== 4) return null;
+  return { mode: t.mode as TeamMode, sides: sides as Teams['sides'] };
 }
 
 // The same ranges as the swings table. Stored rows' extra columns (lobby_id, game) are dropped.
