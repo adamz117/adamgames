@@ -337,9 +337,29 @@ for (const n of [3, 18]) {
   }
 }
 
+// Champagne Sports: every tee and pin plays, fairway lines clear of trees, the Sterkspruit crosses the 1st, 3rd,
+// 10th and 18th and its feeder the 11th, no river on a tee or green, the 4th plays over water
+{
+  const data = require('./courses/champagne-sports/champagne-sports.json'), ch = DH.makeRealCourse(data, 'all', DAY);
+  assert.equal(ch.par, 72);
+  assert.equal(ch.turnAfter, 9);
+  for (const h of ch.holes) {
+    assert.equal(DH.surfaceAt(h, { x: 0, y: 0 }), 'tee', `Champagne hole ${h.index} tee`);
+    assert.equal(DH.surfaceAt(h, h.pin), 'green', `Champagne hole ${h.index} pin`);
+    for (let t = h.par === 3 ? 0.75 : 0.3; t <= 0.9; t += 0.05)
+      assert.notEqual(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)), 'trees', `Champagne hole ${h.index} at ${Math.round(t * 100)}%`);
+  }
+  for (const n of [1, 3, 4, 10, 11, 18]) {
+    const h = ch.holes[n - 1], line = [];
+    for (let t = 0; t <= 1; t += 0.004) line.push(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)));
+    assert.ok(line.includes('water'), `Champagne ${n} crosses water`);
+    assert.equal(line[0], 'tee'); assert.equal(line[line.length - 1], 'green');
+  }
+}
+
 // On every course, no hole's line ever crosses out of bounds: a spike in an OSM outline (Sawgrass's 3rd), a boundary
 // corner clipping a tee shot (Victoria's 4th) or a sliver between the sea and the shore (Pebble's 18th) once did
-for (const id of ['victoria', 'gary-player', 'tpc-sawgrass', 'augusta', 'pebble-beach', 'cypress-point', 'ironmere', 'sunscar', 'cloudspire']) {
+for (const id of ['victoria', 'gary-player', 'tpc-sawgrass', 'augusta', 'pebble-beach', 'cypress-point', 'ironmere', 'sunscar', 'cloudspire', 'champagne-sports']) {
   const c = DH.makeRealCourse(require(`./courses/${id}/${id}.json`), 'all', DAY);
   for (const h of c.holes) for (let t = 0; t <= 1.0001; t += 0.0025)
     assert.notEqual(DH.surfaceAt(h, DH.pointAt(h.path, h.total * t)), 'ob', `${id} hole ${h.index}: out of bounds on the line at ${(t * 100).toFixed(2)}%`);

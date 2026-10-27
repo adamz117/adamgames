@@ -1,0 +1,157 @@
+{
+ "id": "champagne-sports",
+ "name": "Champagne Sports Resort",
+ "place": "Drakensberg, KwaZulu-Natal",
+ "osmWay": 1318321178,
+ "golfpassId": 17911,
+ "tees": "gold",
+ "scorecard": [
+  {
+   "n": 1,
+   "par": 5,
+   "si": 7,
+   "yds": 662
+  },
+  {
+   "n": 2,
+   "par": 4,
+   "si": 3,
+   "yds": 470
+  },
+  {
+   "n": 3,
+   "par": 4,
+   "si": 13,
+   "yds": 382
+  },
+  {
+   "n": 4,
+   "par": 3,
+   "si": 11,
+   "yds": 176
+  },
+  {
+   "n": 5,
+   "par": 4,
+   "si": 5,
+   "yds": 397
+  },
+  {
+   "n": 6,
+   "par": 5,
+   "si": 9,
+   "yds": 558
+  },
+  {
+   "n": 7,
+   "par": 3,
+   "si": 15,
+   "yds": 176
+  },
+  {
+   "n": 8,
+   "par": 4,
+   "si": 1,
+   "yds": 458
+  },
+  {
+   "n": 9,
+   "par": 4,
+   "si": 17,
+   "yds": 413
+  },
+  {
+   "n": 10,
+   "par": 4,
+   "si": 16,
+   "yds": 332
+  },
+  {
+   "n": 11,
+   "par": 4,
+   "si": 8,
+   "yds": 452
+  },
+  {
+   "n": 12,
+   "par": 3,
+   "si": 18,
+   "yds": 175
+  },
+  {
+   "n": 13,
+   "par": 5,
+   "si": 14,
+   "yds": 571
+  },
+  {
+   "n": 14,
+   "par": 4,
+   "si": 6,
+   "yds": 472
+  },
+  {
+   "n": 15,
+   "par": 5,
+   "si": 12,
+   "yds": 522
+  },
+  {
+   "n": 16,
+   "par": 3,
+   "si": 10,
+   "yds": 220
+  },
+  {
+   "n": 17,
+   "par": 4,
+   "si": 4,
+   "yds": 446
+  },
+  {
+   "n": 18,
+   "par": 4,
+   "si": 2,
+   "yds": 439
+  }
+ ],
+ "notes": {
+  "1": "a long opening par 5 down from the clubhouse",
+  "2": "steep downhill par 4 with the Sterkspruit gorge on the left",
+  "3": "uphill to a two-tier green",
+  "4": "signature par 3 over the water",
+  "15": "water in front of the green",
+  "16": "the longest par 3",
+  "18": "water in front of the green"
+ },
+ "hidden": [],
+ "signature": [
+  4
+ ],
+ "terrain": {
+  "uphill": [
+   3
+  ],
+  "downhill": [
+   2
+  ]
+ },
+ "turnAfter": 9,
+ "thresholds": {
+  "mown": {
+   "minL7": 85,
+   "gOverR": 15
+  },
+  "sand": {
+   "minL": 140,
+   "maxElong": 2.5
+  },
+  "area": {
+   "sand": 20
+  },
+  "fairway": {
+   "strip": 16
+  }
+ },
+ "thresholdsWhy": "winter imagery: the kikuyu fairways are brown, so mown grass cannot be found by colour on the front nine; the strip guarantees a 32 yd fairway. Bunkers are tan here (L>140), dry fairway edges darker."
+}

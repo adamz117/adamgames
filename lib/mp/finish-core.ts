@@ -47,6 +47,7 @@ export const COURSE_NAME: Record<string, string> = {
   sunscar: 'Sunscar Canyon',
   cloudspire: 'Cloudspire Highlands',
   'cypress-point': 'Cypress Point Club',
+  'champagne-sports': 'Champagne Sports Resort',
 };
 const MODE_NAME = { front: 'front nine', back: 'back nine', all: '18 holes' } as const;
 
