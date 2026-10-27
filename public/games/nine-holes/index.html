@@ -1777,7 +1777,7 @@ const dev = {
   },
   perfect() { // the best swing there is from here, found by trying them (DH.bestSwing): a hole-out when one exists
     if (!dev.ok() || (phase !== 'aim' && phase !== 'power') || (MP && st !== mpMine())) return false;
-    const b = DH.bestSwing(st);
+    const b = DH.bestSwing(st, 1500, MP && mpScramble() ? '#p' + mpMySlot() : st.salt); // a scramble swing has my own scatter
     clubIdx = b.club; aimAngle = aimCenter = b.aim; power = b.v; locked = true; renderClubs();
     launch(MP ? mpPlay(false) : DH.play(st, b.aim, b.club, b.v), b.aim); // in multiplayer, an ordinary swing to the others
     return b.result.holed ? 'holed' : true;

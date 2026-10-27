@@ -908,9 +908,10 @@ function play(st, aim, clubIdx, v) {
 // Holes out when any swing does; otherwise the lowest cost (a penalty worst, then off the green by distance
 // and lie, then putts). Coarse over four clubs, then finer round the best; stops early on a hole-out, or
 // at budgetMs with the best so far. Returns { club, aim, v, result } for play(st, aim, club, v).
+// salt: whose scatter the swing is played with (a scramble swing uses the hitter's, not the side ball's).
 const BEST_LIE_COST = { tee: 0, fairway: 0, green: 0, portal: 0, cart: 2, bridge: 2, rough: 8, bunker: 15, leaves: 15, deep: 20, trees: 30 };
-function bestSwing(st, budgetMs = 1500) {
-  const h = holeOf(st), key = st.seed + st.salt + '#' + st.holeIdx + '#' + st.shotIdx, t0 = Date.now();
+function bestSwing(st, budgetMs = 1500, salt = st.salt) {
+  const h = holeOf(st), key = st.seed + salt + '#' + st.holeIdx + '#' + st.shotIdx, t0 = Date.now();
   const cost = r => r.penalty ? 1e6 : r.holed ? -1
     : (inMillZone(h, r.rest) ? 40 : 0) + (r.restSurf === 'green' ? puttsFrom(h, r.rest) - 1 + dist(r.rest, h.pin) / 100
       : 10 + dist(r.rest, h.pin) + (BEST_LIE_COST[r.restSurf] ?? 10));

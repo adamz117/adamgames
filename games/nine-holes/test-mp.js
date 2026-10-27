@@ -386,4 +386,23 @@ assert.deepEqual(DH.strokeResult(P9.slice(0, 2), [[4, 5], [4]]), { totals: [9, 4
   assert.deepEqual(rr.states[0].scores, live[0].scores);
 }
 
+// bestSwing in a scramble: the swing is played with the hitter's own scatter, so it must search with it too
+{
+  const teams = { mode: 'scramble', sides: [[0, 2], [1, 3]] };
+  let n = 0, same = 0, holed = 0;
+  for (const seed of ['2026-10-23', '2026-10-24']) {
+    const c = DH.makeCourse(seed);
+    c.holes.forEach((h, hi) => {
+      if (h.par !== 3) return;
+      const sts = teams.sides.map((_, sd) => { const t = DH.newRound(c.seed, c, '#t' + sd); t.holeIdx = hi; return t; });
+      const b = DH.bestSwing(sts[0], 1500, '#p2');
+      DH.applySwing(sts, { slot: 2, hole: hi, shot: 0, club: b.club, aim: b.aim, v: b.v }, teams);
+      n++; if (sts[0].cand.res.holed === b.result.holed && sts[0].cand.res.rest.x === b.result.rest.x) same++;
+      if (sts[0].cand.res.holed) holed++;
+    });
+  }
+  assert.equal(same, n, 'what it predicts is what the scramble swing does');
+  assert.ok(holed / n >= 0.75, `and it holes out (${holed}/${n})`);
+}
+
 console.log('mp ok');
