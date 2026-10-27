@@ -64,7 +64,14 @@ export function createGameRelay(d: RelayDeps): GameRelay {
   const started = now();
   let lastResync = started, lastAwayAsk = -Infinity;
 
-  const forward = (s: Swing) => { if (s.slot !== me) d.post({ type: 'mp-swing', swing: s }); };
+  // Each swing reaches the game once per mp-init: a resync re-reads the whole log, and resending all of it
+  // after every swing (the 'swing' ping) cost each phone a burst of work per shot.
+  const forwarded = new Set<string>(), keyOf = (s: Swing) => `${s.slot}:${s.hole}:${s.shot}`;
+  const forward = (s: Swing) => {
+    if (s.slot === me || forwarded.has(keyOf(s))) return;
+    forwarded.add(keyOf(s));
+    d.post({ type: 'mp-swing', swing: s });
+  };
   // Once per mp-init: the game reopens its end card on every mp-result.
   const postResult = () => {
     if (!initSent || !results || resultPosted) return;
@@ -84,6 +91,8 @@ export function createGameRelay(d: RelayDeps): GameRelay {
       if (l?.settings && rows && swings) {
         d.post({ type: 'mp-init', settings: l.settings, players: rows.map((p) => ({ slot: p.slot, name: p.name })), me, swings });
         initSent = true;
+        forwarded.clear();
+        for (const s of swings) forwarded.add(keyOf(s)); // the game has these from the snapshot
         if (!players.length) players = rows;
         const early = held;
         held = [];
