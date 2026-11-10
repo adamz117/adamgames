@@ -150,10 +150,23 @@ const ALL_GAMES: GameRegistryEntry[] = [
       return `Best round ${formatToPar(s.best.toPar)} (${s.best.strokes}), ${hcp}`;
     },
   },
+  {
+    id: 'pin-high',
+    title: 'Pin High',
+    description: 'Seven holes of "name a…" a day. The fewer people who would think of your answer, the closer you land to the pin.',
+    href: '/games/pin-high',
+    summarize: (stats) => {
+      if (!stats) return 'Not played yet';
+      const day = Number(stats.dayNumber ?? 0);
+      const score = Number(stats.score ?? 0);
+      const best = Number(stats.bestScore ?? 0);
+      return day ? `Round ${day}: ${score} pts · best ${best}` : 'Not played yet';
+    },
+  },
 ];
 
-// The site is just Nine Holes for now. The other games are hidden, not deleted: add an id
+// The site is Nine Holes and Pin High for now. The other games are hidden, not deleted: add an id
 // back here to show that game again in the nav and on the homepage (proxy.ts uses this too).
-const VISIBLE_GAME_IDS = ['nine-holes'];
+const VISIBLE_GAME_IDS = ['nine-holes', 'pin-high'];
 
 export const GAMES: GameRegistryEntry[] = ALL_GAMES.filter((game) => VISIBLE_GAME_IDS.includes(game.id));

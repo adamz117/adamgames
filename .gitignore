@@ -42,3 +42,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Pin High data build cache
+/games/pin-high/.cache/
+/games/pin-high/build.log
