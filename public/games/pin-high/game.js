@@ -134,7 +134,7 @@ const sfx = (() => {
     src.connect(flt).connect(g).connect(a.destination); src.start(t);
   }
   const play = {
-    swing() { noise(0.22, 0.35, 500, 3200); tone(900, 300, 0.07, 0.25, 'triangle', 0.16); },
+    swing() { noise(0.2, 0.35, 500, 3200, 0.2); tone(900, 300, 0.07, 0.25, 'triangle', 0.36); },
     thud() { tone(150, 60, 0.16, 0.4); noise(0.08, 0.12, 900, 300); },
     sand() { noise(0.3, 0.3, 2400, 700); tone(110, 50, 0.12, 0.25); },
     splash() { noise(0.55, 0.35, 1800, 300); tone(300, 90, 0.25, 0.15); },
@@ -155,7 +155,7 @@ const sfx = (() => {
 // ---------- the hole, drawn side-on ----------
 const scene = (() => {
   const cv = $('#scene'), g = cv.getContext('2d');
-  const WORLD = 356, TEE = 24;
+  const WORLD = 356, TEE = 24, IMPACT = 0.36; // seconds from the start of the swing to the strike
   // sky top, sky bottom, sun, overall tint, tint strength: dawn through to dusk across the round
   const SKIES = [
     ['#39437a', '#f4b08a', '#ffd9a8', '#ff9e7a', 0.14],
@@ -250,6 +250,41 @@ const scene = (() => {
     }
   }
 
+  // The golfer at the tee: takes the club back, strikes at IMPACT seconds, and holds the finish.
+  function golfer() {
+    const k = ts * 1.05, fx = sx(TEE) - 14 * k, fy = sy(TEE - 3) + 1;
+    const p = swingT, rest = Math.atan2(13, 40);
+    const pose = (t) => {
+      if (t < 0) return [rest, 0];
+      if (t < 0.26) { const u = smooth(0, 0.26, t); return [lerp(rest, -2.4, u), lerp(0, -1.25, u)]; }
+      if (t < IMPACT) { const u = Math.pow((t - 0.26) / (IMPACT - 0.26), 2); return [lerp(-2.4, rest, u), lerp(-1.25, 0, u)]; }
+      const u = easeOut(Math.min(1, (t - IMPACT) / 0.28)); return [lerp(rest, 2.55, u), lerp(0, 1.0, u)];
+    };
+    const [arm] = pose(p);
+    const turn = clamp(arm / 2.5, -1, 1);                    // the body turns with the arms
+    const hipX = fx + turn * 2 * k, hipY = fy - 22 * k, shX = fx + (1 + turn * 4) * k, shY = fy - 40 * k;
+    g.lineCap = 'round';
+    g.strokeStyle = '#1d2c24'; g.lineWidth = 4.2 * k;       // legs
+    g.beginPath(); g.moveTo(fx - 5 * k, fy); g.lineTo(hipX, hipY); g.lineTo(fx + 5 * k, fy); g.stroke();
+    g.strokeStyle = '#eceadc'; g.lineWidth = 6 * k;         // shirt
+    g.beginPath(); g.moveTo(hipX, hipY); g.lineTo(shX, shY); g.stroke();
+    const club = (t, alpha) => {
+      const [a, w] = pose(t), hx = shX + Math.sin(a) * 16 * k, hy = shY + Math.cos(a) * 16 * k;
+      const cx = hx + Math.sin(a + w) * 27 * k, cy = hy + Math.cos(a + w) * 27 * k;
+      g.globalAlpha = alpha;
+      g.strokeStyle = '#d9dccf'; g.lineWidth = 1.5 * k; g.beginPath(); g.moveTo(hx, hy); g.lineTo(cx, cy); g.stroke();
+      g.fillStyle = '#f4f1e4'; g.beginPath(); g.arc(cx, cy, 2.3 * k, 0, 7); g.fill();
+      if (alpha === 1) { g.strokeStyle = '#eceadc'; g.lineWidth = 3.4 * k; g.beginPath(); g.moveTo(shX, shY); g.lineTo(hx, hy); g.stroke(); }
+      g.globalAlpha = 1;
+    };
+    if (p > 0.26 && p < IMPACT + 0.16) for (let n = 3; n >= 1; n--) club(p - n * 0.022, 0.32 - n * 0.08); // blur on the way down
+    club(p, 1);
+    g.fillStyle = '#e3b995'; g.beginPath(); g.arc(shX + 1.5 * k, shY - 7 * k, 4.6 * k, 0, 7); g.fill();      // head
+    g.fillStyle = '#e2aa4e'; g.beginPath(); g.arc(shX + 1.5 * k, shY - 8 * k, 4.8 * k, Math.PI, 0); g.fill(); // cap
+    g.fillRect(shX + 1.5 * k, shY - 8.8 * k, 7.5 * k, 1.6 * k);
+    g.lineCap = 'butt';
+  }
+
   function pill(text, x, y, color, alpha) {
     g.font = '700 11px Archivo, sans-serif';
     const w = g.measureText(text).width + 18;
@@ -294,8 +329,8 @@ const scene = (() => {
     else if (tier === 2) segs = [big(end - 30), arc(end - 30, end - 13, 24, 430), arc(end - 13, end - 5, 9, 280), roll(end - 5, end, 700)];
     else if (tier === 3) { const l = Math.max(hole.green[0] + 2, Math.min(end, hole.pin) - 16); segs = [big(l), arc(l, l + 6, 13, 340), roll(l + 6, end, 1100)]; }
     else segs = [big(end - 24), arc(end - 24, end - 15, 13, 340), roll(end - 15, end, 1300)];
-    flight = { tier, segs, k: 0, t: 0, onImpact, onDone, hit: false };
-    ball = { state: 'fly', x: TEE, lift: 0, alpha: 1, sink: 0 };
+    flight = { tier, segs, k: 0, t: 0, onImpact, onDone, hit: false, wait: IMPACT };
+    ball = { state: 'tee', x: TEE, lift: 0, alpha: 1, sink: 0 };
     trail = []; markersOn = true; markers = 0; swingT = 0;
   }
 
@@ -336,8 +371,9 @@ const scene = (() => {
       if (fade === 1 && fadeDir > 0) { hole = pending; pending = null; reset(); fadeDir = -1; }
       else if (fade === 0) fadeDir = 0;
     }
-    if (swingT >= 0) { swingT += dt; if (swingT > 0.3) swingT = -1; }
-    if (flight) {
+    if (swingT >= 0 && swingT < 1) swingT += dt; // then holds the finish
+    if (flight && flight.wait > 0) { flight.wait -= dt; if (flight.wait <= 0) ball.state = 'fly'; }
+    else if (flight) {
       const f = flight; let s = f.segs[f.k];
       f.t += dt * 1000;
       while (s && f.t >= s.dur) {
@@ -349,7 +385,11 @@ const scene = (() => {
       if (!s) finish();
       else {
         const u = f.t / s.dur;
-        if (s.kind === 'arc') { ball.x = lerp(s.x0, s.x1, u); ball.lift = 4 * s.apex * u * (1 - u); }
+        if (s.kind === 'arc') {
+          ball.x = lerp(s.x0, s.x1, u);
+          const path = lerp(sy(s.x0), sy(s.x1), u) - 4 * s.apex * u * (1 - u);
+          ball.lift = Math.max(0, sy(ball.x) - path);
+        }
         else { ball.x = lerp(s.x0, s.x1, easeOut(u)); ball.lift = 0; }
         if (ball.state === 'fly') trail.push({ x: ball.x, y: sy(ball.x) - ball.lift, a: 1 });
       }
@@ -458,12 +498,7 @@ const scene = (() => {
       pill(`${t === 4 ? 'CUP' : T.name.toUpperCase().replace('IN THE ', '')} · ${T.pts}`, mx, my - up * easeOut(a), T.color, a);
     });
 
-    // swing streak
-    if (swingT >= 0) {
-      const u = swingT / 0.3, bx = sx(TEE), by = sy(TEE);
-      g.strokeStyle = `rgba(255,255,255,${0.85 * (1 - u)})`; g.lineWidth = 3; g.lineCap = 'round';
-      g.beginPath(); g.arc(bx - 4, by - 30, 34, Math.PI * (0.95 - u * 0.2), Math.PI * (0.95 - u * 1.5), true); g.stroke(); g.lineCap = 'butt';
-    }
+    golfer();
     // ball
     const br = clamp(ppy * 1.5, 5, 7.5);
     for (let k = 1; k < trail.length; k++) { const p = trail[k], q = trail[k - 1]; g.strokeStyle = `rgba(255,255,255,${p.a * 0.55})`; g.lineWidth = br * 0.9 * p.a; g.beginPath(); g.moveTo(sx(q.x), q.y); g.lineTo(sx(p.x), p.y); g.stroke(); }
@@ -769,13 +804,15 @@ function browse(box, pd, r) {
   const counts = [0, 0, 0, 0, 0];
   pd.answers.forEach((a) => counts[a[1]]++);
   let tier = null, query = '';
+  // 100-point answers first, then 85s, 60s, 30s, 10s; best known first within each
+  const order = pd.answers.map((_, i) => i).sort((x, y) => pd.answers[y][1] - pd.answers[x][1] || x - y);
   const chips = el('div', 'chips'), search = el('input'), list = el('div', 'alist');
   search.type = 'search'; search.placeholder = 'Search all answers…'; search.setAttribute('aria-label', 'Search answers');
   const render = () => {
     const qn = norm(query);
     const rows = [];
     let total = 0;
-    for (let i = 0; i < pd.answers.length; i++) {
+    for (const i of order) {
       const a = pd.answers[i];
       if (tier !== null && a[1] !== tier) continue;
       if (qn && !norm(a[0]).includes(qn)) continue;
