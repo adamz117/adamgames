@@ -19,6 +19,9 @@ export default async function PlayPage() {
           Invite your <Link href="/friends" className="club-link">friends</Link> straight into a lobby, and see who&rsquo;s on the site now.
         </p>
       )}
+      <p className="club-lobby-lede">
+        After trivia instead? <Link href="/duel" className="club-link">Duel a friend at Pin High</Link>, one against one.
+      </p>
       <LobbyBrowser viewer={viewer} />
     </main>
   );

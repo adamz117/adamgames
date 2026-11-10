@@ -171,6 +171,20 @@ const scene = (() => {
   let ball = { state: 'tee', x: TEE, lift: 0, alpha: 1, sink: 0 };
   let flight = null, trail = [], parts = [], rings = [], markers = 0, markersOn = false, flagShake = 0, flash = 0, swingT = -1;
   let last = performance.now(), time = 0;
+  // In a duel there is a second player at the tee. The ball code below works on one ball at a
+  // time (ball, flight, trail, swingT): swap() exchanges those with the other player's.
+  const newBall = () => ({ state: 'tee', x: TEE, lift: 0, alpha: 1, sink: 0 });
+  const spare = { ball: newBall(), flight: null, trail: [], swingT: -1, on: false };
+  let duo = false; // a duel: both golfers stand on the tee
+  let who = 0; // 0 while the variables hold my ball, 1 while they hold the opponent's
+  function swap() {
+    let t;
+    t = ball; ball = spare.ball; spare.ball = t;
+    t = flight; flight = spare.flight; spare.flight = t;
+    t = trail; trail = spare.trail; spare.trail = t;
+    t = swingT; swingT = spare.swingT; spare.swingT = t;
+    who = 1 - who;
+  }
 
   function makeHole(i, seed) {
     const r = rng(seed + ':' + i);
@@ -219,6 +233,7 @@ const scene = (() => {
   function reset() {
     ball = { state: 'tee', x: TEE, lift: 0, alpha: 1, sink: 0 };
     flight = null; trail = []; parts = []; rings = []; markersOn = false; markers = 0; flagShake = 0; camTo = 0; cam = 0; swingT = -1;
+    spare.ball = newBall(); spare.flight = null; spare.trail = []; spare.swingT = -1; spare.on = duo;
   }
 
   // path along the turf from x0 to x1, then back `depth` pixels lower
@@ -252,7 +267,7 @@ const scene = (() => {
 
   // The golfer at the tee: takes the club back, strikes at IMPACT seconds, and holds the finish.
   function golfer() {
-    const k = ts * 1.05, fx = sx(TEE) - 14 * k, fy = sy(TEE - 3) + 1;
+    const k = ts * 1.05, fx = sx(TEE) - (who ? 27 : 14) * k, fy = sy(TEE - (who ? 6 : 3)) + 1;
     const p = swingT, rest = Math.atan2(13, 40);
     const pose = (t) => {
       if (t < 0) return [rest, 0];
@@ -266,7 +281,7 @@ const scene = (() => {
     g.lineCap = 'round';
     g.strokeStyle = '#1d2c24'; g.lineWidth = 4.2 * k;       // legs
     g.beginPath(); g.moveTo(fx - 5 * k, fy); g.lineTo(hipX, hipY); g.lineTo(fx + 5 * k, fy); g.stroke();
-    g.strokeStyle = '#eceadc'; g.lineWidth = 6 * k;         // shirt
+    g.strokeStyle = who ? '#e2aa4e' : '#eceadc'; g.lineWidth = 6 * k; // shirt
     g.beginPath(); g.moveTo(hipX, hipY); g.lineTo(shX, shY); g.stroke();
     const club = (t, alpha) => {
       const [a, w] = pose(t), hx = shX + Math.sin(a) * 16 * k, hy = shY + Math.cos(a) * 16 * k;
@@ -274,13 +289,13 @@ const scene = (() => {
       g.globalAlpha = alpha;
       g.strokeStyle = '#d9dccf'; g.lineWidth = 1.5 * k; g.beginPath(); g.moveTo(hx, hy); g.lineTo(cx, cy); g.stroke();
       g.fillStyle = '#f4f1e4'; g.beginPath(); g.arc(cx, cy, 2.3 * k, 0, 7); g.fill();
-      if (alpha === 1) { g.strokeStyle = '#eceadc'; g.lineWidth = 3.4 * k; g.beginPath(); g.moveTo(shX, shY); g.lineTo(hx, hy); g.stroke(); }
+      if (alpha === 1) { g.strokeStyle = who ? '#e2aa4e' : '#eceadc'; g.lineWidth = 3.4 * k; g.beginPath(); g.moveTo(shX, shY); g.lineTo(hx, hy); g.stroke(); }
       g.globalAlpha = 1;
     };
     if (p > 0.26 && p < IMPACT + 0.16) for (let n = 3; n >= 1; n--) club(p - n * 0.022, 0.32 - n * 0.08); // blur on the way down
     club(p, 1);
     g.fillStyle = '#e3b995'; g.beginPath(); g.arc(shX + 1.5 * k, shY - 7 * k, 4.6 * k, 0, 7); g.fill();      // head
-    g.fillStyle = '#e2aa4e'; g.beginPath(); g.arc(shX + 1.5 * k, shY - 8 * k, 4.8 * k, Math.PI, 0); g.fill(); // cap
+    g.fillStyle = who ? '#eceadc' : '#e2aa4e'; g.beginPath(); g.arc(shX + 1.5 * k, shY - 8 * k, 4.8 * k, Math.PI, 0); g.fill(); // cap
     g.fillRect(shX + 1.5 * k, shY - 8.8 * k, 7.5 * k, 1.6 * k);
     g.lineCap = 'butt';
   }
@@ -317,7 +332,13 @@ const scene = (() => {
   const MARKS = [-1, 0, 1, 2, 3, 4];
   const markX = (t) => (t === 1 ? 128 : t === 2 ? (hole.fw[0] + hole.fw[1]) / 2 : t === 3 ? hole.green[0] + 12 : restX(t, 0.5));
 
-  function launch(tier, onImpact, onDone) {
+  // opp: the other player's shot in a duel, struck a beat after mine.
+  function launch(tier, onImpact, onDone, opp) {
+    if (!opp) return launchOne(tier, onImpact, onDone, IMPACT);
+    spare.on = true;
+    swap(); launchOne(tier, onImpact, onDone, IMPACT + 0.3); swap();
+  }
+  function launchOne(tier, onImpact, onDone, wait) {
     const r = Math.random(), end = restX(tier, r);
     const arc = (x0, x1, apex, dur) => ({ kind: 'arc', x0, x1, apex, dur });
     const roll = (x0, x1, dur) => ({ kind: 'roll', x0, x1, dur });
@@ -329,9 +350,9 @@ const scene = (() => {
     else if (tier === 2) segs = [big(end - 30), arc(end - 30, end - 13, 24, 430), arc(end - 13, end - 5, 9, 280), roll(end - 5, end, 700)];
     else if (tier === 3) { const l = Math.max(hole.green[0] + 2, Math.min(end, hole.pin) - 16); segs = [big(l), arc(l, l + 6, 13, 340), roll(l + 6, end, 1100)]; }
     else segs = [big(end - 24), arc(end - 24, end - 15, 13, 340), roll(end - 15, end, 1300)];
-    flight = { tier, segs, k: 0, t: 0, onImpact, onDone, hit: false, wait: IMPACT };
-    ball = { state: 'tee', x: TEE, lift: 0, alpha: 1, sink: 0 };
-    trail = []; markersOn = true; markers = 0; swingT = 0;
+    flight = { tier, segs, k: 0, t: 0, onImpact, onDone, hit: false, wait };
+    ball = newBall();
+    trail = []; markersOn = true; markers = 0; swingT = IMPACT - wait; // below zero: still at address
   }
 
   function impact(first) {
@@ -371,7 +392,23 @@ const scene = (() => {
       if (fade === 1 && fadeDir > 0) { hole = pending; pending = null; reset(); fadeDir = -1; }
       else if (fade === 0) fadeDir = 0;
     }
-    if (swingT >= 0 && swingT < 1) swingT += dt; // then holds the finish
+    moveBall(dt);
+    if (spare.on) { swap(); moveBall(dt); swap(); }
+    for (const p of parts) { p.t += dt; p.vy += p.grav * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+    parts = parts.filter((p) => p.t < p.life);
+    for (const r of rings) r.t += dt;
+    rings = rings.filter((r) => r.t < 1.3);
+    if (markersOn) markers = Math.min(markers + dt * 2.6, MARKS.length + 1);
+    flagShake = Math.max(0, flagShake - dt * 0.8);
+    flash = Math.max(0, flash - dt * 0.9);
+    const view = W / ppy, maxCam = Math.max(0, WORLD - view);
+    camTo = clamp(ball.x - view * 0.38, 0, maxCam);
+    cam = maxCam ? lerp(cam, camTo, 1 - Math.exp(-dt * 5)) : 0;
+  }
+
+  // one ball: its golfer's swing, its flight, its fading trail
+  function moveBall(dt) {
+    if (swingT > -1 && swingT < 1) swingT += dt; // -1 is idle; past the swing it holds the finish
     if (flight && flight.wait > 0) { flight.wait -= dt; if (flight.wait <= 0) ball.state = 'fly'; }
     else if (flight) {
       const f = flight; let s = f.segs[f.k];
@@ -397,16 +434,6 @@ const scene = (() => {
     if (ball.state === 'drop') { ball.sink = Math.min(1, ball.sink + dt * 5); ball.alpha = 1 - ball.sink; }
     for (const p of trail) p.a -= dt * 1.5;
     trail = trail.filter((p) => p.a > 0);
-    for (const p of parts) { p.t += dt; p.vy += p.grav * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
-    parts = parts.filter((p) => p.t < p.life);
-    for (const r of rings) r.t += dt;
-    rings = rings.filter((r) => r.t < 1.3);
-    if (markersOn) markers = Math.min(markers + dt * 2.6, MARKS.length + 1);
-    flagShake = Math.max(0, flagShake - dt * 0.8);
-    flash = Math.max(0, flash - dt * 0.9);
-    const view = W / ppy, maxCam = Math.max(0, WORLD - view);
-    camTo = clamp(ball.x - view * 0.38, 0, maxCam);
-    cam = maxCam ? lerp(cam, camTo, 1 - Math.exp(-dt * 5)) : 0;
   }
 
   function draw() {
@@ -498,23 +525,8 @@ const scene = (() => {
       pill(`${t === 4 ? 'CUP' : T.name.toUpperCase().replace('IN THE ', '')} · ${T.pts}`, mx, my - up * easeOut(a), T.color, a);
     });
 
-    golfer();
-    // ball
-    const br = clamp(ppy * 1.5, 5, 7.5);
-    for (let k = 1; k < trail.length; k++) { const p = trail[k], q = trail[k - 1]; g.strokeStyle = `rgba(255,255,255,${p.a * 0.55})`; g.lineWidth = br * 0.9 * p.a; g.beginPath(); g.moveTo(sx(q.x), q.y); g.lineTo(sx(p.x), p.y); g.stroke(); }
-    if (ball.state !== 'gone') {
-      const bx = sx(ball.x), gy = sy(ball.x);
-      const onTee = ball.state === 'tee', plug = ball.state === 'rest' && ball.x > h.bunker[0] && ball.x < h.bunker[1] ? 2 : 0;
-      const by = gy - br - ball.lift - (onTee ? 4 : 0) + plug + ball.sink * (br * 2 + 3);
-      if (onTee) { g.fillStyle = '#f4f1e4'; g.fillRect(bx - 1, gy - 4, 2, 5); }
-      g.fillStyle = `rgba(0,0,0,${0.28 * clamp(1 - ball.lift / 160, 0.15, 1) * ball.alpha})`;
-      g.beginPath(); g.ellipse(bx, gy + 0.5, br * (1 + ball.lift / 200), br * 0.32, 0, 0, 7); g.fill();
-      g.globalAlpha = ball.alpha;
-      g.fillStyle = '#ffffff'; g.beginPath(); g.arc(bx, by, br, 0, 7); g.fill();
-      g.fillStyle = 'rgba(160,170,160,.55)'; g.beginPath(); g.arc(bx + br * 0.25, by + br * 0.3, br * 0.62, 0, 7); g.fill();
-      g.fillStyle = '#ffffff'; g.beginPath(); g.arc(bx - br * 0.12, by - br * 0.14, br * 0.72, 0, 7); g.fill();
-      g.globalAlpha = 1;
-    }
+    if (spare.on) { swap(); drawPlayer(h); swap(); }
+    drawPlayer(h);
     for (const r of rings) if (r.gold && r.t > 0) { g.strokeStyle = `rgba(242,185,59,${1 - r.t / 1.3})`; g.lineWidth = 3 * (1 - r.t / 1.3) + 0.5; g.beginPath(); g.arc(sx(r.x), sy(r.x) - 6, 10 + easeOut(r.t / 1.3) * 150, 0, 7); g.stroke(); }
     for (const p of parts) { g.globalAlpha = 1 - p.t / p.life; g.fillStyle = p.c; g.beginPath(); g.arc(p.x, p.y, p.r, 0, 7); g.fill(); }
     g.globalAlpha = 1;
@@ -523,6 +535,27 @@ const scene = (() => {
     if (tintA) { g.fillStyle = tint; g.globalAlpha = tintA; g.fillRect(0, 0, W, H); g.globalAlpha = 1; }
     if (flash) { g.fillStyle = `rgba(255,226,154,${flash})`; g.fillRect(0, 0, W, H); }
     if (fade) { g.fillStyle = `rgba(15,34,25,${fade})`; g.fillRect(0, 0, W, H); }
+  }
+
+  // one player's golfer, trail and ball: mine in white, the opponent's in amber
+  function drawPlayer(h) {
+    golfer();
+    const tone = who ? '255,206,120' : '255,255,255';
+    const br = clamp(ppy * 1.5, 5, 7.5);
+    for (let k = 1; k < trail.length; k++) { const p = trail[k], q = trail[k - 1]; g.strokeStyle = `rgba(${tone},${p.a * 0.55})`; g.lineWidth = br * 0.9 * p.a; g.beginPath(); g.moveTo(sx(q.x), q.y); g.lineTo(sx(p.x), p.y); g.stroke(); }
+    if (ball.state !== 'gone') {
+      const bx = sx(ball.x), gy = sy(ball.x);
+      const onTee = ball.state === 'tee', plug = ball.state === 'rest' && ball.x > h.bunker[0] && ball.x < h.bunker[1] ? 2 : 0;
+      const by = gy - br - ball.lift - (onTee ? 4 : 0) + plug + ball.sink * (br * 2 + 3);
+      if (onTee) { g.fillStyle = '#f4f1e4'; g.fillRect(bx - 1, gy - 4, 2, 5); }
+      g.fillStyle = `rgba(0,0,0,${0.28 * clamp(1 - ball.lift / 160, 0.15, 1) * ball.alpha})`;
+      g.beginPath(); g.ellipse(bx, gy + 0.5, br * (1 + ball.lift / 200), br * 0.32, 0, 0, 7); g.fill();
+      g.globalAlpha = ball.alpha;
+      g.fillStyle = `rgb(${tone})`; g.beginPath(); g.arc(bx, by, br, 0, 7); g.fill();
+      g.fillStyle = who ? 'rgba(170,120,40,.5)' : 'rgba(160,170,160,.55)'; g.beginPath(); g.arc(bx + br * 0.25, by + br * 0.3, br * 0.62, 0, 7); g.fill();
+      g.fillStyle = `rgb(${tone})`; g.beginPath(); g.arc(bx - br * 0.12, by - br * 0.14, br * 0.72, 0, 7); g.fill();
+      g.globalAlpha = 1;
+    }
   }
 
   function step(now, maxDt) {
@@ -535,7 +568,9 @@ const scene = (() => {
   window.addEventListener('resize', resize);
   resize();
   requestAnimationFrame(frame);
-  return { setHole, launch, resize };
+  // A duel shows both golfers on the tee from the start of the hole.
+  function setDuo(on) { duo = on; spare.on = on; }
+  return { setHole, launch, resize, setDuo };
 })();
 
 // ---------- the round ----------
@@ -757,7 +792,8 @@ function showEnd(res, fresh) {
   copy.onclick = async () => { try { await navigator.clipboard.writeText(shareText(res, score)); copy.textContent = 'Copied'; } catch { copy.textContent = 'Copy failed'; } setTimeout(() => (copy.textContent = 'Copy result'), 1600); };
   const prac = el('button', 'btn ghost', 'Practice round'); prac.type = 'button';
   prac.onclick = () => { location.search = '?practice=' + Date.now().toString(36); };
-  acts.append(copy, prac);
+  const duel = el('a', 'btn ghost', 'Duel a friend'); duel.href = '/duel'; duel.target = '_top';
+  acts.append(copy, prac, duel);
   if (practice) { const back = el('button', 'btn ghost', "Today's round"); back.type = 'button'; back.onclick = () => { location.search = ''; }; acts.append(back); }
   col.appendChild(acts);
 
@@ -875,6 +911,12 @@ muteIcon();
   requestAnimationFrame(loop);
   try {
     manifest = await (await fetch('data/manifest.json')).json();
+    if (params.has('duel') && window.PinHighDuel) {
+      phase = 'duel'; // the daily round's clock and form handlers stand down
+      ui.intro.hidden = true;
+      window.PinHighDuel.start({ $, el, esc, clamp, TIERS, WATER, tierOf, norm, buildIndex, resolve, sfx, scene, ui, countTo, loadPrompt, manifest });
+      return;
+    }
     if (practice && !params.has('day')) seed = params.get('practice') || String(Date.now());
     await prepare();
   } catch (err) {

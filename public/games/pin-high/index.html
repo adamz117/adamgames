@@ -75,6 +75,8 @@ button { cursor: pointer; }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn.ghost { background: transparent; color: var(--text); border: 1px solid rgba(236, 234, 220, .26); }
 .btn.ghost:hover { background: rgba(236, 234, 220, .07); }
+a.btn { display: inline-block; text-decoration: none; }
+.intro-go { display: flex; flex-wrap: wrap; gap: 10px; }
 .msg { min-height: 20px; margin-top: 10px; font-size: 13px; color: var(--danger); }
 .msg.calm { color: var(--dim); }
 
@@ -162,6 +164,55 @@ kbd { font: 600 10px var(--body); opacity: .6; margin-left: 6px; letter-spacing:
 .next b { color: var(--text); font-variant-numeric: tabular-nums; }
 .credit { text-align: center; margin-top: 22px; font-size: 11px; color: #6f7d6f; line-height: 1.5; }
 
+/* ── duel: one against one ── */
+#duelHud { position: fixed; top: 12px; left: 14px; right: 62px; z-index: 5; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 9px 14px; border-radius: 18px; background: rgba(15, 34, 25, .78); border: 1px solid rgba(236, 234, 220, .12); backdrop-filter: blur(10px); }
+body.duel .wordmark, body.duel .pips, body.duel #scoreBox { display: none; }
+body.duel #hud { pointer-events: none; }
+body.duel #stage { padding-top: 92px; }
+.hp { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 10px; min-width: 0; }
+.hp-name { font-size: 12px; font-weight: 600; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hp b { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hp-bar { grid-column: 1 / -1; height: 8px; border-radius: 8px; background: rgba(236, 234, 220, .12); overflow: hidden; }
+.hp-bar i { display: block; height: 100%; border-radius: 8px; background: var(--text); transform-origin: left; transition: transform .9s var(--ease-out), background .4s; }
+#hpOpp { text-align: right; grid-template-columns: auto 1fr; }
+#hpOpp .hp-name { text-align: right; }
+#hpOpp .hp-bar i { background: var(--accent); transform-origin: right; }
+.hp.low .hp-bar i, #hpOpp.low .hp-bar i { background: var(--danger); }
+.hp.low b { color: var(--danger); }
+.hp.away .hp-name::after { content: ' · away'; color: var(--danger); }
+#duelMid { text-align: center; font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--sage); white-space: nowrap; }
+#duelMid b { display: block; font-size: 17px; letter-spacing: 0; color: var(--accent-bright); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; background: var(--text); vertical-align: baseline; }
+.dot.opp { background: var(--accent); }
+#duelRoom h1 { font-family: var(--display); font-style: italic; font-weight: 600; font-size: clamp(42px, 9vw, 64px); line-height: .95; margin: 8px 0 12px; }
+#duelRoom p { margin: 0; color: var(--dim); font-size: 15px; line-height: 1.55; }
+.room-code { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin: 20px 0 6px; padding: 14px 16px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border); }
+.room-code span { font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
+.room-code b { font: 700 26px ui-monospace, 'SF Mono', Consolas, monospace; letter-spacing: .18em; margin-right: auto; }
+.room-code .btn { padding: 10px 16px; font-size: 11px; }
+.room-players { list-style: none; margin: 14px 0 20px; padding: 0; }
+.room-players li { padding: 11px 2px; border-bottom: 1px solid var(--border); font-size: 16px; }
+.room-players li.empty { color: var(--dim); font-style: italic; }
+.room-players small { color: var(--dim); margin-left: 6px; font-size: 12px; }
+.room-holes { margin: 18px 0 20px; padding: 0 0 0 22px; display: grid; gap: 7px; font-size: 13px; color: var(--dim); }
+.room-holes li { padding-left: 4px; }
+.room-holes span { display: block; }
+.room-holes b { color: var(--text); font-variant-numeric: tabular-nums; }
+.room-holes b.good { color: var(--green); }
+.room-holes b.bad { color: var(--danger); }
+.vs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+.vs-side { padding: 12px 14px; border-radius: 14px; background: rgba(236, 234, 220, .04); border: 1px solid rgba(236, 234, 220, .08); min-width: 0; }
+.vs-who { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vs-ans { font-family: var(--display); font-weight: 600; font-size: clamp(19px, 3.6vw, 25px); line-height: 1.1; margin-top: 9px; overflow-wrap: anywhere; }
+.vs-ans.none { font-style: italic; color: var(--dim); }
+.vs-pts { font-size: 24px; font-weight: 700; color: var(--c); margin-top: 4px; font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) {
+  #duelHud { left: 8px; right: 54px; top: 8px; padding: 8px 10px; gap: 8px; }
+  body.duel #stage { padding-top: 80px; }
+  .hp-name { font-size: 11px; }
+  .vs-side { padding: 10px; }
+}
+
 @media (max-width: 520px) {
   #hud { padding: 10px 12px; }
   .wordmark { font-size: 20px; }
@@ -189,7 +240,14 @@ kbd { font: 600 10px var(--body); opacity: .6; margin-left: 6px; letter-spacing:
   </div>
 </header>
 
+<div id="duelHud" hidden>
+  <div class="hp" id="hpMe"><span class="hp-name"></span><b>300</b><div class="hp-bar"><i></i></div></div>
+  <div id="duelMid">Duel</div>
+  <div class="hp" id="hpOpp"><b>300</b><span class="hp-name"></span><div class="hp-bar"><i></i></div></div>
+</div>
+
 <main id="stage">
+  <section class="card" id="duelRoom" hidden></section>
   <section class="card" id="intro">
     <div class="eyebrow"><span id="introEyebrow">The daily round</span></div>
     <h1>Pin High</h1>
@@ -197,7 +255,7 @@ kbd { font: 600 10px var(--body); opacity: .6; margin-left: 6px; letter-spacing:
     <div class="legend" id="legend"></div>
     <div class="intro-foot">
       <span class="logline" id="logline"></span>
-      <button class="btn" id="teeOff" disabled>Loading…</button>
+      <span class="intro-go"><a class="btn ghost" href="/duel" target="_top">Duel a friend</a><button class="btn" id="teeOff" disabled>Loading…</button></span>
     </div>
   </section>
 
@@ -229,6 +287,8 @@ kbd { font: 600 10px var(--body); opacity: .6; margin-left: 6px; letter-spacing:
 
 <section id="end" hidden></section>
 
+<script src="duel-core.js"></script>
+<script src="duel.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

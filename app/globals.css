@@ -242,6 +242,7 @@ body {
 .club-door-title { font-family: var(--font-display); font-size: clamp(40px, 4.6vw, 60px); font-weight: 600; line-height: 1; margin: 8px 0 0; }
 .club-door-lede { color: var(--text-dim); font-size: 16px; line-height: 1.55; margin: 12px 0 22px; text-wrap: pretty; }
 .club-door-go { margin-top: auto; }
+.club-door-also { margin: 22px 0 0; color: var(--text-dim); font-size: 15px; }
 @media (max-width: 860px) {
   .club-choose { padding-top: 32px; }
   .club-doors { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 24px; }

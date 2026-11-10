@@ -211,6 +211,9 @@ export default function TodayHero({ latest, pinHigh }: {
           </div>
         </Link>
       </div>
+      <p className="club-door-also club-arrive club-arrive-3">
+        Playing with a friend? <Link href="/play" className="club-link">Nine Holes lobbies</Link> or a <Link href="/duel" className="club-link">Pin High duel</Link>.
+      </p>
     </section>
   );
 }
