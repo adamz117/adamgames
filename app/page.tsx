@@ -7,16 +7,17 @@ import { HANDICAP_MIN, readStats } from '@/lib/nine-holes-stats';
 import { getMyResultsServer } from '@/lib/mp/records-server';
 import { readRecord } from '@/lib/mp/records';
 
-// Three things only: today's nine, your card (or signing up for one), and the courses.
+// The two games side by side, then your card (or signing up for one), and the courses.
 export default async function HomePage() {
-  const [profile, raw] = await Promise.all([getProfileServer(), getGameStatsServer('nine-holes')]);
+  const [profile, raw, pin] = await Promise.all([getProfileServer(), getGameStatsServer('nine-holes'), getGameStatsServer('pin-high')]);
+  const pinHigh = pin && typeof pin.dayNumber === 'number' && typeof pin.score === 'number' ? { dayNumber: pin.dayNumber, score: pin.score } : null;
   const results = profile ? await getMyResultsServer() : [];
   const stats = readStats(raw);
 
   return (
     <main>
       <div className="club-grain" aria-hidden="true" />
-      <TodayHero signedIn={!!profile} latest={stats.history[0] ?? null} />
+      <TodayHero latest={stats.history[0] ?? null} pinHigh={pinHigh} />
 
       <section className="club-wrap club-section" aria-label="Your member card">
         {profile ? (
@@ -58,7 +59,7 @@ export default async function HomePage() {
 
       <footer className="club-wrap">
         <div className="club-footer">
-          <span>A new course every morning, the same for everyone.</span>
+          <span>A new course and a new round every morning, the same for everyone.</span>
           <span translate="no">Adam Games</span>
         </div>
       </footer>

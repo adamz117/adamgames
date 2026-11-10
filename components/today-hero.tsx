@@ -89,24 +89,83 @@ function HolePlate({ hole, venue, i }: { hole: Hole; venue: Venue; i: number }) 
     return () => ro.disconnect();
   }, [hole, venue]);
   return (
-    <figure className="club-hole">
-      <div className="club-hole-core club-reveal" style={{ animationDelay: `${120 + i * 60}ms` }}>
-        <canvas ref={ref} role="img" aria-label={`Hole ${hole.index}: par ${hole.par}, ${hole.len} yards`} />
-      </div>
-      <figcaption><strong>{hole.index}</strong><span>Par {hole.par}, {hole.len} yd</span></figcaption>
-    </figure>
+    <div className="club-hole-core club-reveal" style={{ animationDelay: `${120 + i * 90}ms` }}>
+      <canvas ref={ref} role="img" aria-label={`Hole ${hole.index}: par ${hole.par}, ${hole.len} yards`} />
+    </div>
   );
 }
 
-// latest: the newest round on the member's card, so the hero can tell them today's is already in.
-export default function TodayHero({ signedIn, latest }: { signedIn: boolean; latest: { seed: string; toPar: number; strokes: number } | null }) {
+// Pin High's door: one of its holes, side-on, with a shot in the air and the lies marked.
+function PinHighArt() {
+  const turf = 'M0 300 C 80 292, 140 304, 210 298 S 370 268, 460 268 S 600 262, 640 264';
+  const lie = (from: number, to: number, color: string, width = 13) => (
+    <path d={turf} pathLength={100} fill="none" stroke={color} strokeWidth={width} strokeDasharray={`${to - from} ${100 - (to - from)}`} strokeDashoffset={-from} />
+  );
+  const pill = (x: number, y: number, text: string, color: string) => (
+    <g>
+      <line x1={x} y1={y + 11} x2={x} y2={y + 34} stroke={color} strokeWidth="1" strokeDasharray="3 4" opacity="0.7" />
+      <rect x={x - 44} y={y - 11} width="88" height="22" rx="11" fill="rgba(15,34,25,.88)" stroke={color} strokeWidth="1.2" />
+      <text x={x} y={y + 4} textAnchor="middle" fontSize="10.5" fontWeight="700" letterSpacing="1" fill={color}>{text}</text>
+    </g>
+  );
+  return (
+    <svg viewBox="0 0 640 400" preserveAspectRatio="xMidYMid slice" role="img" aria-label="A golf hole seen from the side, with a ball in flight towards the flag">
+      <defs>
+        <linearGradient id="ph-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#39437a" /><stop offset="0.75" stopColor="#f4b08a" /></linearGradient>
+        <linearGradient id="ph-earth" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#2f6136" /><stop offset="0.45" stopColor="#1c4029" /><stop offset="1" stopColor="#0f2219" /></linearGradient>
+        <radialGradient id="ph-sun"><stop offset="0" stopColor="#ffd9a8" stopOpacity="0.9" /><stop offset="1" stopColor="#ffd9a8" stopOpacity="0" /></radialGradient>
+      </defs>
+      <rect width="640" height="400" fill="url(#ph-sky)" />
+      <circle cx="120" cy="190" r="120" fill="url(#ph-sun)" />
+      <circle cx="120" cy="190" r="22" fill="#ffd9a8" />
+      <g fill="rgba(255,255,255,.72)">
+        <ellipse cx="420" cy="70" rx="64" ry="13" /><ellipse cx="396" cy="60" rx="30" ry="13" /><ellipse cx="442" cy="56" rx="36" ry="17" />
+        <ellipse cx="250" cy="112" rx="44" ry="9" /><ellipse cx="264" cy="104" rx="24" ry="11" />
+      </g>
+      <path d="M0 250 C 120 205, 220 240, 330 226 S 540 190, 640 222 L640 400 L0 400Z" fill="#b98f7c" opacity="0.75" />
+      <path d="M0 272 C 100 250, 200 268, 320 250 S 520 236, 640 250 L640 400 L0 400Z" fill="#6f7a62" />
+      <g fill="#243c2b">
+        {[[96, 286, 15], [176, 290, 19], [284, 280, 16], [336, 272, 21], [436, 258, 17], [600, 252, 20]].map(([x, y, r]) => (
+          <g key={x}><rect x={x - 2} y={y - 4} width="4" height="18" /><circle cx={x} cy={y - 14} r={r} /><circle cx={x - r * 0.5} cy={y - 22} r={r * 0.65} /></g>
+        ))}
+        {[[234, 292], [500, 262]].map(([x, y]) => <path key={x} d={`M${x} ${y - 54} L${x - 17} ${y + 4} L${x + 17} ${y + 4}Z`} />)}
+      </g>
+      <path d={`${turf} L640 400 L0 400Z`} fill="url(#ph-earth)" />
+      {lie(0, 100, '#4c7f3b')}
+      {lie(2.5, 9, '#78c661')}
+      {lie(11.5, 17.5, '#62b4d8')}
+      {lie(20, 27.5, '#ecd698', 16)}
+      {lie(43, 70, '#74c462')}
+      {lie(73, 93, '#9bdc72')}
+      <line x1="548" y1="266" x2="548" y2="204" stroke="#f4f1e4" strokeWidth="2.2" />
+      <path d="M548 204 L520 211 L548 220Z" fill="#e2aa4e" />
+      <ellipse cx="548" cy="267" rx="6" ry="2" fill="#0c1a12" />
+      <path d="M40 292 Q 270 20 512 262" fill="none" stroke="#fff" strokeWidth="2" strokeDasharray="2 7" strokeLinecap="round" opacity="0.75" />
+      <circle cx="390" cy="160" r="6.5" fill="#fff" />
+      {pill(150, 246, 'BUNKER · 10', '#e3c27a')}
+      {pill(362, 222, 'FAIRWAY · 60', '#58b368')}
+      {pill(548, 168, 'CUP · 100', '#f2b93b')}
+    </svg>
+  );
+}
+
+const PIN_HIGH_EPOCH = '2026-11-10'; // round No. 1, as in public/games/pin-high/game.js
+
+// The two doors: today's nine holes of golf, or today's round of Pin High.
+// latest: the newest golf round on the member's card. pinHigh: their last Pin High round.
+export default function TodayHero({ latest, pinHigh }: {
+  latest: { seed: string; toPar: number; strokes: number } | null;
+  pinHigh: { dayNumber: number; score: number } | null;
+}) {
   const [course, setCourse] = useState<Course | null>(null);
   const [today, setToday] = useState<string | null>(null);
   const venue = course ? venueById(course.theme) : null;
   const playedToday = !!latest && latest.seed === today;
+  const roundNo = today ? Math.round((Date.parse(today + 'T00:00:00Z') - Date.parse(PIN_HIGH_EPOCH + 'T00:00:00Z')) / 864e5) + 1 : null;
+  const pinPlayed = !!pinHigh && pinHigh.dayNumber === roundNo;
 
   return (
-    <section className="club-wrap club-hero">
+    <section className="club-wrap club-choose">
       <Script
         src="/games/nine-holes/game.js"
         strategy="afterInteractive"
@@ -117,32 +176,40 @@ export default function TodayHero({ signedIn, latest }: { signedIn: boolean; lat
           if (window.DH) setCourse(window.DH.makeCourse(day));
         }}
       />
-      <div>
-        <h1 className="club-arrive">Today&rsquo;s nine</h1>
-        <p className="club-lede club-arrive club-arrive-2">
-          {course && venue && latest && playedToday
-            ? `${course.name} is on your card: ${formatToPar(latest.toPar)}, ${latest.strokes} strokes. Tomorrow brings a new course.`
-            : course && venue
-              ? `${course.name}, ${venue.name}. Par ${course.par}, and a new course every morning.`
-              : 'A new nine-hole course every morning, the same for everyone.'}
-        </p>
-        <div className="club-hero-actions club-arrive club-arrive-3">
-          <Link href="/games/nine-holes" className="club-button">{playedToday ? 'Play it again for practice' : 'Play today’s nine'}</Link>
-          {!signedIn && <Link href="/login" className="club-link">Sign in to keep a handicap</Link>}
-        </div>
-      </div>
-      <div className="club-plate">
-        {/* nine slots held open while the course loads, so nothing shifts when the holes arrive */}
-        <div className="club-holes">
-          {course && venue
-            ? course.holes.map((h, i) => <HolePlate key={h.index} hole={h} venue={venue} i={i} />)
-            : Array.from({ length: 9 }, (_, i) => (
-              <figure className="club-hole" key={i} aria-hidden="true">
-                <div className="club-hole-core" />
-                <figcaption>&nbsp;</figcaption>
-              </figure>
-            ))}
-        </div>
+      <h1 className="club-arrive">Pick your game</h1>
+      <div className="club-doors">
+        <Link href="/games/nine-holes" className="club-door club-arrive club-arrive-2">
+          <div className="club-door-art club-door-holes">
+            {course && venue
+              ? course.holes.slice(0, 3).map((h, i) => <HolePlate key={h.index} hole={h} venue={venue} i={i} />)
+              : Array.from({ length: 3 }, (_, i) => <div className="club-hole-core" key={i} aria-hidden="true" />)}
+          </div>
+          <div className="club-door-body">
+            <span className="club-door-kind">Golf · nine holes</span>
+            <h2 className="club-door-title">Nine Holes</h2>
+            <p className="club-door-lede">
+              {course && venue && latest && playedToday
+                ? `${course.name} is on your card: ${formatToPar(latest.toPar)}, ${latest.strokes} strokes. Tomorrow brings a new course.`
+                : course && venue
+                  ? `Today: ${course.name}, ${venue.name}, par ${course.par}. Time the line, time the swing, mind the hazards.`
+                  : 'A new nine-hole course every morning. Time the line, time the swing, mind the hazards.'}
+            </p>
+            <span className="club-button club-door-go">{playedToday ? 'Play it again for practice' : 'Play today’s nine'}</span>
+          </div>
+        </Link>
+        <Link href="/games/pin-high" className="club-door club-arrive club-arrive-3">
+          <div className="club-door-art"><PinHighArt /></div>
+          <div className="club-door-body">
+            <span className="club-door-kind">Trivia · seven holes</span>
+            <h2 className="club-door-title">Pin High</h2>
+            <p className="club-door-lede">
+              {pinPlayed && pinHigh
+                ? `Round No. ${roundNo} is on your card: ${pinHigh.score} points. Tomorrow brings seven new holes.`
+                : 'Name something on every hole, with 25 seconds each. The fewer people who’d think of your answer, the closer you land to the pin.'}
+            </p>
+            <span className="club-button club-door-go">{pinPlayed ? 'See today’s card' : 'Play today’s round'}</span>
+          </div>
+        </Link>
       </div>
     </section>
   );
