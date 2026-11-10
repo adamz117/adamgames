@@ -24,6 +24,9 @@ let A = null;              // game.js's helpers
 let me = 0, opp = 1, lobbyId = '', code = '', names = ['Player 1', 'Player 2'], present = [];
 let S = null;
 let room, hud;
+let friends = null;      // a member's friends from the page ([{ id, name, online }]); null for a guest
+const invited = {};      // friend id -> 'sending' | 'sent' | 'failed' | 'not_allowed'
+const INVITE_LABEL = { sending: 'Sending…', sent: 'Invited', failed: 'Try again', not_allowed: 'Can’t invite' };
 
 const blank = () => ({
   matchId: null, round: 0, hp: [C.START_HP, C.START_HP], history: [], phase: 'room', prompts: [],
@@ -56,10 +59,11 @@ function drawHud(animate) {
   const sides = [[me, '#hpMe'], [opp, '#hpOpp']];
   for (const [slot, sel] of sides) {
     const box = A.$(sel), hp = S.hp[slot];
-    box.querySelector('.hp-name').textContent = slot === me ? `${names[slot]} (you)` : names[slot];
+    const waiting = slot === opp && !oppHere() && S.phase === 'room'; // nobody has joined yet
+    box.querySelector('.hp-name').textContent = slot === me ? `${names[slot]} (you)` : waiting ? 'Waiting…' : names[slot];
     box.querySelector('i').style.transform = `scaleX(${hp / C.START_HP})`;
     box.classList.toggle('low', hp <= C.START_HP * 0.25);
-    box.classList.toggle('away', slot === opp && !oppHere());
+    box.classList.toggle('away', slot === opp && !oppHere() && !waiting);
     const num = box.querySelector('b'), from = Number(num.textContent) || 0;
     if (animate && from !== hp) A.countTo(num, from, hp, 900); else num.textContent = hp;
   }
@@ -79,15 +83,30 @@ function showRoom(note) {
       <li><i class="dot me"></i>${A.esc(names[me])} <small>you</small></li>
       <li class="${both ? '' : 'empty'}"><i class="dot opp"></i>${both ? A.esc(names[opp]) : 'Waiting for a friend to join…'}</li>
     </ul>
+    ${both ? '' : friendsHtml()}
     <div class="intro-foot"><span class="logline">${note ? A.esc(note) : host() ? (both ? 'Both here. Start when ready.' : 'Send the link to a friend.') : both ? `Waiting for ${A.esc(names[opp])} to start` : 'Waiting for the host'}</span>
     ${host() ? `<button class="btn" id="startDuel" type="button"${both ? '' : ' disabled'}>Start duel</button>` : ''}</div>`;
   const copy = A.$('#copyLink');
   copy.onclick = async () => {
     try { await navigator.clipboard.writeText(`${location.origin}/duel/${code}`); copy.textContent = 'Link copied'; } catch { copy.textContent = `${location.origin}/duel/${code}`; }
   };
+  room.querySelectorAll('[data-invite]').forEach((b) => {
+    b.onclick = () => { const id = b.dataset.invite; invited[id] = 'sending'; post({ type: 'ph-duel-invite', id }); showRoom(note); };
+  });
   const go = A.$('#startDuel');
   if (go) go.onclick = () => { A.sfx.play('go'); newMatch(); };
   drawHud(false);
+}
+
+// "Invite a friend": a member's friends, the ones online first. Nothing for a guest.
+function friendsHtml() {
+  if (!friends) return '';
+  if (!friends.length) return `<div class="room-friends"><h2>Invite a friend</h2><p>No friends yet. <a href="/friends" target="_top">Add them by username</a> and you can invite them straight in.</p></div>`;
+  const sorted = [...friends].sort((a, b) => Number(b.online) - Number(a.online));
+  return `<div class="room-friends"><h2>Invite a friend</h2><ul>${sorted.map((f) => {
+    const st = invited[f.id];
+    return `<li><span><i class="on${f.online ? ' yes' : ''}" title="${f.online ? 'Online' : 'Offline'}"></i>${A.esc(f.name)}</span><button class="btn ghost" type="button" data-invite="${A.esc(f.id)}"${st === 'sending' || st === 'sent' || st === 'not_allowed' ? ' disabled' : ''}>${st ? INVITE_LABEL[st] : 'Invite'}</button></li>`;
+  }).join('')}</ul></div>`;
 }
 
 function status(text, calm = true) {
@@ -451,6 +470,13 @@ function start(api) {
       showRoom();
       send('hello');
     } else if (d.type === 'ph-duel-presence') onPresence(d);
+    else if (d.type === 'ph-duel-friends' && Array.isArray(d.friends)) {
+      friends = d.friends.filter((f) => f && typeof f.id === 'string' && typeof f.name === 'string').slice(0, 50);
+      if (S && S.phase === 'room') showRoom();
+    } else if (d.type === 'ph-duel-invited' && typeof d.id === 'string') {
+      invited[d.id] = d.state;
+      if (S && S.phase === 'room') showRoom();
+    }
     else if (d.type === 'ph-duel-msg') void onMsg(d.data);
   });
   const frame = () => { tick(); requestAnimationFrame(frame); };

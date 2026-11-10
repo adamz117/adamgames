@@ -184,6 +184,7 @@ body.duel #stage { padding-top: 92px; }
 #duelMid b { display: block; font-size: 17px; letter-spacing: 0; color: var(--accent-bright); }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; background: var(--text); vertical-align: baseline; }
 .dot.opp { background: var(--accent); }
+#duelRoom { max-height: calc(100dvh - 108px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 #duelRoom h1 { font-family: var(--display); font-style: italic; font-weight: 600; font-size: clamp(42px, 9vw, 64px); line-height: .95; margin: 8px 0 12px; }
 #duelRoom p { margin: 0; color: var(--dim); font-size: 15px; line-height: 1.55; }
 .room-code { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin: 20px 0 6px; padding: 14px 16px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border); }
@@ -194,6 +195,16 @@ body.duel #stage { padding-top: 92px; }
 .room-players li { padding: 11px 2px; border-bottom: 1px solid var(--border); font-size: 16px; }
 .room-players li.empty { color: var(--dim); font-style: italic; }
 .room-players small { color: var(--dim); margin-left: 6px; font-size: 12px; }
+.room-friends { margin: 0 0 20px; }
+.room-friends h2 { margin: 0 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--sage); }
+.room-friends p { font-size: 14px !important; }
+.room-friends a { color: var(--accent-bright); }
+.room-friends ul { list-style: none; margin: 0; padding: 0; max-height: 190px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.room-friends li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 2px; border-bottom: 1px solid var(--border); font-size: 15px; }
+.room-friends li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-friends .btn { padding: 8px 16px; font-size: 11px; }
+.on { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 9px; background: rgba(236, 234, 220, .22); }
+.on.yes { background: var(--fairway); box-shadow: 0 0 8px rgba(88, 179, 104, .7); }
 .room-holes { margin: 18px 0 20px; padding: 0 0 0 22px; display: grid; gap: 7px; font-size: 13px; color: var(--dim); }
 .room-holes li { padding-left: 4px; }
 .room-holes span { display: block; }

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { inviteFresh, markInviteSeen, openOnline, subscribeInvites, type Invite } from '@/lib/mp/friends-client';
 import { parseCode } from '@/lib/mp/protocol';
+import { getDuelLobby } from '@/lib/pin-high/duel-client';
 
 const SHOWN = 3;
 
@@ -15,6 +16,14 @@ export default function InviteToaster({ userId }: { userId: string }) {
   const [invites, setInvites] = useState<Invite[]>([]);
   const [hidden, setHidden] = useState<ReadonlySet<number>>(() => new Set());
   const [now, setNow] = useState(() => Date.now());
+  // Which invites are to a Pin High duel rather than a Nine Holes lobby (looked up once per lobby).
+  const [duels, setDuels] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    for (const i of invites) {
+      if (i.lobbyId in duels) continue;
+      void getDuelLobby(i.code).then((l) => setDuels((d) => (i.lobbyId in d ? d : { ...d, [i.lobbyId]: !!l?.isDuel })));
+    }
+  }, [invites, duels]);
 
   useEffect(() => {
     const close = openOnline(userId);
@@ -28,7 +37,7 @@ export default function InviteToaster({ userId }: { userId: string }) {
   }, [userId]);
 
   // Already in that lobby: the invite is done with.
-  const here = parseCode(/^\/play\/([^/]+)\/?$/.exec(pathname ?? '')?.[1]);
+  const here = parseCode(/^\/(?:play|duel)\/([^/]+)\/?$/.exec(pathname ?? '')?.[1]);
   useEffect(() => {
     for (const i of invites) if (i.code === here) void markInviteSeen(i.id);
   }, [invites, here]);
@@ -54,14 +63,14 @@ export default function InviteToaster({ userId }: { userId: string }) {
         const ids = group.map((i) => i.id);
         return (
           <div key={invite.lobbyId} className="club-invite">
-            <p className="club-invite-text"><strong>{invite.fromName}</strong> invited you to a game</p>
+            <p className="club-invite-text"><strong>{invite.fromName}</strong> invited you to {duels[invite.lobbyId] ? 'a Pin High duel' : 'a game'}</p>
             <div className="club-invite-buttons">
               <button
                 type="button"
                 className="club-button club-lobby-small"
                 onClick={() => {
                   seen(ids);
-                  router.push(`/play/${invite.code}`);
+                  router.push(`/${duels[invite.lobbyId] ? 'duel' : 'play'}/${invite.code}`);
                 }}
               >
                 Join

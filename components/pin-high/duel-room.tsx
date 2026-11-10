@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import GuestNameForm from '@/components/mp/guest-name-form';
 import { getPlayers, heartbeat, joinLobby, type LobbyMember } from '@/lib/mp/lobby-client';
+import { listFriends, sendInvite, useOnline, type Friend } from '@/lib/mp/friends-client';
 import { ensureSession } from '@/lib/mp/session-client';
 import { parseCode, presentPlayers } from '@/lib/mp/protocol';
 import { getDuelLobby, openDuelChannel, type DuelChannel } from '@/lib/pin-high/duel-client';
@@ -48,6 +49,11 @@ export default function DuelRoom({ code, viewer }: { code: string; viewer: Viewe
   const [entry, setEntry] = useState<Entry>({ stage: 'loading' });
   const [busy, setBusy] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  // A member's accepted friends, for the waiting room's "invite a friend" (null for a guest).
+  const online = useOnline();
+  const [friends, setFriends] = useState<Friend[] | null>(null);
+  const gameReady = useRef(false);
+  const friendsMsg = useRef<object | null>(null);
 
   useEffect(() => {
     let gone = false;
@@ -62,6 +68,18 @@ export default function DuelRoom({ code, viewer }: { code: string; viewer: Viewe
   }, [code, viewer]);
 
   const seat = entry.stage === 'room' ? entry.seat : null;
+  useEffect(() => {
+    if (!seat) return;
+    let alive = true;
+    void listFriends().then((list) => { if (alive) setFriends(list?.filter((f) => f.status === 'accepted') ?? null); });
+    return () => { alive = false; };
+  }, [seat]);
+  // The game draws the list; it gets it again whenever a friend comes online or goes.
+  useEffect(() => {
+    friendsMsg.current = friends && { type: 'ph-duel-friends', friends: friends.map((f) => ({ id: f.id, name: f.name, online: online.has(f.id) })) };
+    if (gameReady.current && friendsMsg.current) iframeRef.current?.contentWindow?.postMessage(friendsMsg.current, window.location.origin);
+  }, [friends, online]);
+
   useEffect(() => {
     if (!seat) return;
     let gone = false;
@@ -91,7 +109,15 @@ export default function DuelRoom({ code, viewer }: { code: string; viewer: Viewe
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.source !== iframeRef.current?.contentWindow) return;
       const d = event.data;
-      if (d?.type === 'ph-duel-ready') { ready = true; started = false; tell(); }
+      if (d?.type === 'ph-duel-ready') {
+        ready = true; started = false; gameReady.current = true;
+        tell();
+        if (friendsMsg.current) toGame(friendsMsg.current);
+      }
+      else if (d?.type === 'ph-duel-invite' && typeof d.id === 'string') {
+        const id = d.id as string;
+        void sendInvite(id, seat.lobbyId).then((r) => toGame({ type: 'ph-duel-invited', id, state: r.error === null ? 'sent' : r.error === 'not_allowed' ? 'not_allowed' : 'failed' }));
+      }
       else if (d?.type === 'ph-duel-send') channel?.send(d.data);
       else if (d?.type === 'ph-duel-leave') router.push('/duel');
     };
@@ -107,6 +133,7 @@ export default function DuelRoom({ code, viewer }: { code: string; viewer: Viewe
 
     return () => {
       gone = true;
+      gameReady.current = false;
       clearInterval(beat);
       window.removeEventListener('message', onMessage);
       channel?.close();
