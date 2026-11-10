@@ -51,15 +51,7 @@ const PROMPTS = [
   { id: 'euro-clubs', group: 'sport', text: "Name a club in the Premier League, La Liga, Serie A, the Bundesliga or Ligue 1", ...q('VALUES ?l { wd:Q9448 wd:Q324867 wd:Q15804 wd:Q82595 wd:Q13394 } ?i wdt:P118 ?l; wdt:P31 wd:Q476028.'), short: CLUB_SHORT },
   { id: 'us-teams', group: 'sport', text: 'Name an NBA, NFL, MLB or NHL team', ...q('VALUES ?l { wd:Q155223 wd:Q1215884 wd:Q1163715 wd:Q1215892 } ?i wdt:P118 ?l; wdt:P31/wdt:P279* wd:Q12973014.') },
   // music
-  { id: 'songs-classic', group: 'music', text: 'Name a song by The Beatles, Queen or ABBA', ...cat('The Beatles songs', 'Queen (band) songs', 'ABBA songs') },
-  { id: 'songs-pop', group: 'music', text: 'Name a song by Taylor Swift, Adele or Ed Sheeran', ...cat('Taylor Swift songs', 'Adele songs', 'Ed Sheeran songs') },
-  { id: 'rock-hall', group: 'music', text: 'Name an act in the Rock and Roll Hall of Fame', ...cat('Rock and Roll Hall of Fame inductees') },
   // film
-  { id: 'pixar-disney', group: 'film', text: 'Name a Pixar or Walt Disney Animation Studios film', ...cat('Pixar animated films', 'Walt Disney Animation Studios films') },
-  { id: 'bond-films', group: 'film', text: 'Name a James Bond film', ...cat('James Bond films') },
-  { id: 'mcu-films', group: 'film', text: 'Name a Marvel Cinematic Universe film', ...cat('Marvel Cinematic Universe films') },
-  { id: 'best-picture', group: 'film', text: 'Name a film that won the Oscar for Best Picture', ...cat('Best Picture Academy Award winners') },
-  { id: 'oscar-actors', group: 'film', text: 'Name a winner of the Best Actor or Best Actress Oscar', ...cat('Best Actor Academy Award winners', 'Best Actress Academy Award winners') },
   { id: 'directors-films', group: 'film', text: 'Name a film directed by Spielberg, Nolan, Tarantino or Scorsese', ...q('VALUES ?d { wd:Q8877 wd:Q25191 wd:Q3772 wd:Q41148 } ?i wdt:P57 ?d; wdt:P31 wd:Q11424.') },
   // science and knowledge
   { id: 'elements', group: 'science', text: 'Name a chemical element', ...q('?i wdt:P31 wd:Q11344.') },
@@ -68,21 +60,130 @@ const PROMPTS = [
   { id: 'programming-languages', group: 'science', text: 'Name a programming language', ...q('?i wdt:P31 wd:Q9143.') },
   // history and culture
   { id: 'us-presidents', group: 'history', text: 'Name a US president', ...q('?i wdt:P39 wd:Q11696; wdt:P31 wd:Q5.') },
-  { id: 'shakespeare', group: 'history', text: 'Name a Shakespeare play', ...cat('Shakespearean comedies', 'Shakespearean tragedies', 'Shakespearean histories') },
   { id: 'greek-gods', group: 'history', text: 'Name a Greek god or goddess', ...q('?i wdt:P31 wd:Q22989102.') },
-  { id: 'nobel-peace', group: 'history', text: 'Name a Nobel Peace Prize winner', ...cat('Nobel Peace Prize laureates') },
   // food and brands
-  { id: 'pasta', group: 'food', text: 'Name a type of pasta', ...cat('Types of pasta') },
-  { id: 'chocolate-bars', group: 'food', text: 'Name a chocolate bar', ...cat('Chocolate bars') },
-  { id: 'fast-food', group: 'food', text: 'Name an American fast-food chain', ...cat('Fast-food chains of the United States') },
   { id: 'car-makers', group: 'food', text: 'Name a car manufacturer', ...q('?i wdt:P31 wd:Q786820.') },
 ];
+
+// Small builders for the query patterns below.
+const FILM = 'wdt:P31 wd:Q11424';
+const values = (ids) => ids.map((x) => 'wd:' + x).join(' ');
+// items whose class (or other property) is the thing with this English label, so no id has to be looked up
+const labelled = (labels, prop = 'wdt:P31') => `VALUES ?lbl { ${[].concat(labels).map((l) => JSON.stringify(l) + '@en').join(' ')} } ?c rdfs:label ?lbl. ?i ${prop} ?c.`;
+const songsBy = (...ids) => `VALUES ?who { ${values(ids)} } ?i wdt:P175 ?who; wdt:P31 ?kind. VALUES ?kind { wd:Q7366 wd:Q134556 wd:Q105543609 }`;
+const booksBy = (...ids) => `VALUES ?who { ${values(ids)} } ?i wdt:P50 ?who; wdt:P31/wdt:P279* wd:Q7725634.`;
+const filmsWith = (prop, ...ids) => `VALUES ?who { ${values(ids)} } ?i ${prop} ?who; ${FILM}.`;
+const playedFor = (...ids) => `VALUES ?club { ${values(ids)} } ?i wdt:P54 ?club; wdt:P31 wd:Q5.`;
+const won = (...ids) => `VALUES ?award { ${values(ids)} } ?i wdt:P166 ?award.`;
+const held = (...ids) => `VALUES ?post { ${values(ids)} } ?i wdt:P39 ?post; wdt:P31 wd:Q5.`;
+
+const MORE_PROMPTS = [
+  // geography
+  { id: 'countries-europe', group: 'geo', text: 'Name a country in Europe', ...q(`${COUNTRY} ?i wdt:P30 wd:Q46.`) },
+  { id: 'countries-americas', group: 'geo', text: 'Name a country in North or South America', ...q(`${COUNTRY} VALUES ?cont { wd:Q49 wd:Q18 } ?i wdt:P30 ?cont.`) },
+  { id: 'countries-landlocked', group: 'geo', text: 'Name a landlocked country', ...q(`${COUNTRY} ?i wdt:P31 wd:Q123480.`) },
+  { id: 'countries-start-s', group: 'geo', text: 'Name a country that starts with S', ...q(COUNTRY), keep: (n) => letters(n)[0] === 's' },
+  { id: 'countries-start-m', group: 'geo', text: 'Name a country that starts with M', ...q(COUNTRY), keep: (n) => letters(n)[0] === 'm' },
+  { id: 'countries-two-words', group: 'geo', text: 'Name a country with more than one word in its name', ...q(COUNTRY), keep: (n) => /\s/.test(n.trim()) },
+  { id: 'capitals-europe', group: 'geo', text: 'Name a European capital city', ...q('?c wdt:P31 wd:Q3624078; wdt:P30 wd:Q46; wdt:P36 ?i. FILTER NOT EXISTS { ?c wdt:P576 [] }') },
+  { id: 'capitals-africa', group: 'geo', text: 'Name an African capital city', ...q('?c wdt:P31 wd:Q3624078; wdt:P30 wd:Q15; wdt:P36 ?i. FILTER NOT EXISTS { ?c wdt:P576 [] }') },
+  { id: 'state-capitals', group: 'geo', text: 'Name a US state capital', ...q('?st wdt:P31 wd:Q35657; wdt:P36 ?i.') },
+  { id: 'sa-towns', group: 'geo', text: 'Name a city or town in South Africa', ...q('?i wdt:P17 wd:Q258; wdt:P31 ?kind. VALUES ?kind { wd:Q515 wd:Q3957 wd:Q1549591 wd:Q7930989 }') },
+  { id: 'lakes', group: 'geo', text: 'Name a lake bigger than 1,000 square km', ...q('?i wdt:P31 wd:Q23397; wdt:P2046 ?area. FILTER(?area > 1000)') },
+  { id: 'islands', group: 'geo', text: 'Name an island bigger than 5,000 square km', ...q('?i wdt:P31 wd:Q23442; wdt:P2046 ?area. FILTER(?area > 5000)') },
+  { id: 'deserts', group: 'geo', text: 'Name a desert', ...q('?i wdt:P31 wd:Q8514.') },
+  { id: 'seas', group: 'geo', text: 'Name a sea', ...q('?i wdt:P31 wd:Q165.') },
+  { id: 'volcanoes', group: 'geo', text: 'Name a volcano', ...q('?i wdt:P31 ?kind. VALUES ?kind { wd:Q8072 wd:Q169358 }') },
+  { id: 'currencies', group: 'geo', text: 'Name a currency in use today', ...q('?c wdt:P31 wd:Q3624078; wdt:P38 ?i. FILTER NOT EXISTS { ?c wdt:P576 [] } FILTER NOT EXISTS { ?i wdt:P582 [] }') },
+  { id: 'official-languages', group: 'geo', text: 'Name an official language of a country', ...q('?c wdt:P31 wd:Q3624078; wdt:P37 ?i. FILTER NOT EXISTS { ?c wdt:P576 [] }') },
+  { id: 'world-heritage', group: 'geo', text: 'Name a UNESCO World Heritage Site', ...q('?i wdt:P1435 wd:Q9259.') },
+  { id: 'skyscrapers', group: 'geo', text: 'Name a building taller than 300 m', ...q('?i wdt:P31/wdt:P279* wd:Q11303; wdt:P2048 ?h. FILTER(?h > 300 && ?h < 1100)') },
+  { id: 'stadiums', group: 'geo', text: 'Name a stadium that holds more than 60,000', ...q('?i wdt:P31/wdt:P279* wd:Q483110; wdt:P1083 ?cap. FILTER(?cap > 60000)') },
+  { id: 'uk-universities', group: 'geo', text: 'Name a university in the United Kingdom', ...q('?i wdt:P31/wdt:P279* wd:Q3918; wdt:P17 wd:Q145.') },
+  // golf
+  { id: 'golf-sa', group: 'golf', text: 'Name a South African golfer', ...q('?i wdt:P106 wd:Q11303721; wdt:P27 wd:Q258.') },
+  { id: 'golf-british', group: 'golf', text: 'Name a golfer from Britain or Ireland', ...q('?i wdt:P106 wd:Q11303721; wdt:P27 ?nat. VALUES ?nat { wd:Q145 wd:Q27 }') },
+  { id: 'golf-courses', group: 'golf', text: 'Name a golf course', ...q('?i wdt:P31 wd:Q1048525.') },
+  // sport
+  { id: 'players-united', group: 'sport', text: 'Name a footballer who has played for Manchester United', ...q(playedFor('Q18656')) },
+  { id: 'players-liverpool', group: 'sport', text: 'Name a footballer who has played for Liverpool', ...q(playedFor('Q1130849')) },
+  { id: 'players-arsenal', group: 'sport', text: 'Name a footballer who has played for Arsenal', ...q(playedFor('Q9617')) },
+  { id: 'players-chelsea', group: 'sport', text: 'Name a footballer who has played for Chelsea', ...q(playedFor('Q9616')) },
+  { id: 'players-clasico', group: 'sport', text: 'Name a footballer who has played for Real Madrid or Barcelona', ...q(playedFor('Q8682', 'Q7156')) },
+  { id: 'nba-legends', group: 'sport', text: 'Name a player for the Lakers, Bulls or Celtics', ...q(playedFor('Q121783', 'Q128109', 'Q131371')) },
+  { id: 'f1-drivers', group: 'sport', text: 'Name a Formula One driver, past or present', ...q('?i wdt:P106 wd:Q10841764.') },
+  { id: 'sports', group: 'sport', text: 'Name a sport', ...q('?i wdt:P31 wd:Q31629.') },
+  { id: 'chess-gms', group: 'sport', text: 'Name a chess grandmaster', ...q('?i wdt:P2962 wd:Q105269.') },
+  { id: 'astronauts', group: 'science', text: 'Name an astronaut', ...q('?i wdt:P106 wd:Q11631.') },
+  // music
+  { id: 'songs-classic', group: 'music', text: 'Name a song by The Beatles, Queen or ABBA', ...q(songsBy('Q1299', 'Q15862', 'Q18233')) },
+  { id: 'songs-pop', group: 'music', text: 'Name a song by Taylor Swift, Adele or Ed Sheeran', ...q(songsBy('Q26876', 'Q23215', 'Q47447')) },
+  { id: 'songs-kings', group: 'music', text: 'Name a song by Michael Jackson, Elvis Presley or The Rolling Stones', ...q(songsBy('Q2831', 'Q303', 'Q11036')) },
+  { id: 'songs-rap', group: 'music', text: 'Name a song by Eminem, Drake or Kanye West', ...q(songsBy('Q5608', 'Q33240', 'Q15935')) },
+  { id: 'songs-divas', group: 'music', text: 'Name a song by Beyoncé, Rihanna or Lady Gaga', ...q(songsBy('Q36153', 'Q36844', 'Q19848')) },
+  { id: 'british-bands', group: 'music', text: 'Name a British band', ...q('?i wdt:P31 ?kind; wdt:P495 wd:Q145. VALUES ?kind { wd:Q215380 wd:Q5741069 }') },
+  { id: 'music-genres', group: 'music', text: 'Name a genre of music', ...q('?i wdt:P31 wd:Q188451.') },
+  { id: 'composers', group: 'music', text: 'Name a classical composer', ...q('?i wdt:P106 wd:Q36834; wdt:P136 wd:Q9730.') },
+  { id: 'instruments', group: 'music', text: 'Name a musical instrument', ...q(labelled('type of musical instrument')) },
+  // film and tv
+  { id: 'films-pixar-disney', group: 'film', text: 'Name a Pixar or Walt Disney Animation Studios film', ...q(`${labelled(['Pixar', 'Walt Disney Animation Studios'], 'wdt:P272')} ?i wdt:P31/wdt:P279* wd:Q11424.`) },
+  { id: 'films-mcu', group: 'film', text: 'Name a Marvel Cinematic Universe film', ...q(`${labelled('Marvel Cinematic Universe', 'wdt:P179|wdt:P361|wdt:P1434')} ?i ${FILM}.`) },
+  { id: 'films-best-picture', group: 'film', text: 'Name a film that won the Oscar for Best Picture', ...q(`${won('Q102427')} ?i ${FILM}.`) },
+  { id: 'films-masters', group: 'film', text: 'Name a film directed by Hitchcock, Kubrick, James Cameron or Ridley Scott', ...q(filmsWith('wdt:P57', 'Q7374', 'Q2001', 'Q42574', 'Q56005')) },
+  { id: 'films-stars', group: 'film', text: 'Name a film starring Tom Hanks, Tom Cruise, Brad Pitt or Leonardo DiCaprio', ...q(filmsWith('wdt:P161', 'Q2263', 'Q37079', 'Q35332', 'Q38111')) },
+  { id: 'oscar-actors', group: 'film', text: 'Name a winner of the Best Actor or Best Actress Oscar', ...q(`${won('Q103916', 'Q103618')} ?i wdt:P31 wd:Q5.`) },
+  { id: 'tv-netflix', group: 'film', text: 'Name a Netflix or HBO original series', ...q('VALUES ?net { wd:Q907311 wd:Q23633 } ?i wdt:P449 ?net; wdt:P31/wdt:P279* wd:Q5398426.') },
+  { id: 'chars-simpsons', group: 'film', text: 'Name a character from The Simpsons', ...q('?i wdt:P1441 wd:Q886; wdt:P31/wdt:P279* wd:Q95074.') },
+  { id: 'chars-thrones', group: 'film', text: 'Name a character from Game of Thrones', ...q('?i wdt:P1441 ?work. VALUES ?work { wd:Q23572 wd:Q45875 }') },
+  { id: 'chars-potter', group: 'film', text: 'Name a Harry Potter character', ...q(labelled(['Harry Potter universe', 'Wizarding World'], 'wdt:P1080')) },
+  { id: 'chars-star-wars', group: 'film', text: 'Name a Star Wars character', ...q(`${labelled('Star Wars universe', 'wdt:P1080')} ?i wdt:P31/wdt:P279* wd:Q95074.`) },
+  { id: 'chars-marvel', group: 'film', text: 'Name a Marvel or DC superhero or villain', ...q(`${labelled(['Marvel Universe', 'DC Universe'], 'wdt:P1080')} ?i wdt:P31/wdt:P279* wd:Q95074.`) },
+  { id: 'pokemon', group: 'film', text: 'Name a Pokémon', ...q(labelled('Pokémon species', 'wdt:P31/wdt:P279*')) },
+  { id: 'nintendo-games', group: 'film', text: 'Name a video game published by Nintendo', ...q('?i wdt:P123 wd:Q8093; wdt:P31 wd:Q7889.') },
+  // books
+  { id: 'books-thrillers', group: 'books', text: 'Name a book by Stephen King, Agatha Christie or Roald Dahl', ...q('VALUES ?who { wd:Q39829 wd:Q35064 wd:Q25161 } ?i wdt:P50 ?who; wdt:P31 ?kind. VALUES ?kind { wd:Q7725634 wd:Q8261 wd:Q47461344 wd:Q1279564 wd:Q49084 }') },
+  { id: 'books-classics', group: 'books', text: 'Name a book by Charles Dickens, Jane Austen or J. R. R. Tolkien', ...q(booksBy('Q5686', 'Q36322', 'Q892')) },
+  { id: 'nobel-literature', group: 'books', text: 'Name a winner of the Nobel Prize in Literature', ...q(`${won('Q37922')} ?i wdt:P31 wd:Q5.`) },
+  // history and people
+  { id: 'nobel-peace', group: 'history', text: 'Name a Nobel Peace Prize winner', ...q(won('Q35637')) },
+  { id: 'nobel-science', group: 'history', text: 'Name a winner of the Nobel Prize in Physics or Chemistry', ...q(`${won('Q38104', 'Q44585')} ?i wdt:P31 wd:Q5.`) },
+  { id: 'uk-pms', group: 'history', text: 'Name a British prime minister', ...q(held('Q14211')) },
+  { id: 'roman-emperors', group: 'history', text: 'Name a Roman emperor', ...q(held('Q842606')) },
+  { id: 'popes', group: 'history', text: 'Name a pope', ...q(held('Q19546')) },
+  { id: 'sa-presidents', group: 'history', text: 'Name a president or prime minister of South Africa', ...q(`${labelled(['President of South Africa', 'State President of South Africa', 'Prime Minister of South Africa'], 'wdt:P39')} ?i wdt:P31 wd:Q5.`) },
+  { id: 'roman-gods', group: 'history', text: 'Name a Roman god or goddess', ...q('?i wdt:P31 wd:Q11688446.') },
+  { id: 'norse-gods', group: 'history', text: 'Name a Norse god or goddess', ...q(labelled(['Norse deity', 'Æsir', 'Vanir'])) },
+  { id: 'ww2-battles', group: 'history', text: 'Name a battle of the Second World War', ...q('?i wdt:P31 wd:Q178561; wdt:P361 wd:Q362.') },
+  { id: 'painters', group: 'history', text: 'Name a Renaissance or Impressionist painter', ...q('?i wdt:P106 wd:Q1028181; wdt:P135 ?mov. VALUES ?mov { wd:Q40415 wd:Q4692 wd:Q1474884 wd:Q131808 }') },
+  { id: 'religions', group: 'history', text: 'Name a religion', ...q('?i wdt:P31 wd:Q9174.') },
+  // science and nature
+  { id: 'moons', group: 'science', text: 'Name a moon in the Solar System', ...q('VALUES ?planet { wd:Q2 wd:Q111 wd:Q319 wd:Q193 wd:Q324 wd:Q332 wd:Q339 } ?i wdt:P397 ?planet; wdt:P31/wdt:P279* wd:Q2537.') },
+  { id: 'cat-breeds', group: 'science', text: 'Name a breed of cat', ...q('?i wdt:P31 wd:Q43577.') },
+  { id: 'horse-breeds', group: 'science', text: 'Name a breed of horse', ...q('?i wdt:P31 wd:Q1160573.') },
+  { id: 'colours', group: 'science', text: 'Name a colour', ...q('?i wdt:P31 wd:Q1075.') },
+  { id: 'web-browsers', group: 'science', text: 'Name a web browser', ...q('?i wdt:P31 wd:Q6368.') },
+  { id: 'operating-systems', group: 'science', text: 'Name an operating system', ...q('?i wdt:P31 ?kind. VALUES ?kind { wd:Q9135 wd:Q131669 }') },
+  // food, drink and things
+  { id: 'pasta', group: 'food', text: 'Name a type of pasta', ...q('?i wdt:P279 wd:Q178.') },
+  { id: 'cheeses', group: 'food', text: 'Name a cheese', ...q('?i wdt:P279|wdt:P31 wd:Q10943.') },
+  { id: 'cocktails', group: 'food', text: 'Name a cocktail', ...q(labelled('cocktail', 'wdt:P31|wdt:P279')) },
+  { id: 'breads', group: 'food', text: 'Name a type of bread', ...q(labelled('bread', 'wdt:P279')) },
+  { id: 'soups', group: 'food', text: 'Name a soup', ...q(labelled('soup', 'wdt:P279|wdt:P31')) },
+  { id: 'spices', group: 'food', text: 'Name a herb or spice', ...q(labelled(['spice', 'herb', 'culinary herb'], 'wdt:P279|wdt:P31')) },
+  { id: 'fast-food', group: 'food', text: 'Name a fast-food chain', ...q(labelled(['fast food restaurant chain', 'fast-food restaurant chain', 'fast food chain'])) },
+  { id: 'beer-brands', group: 'food', text: 'Name a brand of beer', ...q(labelled(['beer brand', 'brand of beer'])) },
+  { id: 'car-models', group: 'food', text: 'Name a car made by Toyota, Ford, BMW or Volkswagen', ...q('VALUES ?who { wd:Q53268 wd:Q44294 wd:Q26678 wd:Q246 } ?i wdt:P176 ?who; wdt:P31 wd:Q3231690.') },
+  { id: 'airlines', group: 'food', text: 'Name an airline', ...q('?i wdt:P31 wd:Q46970. FILTER NOT EXISTS { ?i wdt:P576 [] }') },
+  { id: 'board-games', group: 'food', text: 'Name a board game', ...q('?i wdt:P31 wd:Q131436.') },
+  { id: 'card-games', group: 'food', text: 'Name a card game', ...q('?i wdt:P31 wd:Q142714.') },
+];
+PROMPTS.push(...MORE_PROMPTS);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // One request at a time with a pause between them, as the query service asks.
 let lane = Promise.resolve();
-function getJson(url, tries = 2) {
+function getJson(url, tries = 1) {
   const run = async () => {
     for (let i = 0; ; i++) {
       await sleep(1200);
@@ -241,6 +342,7 @@ async function build(p, fresh) {
     }
   }));
   for (const p of PROMPTS) if (results.get(p.id)) manifest.push(results.get(p.id));
+  for (const file of fs.readdirSync(OUT)) if (file !== 'manifest.json' && !manifest.some((m) => m.id + '.json' === file)) fs.unlinkSync(path.join(OUT, file));
   fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify({ built: new Date().toISOString().slice(0, 10), prompts: manifest }));
   console.log(`\n${manifest.length} of ${PROMPTS.length} prompts built`);
 })();
