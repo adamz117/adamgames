@@ -6,20 +6,23 @@
 // 'ph-duel-ready', 'ph-duel-send' and 'ph-duel-leave' out.
 //
 // What the two players say to each other (the `t` of each message):
-//   hello    I have just arrived (or come back)          sync   here is the duel so far
+//   hello    I have just arrived (or come back)          state  where I am in the duel (every 2 s)
 //   round    seat 0 starts hole r (r 1 is a new duel)    ready  I am ready for the next hole
 //   commit   I have locked in: the seal of my answer     reveal my answer and the nonce behind the seal
 //   timeout  you ran out of time; here is my answer      rematch / bye
 // An answer travels sealed (a hash) until both players have locked in, so neither can see the
-// other's before giving their own.
+// other's before giving their own. Any one message can be lost, so each screen also sends its whole
+// state every couple of seconds, and the other catches up from it (heal) without throwing anything away.
 (() => {
 'use strict';
 
 const C = window.PinHighDuelCore;
 const GRACE_MS = 6000;     // how long past their clock I wait for the other player before calling time
-const ADVANCE_MS = 15000;  // seat 0 moves on this long after a result, ready or not
+const ADVANCE_MS = 6000;   // after the damage is shown, seat 0 moves on this long later, ready or not
+const STATE_MS = 2000;     // how often each screen says where it is
 const FORFEIT_MS = 45000;  // a player gone this long mid-duel forfeits
-const RESEND_MS = 3000;    // a message can be lost: the ones a hole depends on are said again until answered
+const REVEAL_MAX_MS = 12000; // if the two shots have not both landed by then, show the result anyway
+const CATCHUP_MS = 2500;   // seat 0, back in between holes, starts the next one this soon
 let A = null;              // game.js's helpers
 let me = 0, opp = 1, lobbyId = '', code = '', names = ['Player 1', 'Player 2'], present = [];
 let S = null;
@@ -32,7 +35,7 @@ const blank = () => ({
   matchId: null, round: 0, hp: [C.START_HP, C.START_HP], history: [], phase: 'room', prompts: [],
   prompt: null, data: null, index: null, loading: null,
   mine: null, theirs: null, resolved: false, previewEnds: 0, deadline: 0, answerEnds: 0,
-  ready: [false, false], rematch: [false, false], resultAt: 0, saidAt: 0, lastTick: 9, suggestion: null, absentSince: 0, forfeit: false,
+  ready: [false, false], rematch: [false, false], resultAt: 0, saidAt: 0, hold: false, shownHp: [C.START_HP, C.START_HP], lastTick: 9, suggestion: null, absentSince: 0, forfeit: false,
 });
 const now = () => Date.now();
 const post = (msg) => { try { parent.postMessage(msg, location.origin); } catch {} };
@@ -57,18 +60,35 @@ function build() {
 
 function drawHud(animate) {
   const sides = [[me, '#hpMe'], [opp, '#hpOpp']];
+  const shown = S.hold ? S.shownHp : S.hp; // while the damage is being added up, the bars wait
   for (const [slot, sel] of sides) {
-    const box = A.$(sel), hp = S.hp[slot];
+    const box = A.$(sel), hp = shown[slot];
     const waiting = slot === opp && !oppHere() && S.phase === 'room'; // nobody has joined yet
     box.querySelector('.hp-name').textContent = slot === me ? `${names[slot]} (you)` : waiting ? 'Waiting…' : names[slot];
-    box.querySelector('i').style.transform = `scaleX(${hp / C.START_HP})`;
+    const prev = box.dataset.hp === undefined ? hp : Number(box.dataset.hp);
+    box.dataset.hp = hp;
+    const frac = `scaleX(${hp / C.START_HP})`, ghost = box.querySelector('u');
+    box.querySelector('i').style.transform = frac;
+    if (animate && hp < prev) {
+      ghost.style.transform = frac; // its transition waits a moment, so the lost chunk shows red first
+      box.classList.remove('hit'); void box.offsetWidth; box.classList.add('hit');
+      const tag = document.createElement('span');
+      tag.className = 'hp-dmg'; tag.textContent = `−${prev - hp}`;
+      box.appendChild(tag); setTimeout(() => tag.remove(), 1600);
+    } else if (ghost.style.transform !== frac) {
+      ghost.style.transition = 'none'; ghost.style.transform = frac; void ghost.offsetWidth; ghost.style.transition = '';
+    }
     box.classList.toggle('low', hp <= C.START_HP * 0.25);
     box.classList.toggle('away', slot === opp && !oppHere() && !waiting);
     const num = box.querySelector('b'), from = Number(num.textContent) || 0;
-    if (animate && from !== hp) A.countTo(num, from, hp, 900); else num.textContent = hp;
+    if (animate && from !== hp) A.countTo(num, from, hp, 900);
+    else { num._count = (num._count || 0) + 1; num.textContent = hp; } // and stop any count still running
   }
-  const mid = A.$('#duelMid');
-  mid.innerHTML = S.round ? `Hole ${S.round}<b>×${C.multiplier(S.round)}</b>` : 'Duel';
+  const mid = A.$('#duelMid'), html = S.round ? `Hole ${S.round}<b>×${C.multiplier(S.round)}</b>` : 'Duel';
+  if (mid.innerHTML !== html) {
+    mid.innerHTML = html;
+    if (S.round > 2) { mid.classList.remove('bump'); void mid.offsetWidth; mid.classList.add('bump'); }
+  }
 }
 
 function showRoom(note) {
@@ -109,6 +129,66 @@ function friendsHtml() {
   }).join('')}</ul></div>`;
 }
 
+// A full-screen moment over the hole: html for ms milliseconds, steps at their times. A newer one
+// cancels what is left of an older one.
+let fxRun = 0;
+function fx(html, ms, steps = []) {
+  const run = ++fxRun, el = A.$('#fx');
+  el.innerHTML = `<div class="veil"></div><div class="fx-box">${html}</div>`;
+  el.classList.remove('out'); el.hidden = false;
+  const at = (t, f) => setTimeout(() => { if (run === fxRun) f(); }, t);
+  for (const [t, f] of steps) at(t, f);
+  at(ms - 320, () => el.classList.add('out'));
+  at(ms, () => { el.hidden = true; el.innerHTML = ''; });
+}
+
+// Before each hole: its number and how hard it hits.
+function multSplash(r) {
+  const m = C.multiplier(r), prev = r > 1 ? C.multiplier(r - 1) : m, up = m > prev;
+  const note = r === 1 ? 'First to zero loses' : up ? 'Damage multiplier up' : 'Damage multiplier';
+  fx(`<div class="fx-hole">Hole ${r}</div><div class="fx-mult">×${m}</div><div class="fx-note${up ? ' up' : ''}">${note}</div>`, 1650);
+  if (up) setTimeout(() => A.sfx.play('tick'), 170);
+}
+
+// After the shots land: both scores, the gap, times the multiplier, and the total flying into the
+// loser's health bar. Returns how long it runs; the bars are hit part way through.
+function damageFx(res) {
+  const hurt = res.damage[0] ? 0 : res.damage[1] ? 1 : -1;
+  const gap = Math.abs(res.scores[0] - res.scores[1]), dmg = hurt < 0 ? 0 : res.damage[hurt];
+  const side = (slot) => `<div class="fx-side ${slot === me ? 'me' : 'opp'}" id="fxS${slot}"><small>${slot === me ? 'You' : A.esc(names[slot])}</small><b>${res.scores[slot]}</b></div>`;
+  const html = `<div class="fx-row">${side(me)}${side(opp)}</div><div class="fx-calc" id="fxCalc"></div><div id="fxEnd"></div>`;
+  const hit = () => { S.hold = false; drawHud(true); A.sfx.play(hurt === me ? 'no' : 'thud'); };
+  const stamp = (text, color) => () => { A.$('#fxEnd').innerHTML = `<span class="fx-stamp" style="--c:${color}">${text}</span>`; A.sfx.play('thud'); };
+  if (res.cancelled || hurt < 0) {
+    fx(html, 1900, [[450, stamp(res.cancelled ? 'Same answer · cancelled' : 'Level · no damage', 'var(--sage)')], [700, hit]]);
+    return 1900;
+  }
+  const loser = () => { const l = A.$('#fxS' + hurt); if (l) l.classList.add('lose'); };
+  const calc = (h) => { const c = A.$('#fxCalc'); if (c) c.insertAdjacentHTML('beforeend', h); A.sfx.play('tick'); };
+  const t1 = 420, t2 = res.mult > 1 ? 820 : t1, t3 = t2 + 420, tFly = t3 + 620, tHit = tFly + 420;
+  const ko = S.hp[hurt] === 0, end = ko ? tHit + 1250 : tHit + 520;
+  const steps = [
+    [t1, () => { loser(); calc(`<span class="fx-gap">${gap}</span>`); }],
+    [t3, () => {
+      A.$('#fxEnd').innerHTML = `<span class="fx-total" id="fxTotal">−${dmg}<small>damage to ${hurt === me ? 'you' : A.esc(names[hurt])}</small></span>`;
+      A.sfx.play(hurt === me ? 'no' : 'go');
+    }],
+    [tFly, () => { // the total flies into the health bar it comes off
+      const n = A.$('#fxTotal'), bar = A.$(hurt === me ? '#hpMe .hp-bar' : '#hpOpp .hp-bar');
+      if (!n || !bar) return;
+      const a = n.getBoundingClientRect(), b = bar.getBoundingClientRect();
+      n.classList.add('fly');
+      n.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(.2)`;
+      n.style.opacity = '0';
+    }],
+    [tHit, hit],
+  ];
+  if (res.mult > 1) steps.push([t2, () => calc(`<span class="fx-x">× ${res.mult}</span>`)]);
+  if (ko) steps.push([tHit + 250, stamp('Knockout', 'var(--danger)')]);
+  fx(html, end, steps);
+  return end;
+}
+
 function status(text, calm = true) {
   A.ui.msg.hidden = false; A.ui.msg.className = calm ? 'msg calm' : 'msg'; A.ui.msg.textContent = text;
 }
@@ -131,7 +211,8 @@ function startMatch(matchId) {
 // elapsed: how far into the hole we already are (a player coming back mid-hole)
 function beginRound(r, elapsed) {
   const p = S.prompts[r - 1];
-  Object.assign(S, { round: r, prompt: p, data: null, index: null, mine: null, theirs: null, resolved: false, ready: [false, false], lastTick: 9, suggestion: null, phase: 'preview', saidAt: now() });
+  Object.assign(S, { round: r, prompt: p, data: null, index: null, mine: null, theirs: null, resolved: false, ready: [false, false], lastTick: 9, suggestion: null, phase: 'preview', hold: false, pending: null });
+  if (elapsed < 800) multSplash(r);
   S.previewEnds = now() + C.PREVIEW_MS - elapsed;
   S.deadline = S.answerEnds = S.previewEnds + C.ANSWER_MS;
   S.loading = A.loadPrompt(p.id).then((d) => { if (S.prompt === p) { S.data = d; S.index = A.buildIndex(d.answers); } });
@@ -214,6 +295,7 @@ function tryResolve() {
 // They never locked in, or never showed their answer: their hole is a miss.
 function callTime() {
   if (S.resolved || !S.mine) return;
+  S.mine.revealed = true; // the state I send from now on shows my answer
   send('timeout', { r: S.round, i: S.mine.idx, n: S.mine.nonce });
   S.theirs = { idx: -1 };
   resolveNow();
@@ -226,6 +308,7 @@ async function resolveNow() {
   const idx = [0, 0]; idx[me] = S.mine.idx; idx[opp] = S.theirs.idx;
   const tiers = idx.map(tierAt);
   const res = C.resolveRound(S.round, { idx: idx[0], tier: tiers[0] }, { idx: idx[1], tier: tiers[1] });
+  S.shownHp = [...S.hp]; S.hold = true;
   S.hp = C.applyRound(S.hp, res);
   S.history.push({ idx, tiers });
   persist();
@@ -234,7 +317,9 @@ async function resolveNow() {
   ui.form.hidden = true; ui.timer.hidden = true; ui.msg.hidden = true; ui.clock.textContent = '';
   ui.result.hidden = true;
   let landed = 0;
-  const done = () => { if (++landed === 2) showResult(res, idx, tiers); };
+  S.revealAt = now(); S.pending = { res, idx, tiers };
+  const round = S.round, matchId = S.matchId;
+  const done = () => { if (++landed === 2 && S.pending && S.round === round && S.matchId === matchId) { S.pending = null; showResult(res, idx, tiers); } };
   const thud = (t) => () => A.sfx.play(t < 0 ? 'splash' : t === 0 ? 'sand' : t === 3 ? 'green' : 'thud');
   A.sfx.play('swing');
   A.scene.launch(tiers[me], thud(tiers[me]), () => { if (tiers[me] === 4) A.sfx.play('cup'); done(); }, false);
@@ -251,7 +336,9 @@ function sideHtml(slot, idx, tier, pts) {
 }
 
 function showResult(res, idx, tiers) {
-  S.phase = 'result'; S.resultAt = now();
+  S.phase = 'result';
+  const fxMs = damageFx(res);
+  S.resultAt = now() + fxMs; // the countdown to the next hole starts once the damage is in
   const over = C.outcome(S.hp, S.history.length);
   const hurt = res.damage[0] ? 0 : res.damage[1] ? 1 : -1;
   const gap = Math.abs(res.scores[0] - res.scores[1]);
@@ -267,13 +354,14 @@ function showResult(res, idx, tiers) {
     <div class="res-sub">${verdict}</div>
     <div class="res-foot"><button class="btn" id="next" type="button">${over ? 'See the result' : 'Next hole'}</button></div>`;
   ui.result.hidden = false;
-  drawHud(true);
+  drawHud(false);
   const next = A.$('#next');
   next.onclick = () => {
     A.sfx.play('click');
     if (over) return showOver();
     S.ready[me] = true; send('ready', { r: S.round });
     next.disabled = true; next.textContent = `Waiting for ${names[opp]}…`;
+    next.dataset.waiting = '1';
     if (host()) maybeAdvance(false);
   };
   next.focus({ preventScroll: true });
@@ -320,21 +408,23 @@ async function onMsg(d) {
   if (!d || typeof d.t !== 'string' || !S) return;
   switch (d.t) {
     case 'hello':
-      if (S.matchId) send('sync', syncState());
+      if (S.matchId) send('state', stateMsg());
       break;
     case 'sync':
-      if (!S.matchId || (d.matchId === S.matchId && Array.isArray(d.history) && d.history.length > S.history.length)) adopt(d);
+    case 'state':
+      await heal(d);
       break;
     case 'round':
       if (d.r === 1 && typeof d.matchId === 'string' && d.matchId !== S.matchId) { startMatch(d.matchId); beginRound(1, 0); }
-      else if (d.matchId === S.matchId && d.r !== S.round && Array.isArray(d.history) && d.history.length === d.r - 1) {
+      else if (d.matchId === S.matchId && d.r > S.round && Array.isArray(d.history) && d.history.length === d.r - 1) {
         // seat 0's record of the duel is the one that counts
-        if (JSON.stringify(d.history) !== JSON.stringify(S.history)) { S.history = d.history; S.hp = C.replay(d.history).hp; }
+        takeHistory(d.history);
         beginRound(d.r, 0);
       }
       break;
     case 'commit':
-      if (d.r !== S.round || S.resolved || typeof d.h !== 'string') break;
+      if (d.r !== S.round || typeof d.h !== 'string') break;
+      if (S.resolved) { if (S.mine && S.mine.nonce) send('reveal', { r: S.round, i: S.mine.idx, n: S.mine.nonce }); break; }
       if (!S.theirs) {
         S.theirs = { hash: d.h };
         if (S.phase === 'answer' || S.phase === 'preview') {
@@ -365,6 +455,7 @@ async function onMsg(d) {
     }
     case 'ready':
       if (d.r === S.round) { S.ready[opp] = true; maybeAdvance(false); }
+      else if (host() && d.r === S.round - 1 && !S.resolved) send('round', { matchId: S.matchId, r: S.round, history: S.history });
       break;
     case 'rematch':
       S.rematch[opp] = true;
@@ -376,12 +467,49 @@ async function onMsg(d) {
   }
 }
 
-const syncState = () => ({
+// Where I am, said every couple of seconds; enough for the other screen to catch up from.
+const stateMsg = () => ({
   matchId: S.matchId, history: S.history, round: S.round,
   live: !S.resolved && ['preview', 'answer', 'locked'].includes(S.phase),
   elapsed: now() - (S.previewEnds - C.PREVIEW_MS),
-  commit: S.mine && !S.resolved ? S.mine.hash : null,
+  commit: S.mine && S.mine.hash ? S.mine.hash : null,
+  reveal: S.mine && S.mine.revealed && S.mine.nonce ? { i: S.mine.idx, n: S.mine.nonce } : null,
+  ready: S.phase === 'result' && S.ready[me],
+  rematch: S.phase === 'over' && S.rematch[me],
 });
+
+const cleanHistory = (h) => (Array.isArray(h) ? h.filter((x) => x && Array.isArray(x.idx) && Array.isArray(x.tiers)).slice(0, C.MAX_ROUNDS) : []);
+// Seat 0's record of the duel is the one that counts.
+function takeHistory(h) {
+  const hist = cleanHistory(h);
+  if (JSON.stringify(hist) === JSON.stringify(S.history)) return;
+  S.history = hist; S.hp = C.replay(hist).hp;
+  if (!S.hold) drawHud(false);
+}
+
+// The other screen's state: take what I missed, and never throw away what I have.
+async function heal(d) {
+  if (!d || typeof d.matchId !== 'string' || !Array.isArray(d.history)) return;
+  const r = Number.isInteger(d.round) ? d.round : 0;
+  if (d.matchId !== S.matchId) {
+    // I have no duel (this page is new), or seat 0 started a rematch I never heard about
+    if (!S.matchId || S.phase === 'room' || (S.phase === 'over' && !host() && cleanHistory(d.history).length < S.history.length)) adopt(d);
+    return;
+  }
+  if (!host()) {
+    if (d.live && r > S.round && d.history.length === r - 1) { takeHistory(d.history); beginRound(r, Math.max(0, Number(d.elapsed) || 0)); }
+    else if (!d.live && d.history.length > S.history.length && r > S.round) {
+      // seat 0 finished a hole I never saw start: catch up and wait for the next one
+      takeHistory(d.history); S.round = r; betweenHoles();
+    } else if (d.history.length === S.history.length && !S.hold && S.phase !== 'reveal') takeHistory(d.history);
+  }
+  if (r === S.round && !S.resolved) {
+    if (typeof d.commit === 'string') await onMsg({ t: 'commit', r, h: d.commit });
+    if (d.reveal && r === S.round && !S.resolved) await onMsg({ t: 'reveal', r, i: d.reveal.i, n: d.reveal.n });
+  }
+  if (r === S.round && d.ready && S.phase === 'result' && !S.ready[opp]) { S.ready[opp] = true; maybeAdvance(false); }
+  if (d.rematch && S.phase === 'over' && !S.rematch[opp]) await onMsg({ t: 'rematch' });
+}
 
 // Coming back to a duel that went on without this page (a reload, a dropped connection).
 function adopt(d) {
@@ -402,10 +530,14 @@ function adopt(d) {
     }
     return;
   }
-  // between holes: wait for seat 0 to start the next one
+  betweenHoles();
+}
+
+// Back in between holes: seat 0 starts the next one shortly; the other seat says it is ready.
+function betweenHoles() {
   A.ui.play.hidden = true; room.hidden = false;
-  room.innerHTML = `<div class="eyebrow"><span>Duel · back in</span></div><h1>Hole ${history.length} done</h1><p>Waiting for the next hole to start.</p>`;
-  S.phase = 'result'; S.resultAt = now(); S.ready[me] = true;
+  room.innerHTML = `<div class="eyebrow"><span>Duel · back in</span></div><h1>Catching up</h1><p>You are back in after hole ${S.history.length}. The next hole starts in a moment.</p>`;
+  S.phase = 'result'; S.resolved = true; S.hold = false; S.resultAt = now() - ADVANCE_MS + CATCHUP_MS; S.ready[me] = true;
   send('ready', { r: S.round });
   drawHud(false);
 }
@@ -429,11 +561,13 @@ function tick() {
     if (secs <= 3 && secs > 0 && secs < S.lastTick) { S.lastTick = secs; A.sfx.play('tick'); }
     if (left <= 0) { if (S.suggestion) lock(S.suggestion.i, S.suggestion.text); else submit(ui.input.value.trim(), true); }
   }
-  if (S.matchId && !S.resolved && ['preview', 'answer', 'locked'].includes(S.phase) && t > S.saidAt + RESEND_MS) {
-    S.saidAt = t;
-    if (host() && !S.theirs) send('round', { matchId: S.matchId, r: S.round, history: S.history });
-    if (S.mine && S.mine.hash) send('commit', { r: S.round, h: S.mine.hash });
-    if (S.mine && S.mine.revealed && S.mine.nonce) send('reveal', { r: S.round, i: S.mine.idx, n: S.mine.nonce });
+  if (S.matchId && S.phase !== 'room' && t > S.saidAt + STATE_MS) { S.saidAt = t; send('state', stateMsg()); }
+  if (S.phase === 'result') {
+    const b = A.$('#next');
+    if (b && !b.dataset.waiting && b.textContent !== 'See the result') {
+      const left = Math.ceil((S.resultAt + ADVANCE_MS - t) / 1000);
+      b.textContent = left > ADVANCE_MS / 1000 ? 'Next hole' : left > 0 ? `Next hole · ${left}` : 'Starting…';
+    }
   }
   if (S.phase === 'locked' && S.mine && !S.resolved) {
     // their clock ends at the hole's end, or the squeeze after my lock, whichever is sooner
@@ -441,6 +575,9 @@ function tick() {
     if (!S.theirs ? t > theirEnd + GRACE_MS : S.theirs.idx === undefined && S.mine.revealAt && t > S.mine.revealAt + GRACE_MS * 3) callTime();
   } else if (S.phase === 'result' && host() && S.resultAt && t > S.resultAt + ADVANCE_MS) {
     maybeAdvance(true);
+  } else if (S.phase === 'reveal' && S.revealAt && t > S.revealAt + REVEAL_MAX_MS && S.pending) {
+    const p = S.pending; S.pending = null;
+    showResult(p.res, p.idx, p.tiers);
   }
   if (S.matchId && S.phase !== 'over' && S.absentSince && t > S.absentSince + FORFEIT_MS) { S.forfeit = true; showOver(); }
 }

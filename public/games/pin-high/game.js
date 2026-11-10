@@ -176,6 +176,7 @@ const scene = (() => {
   const newBall = () => ({ state: 'tee', x: TEE, lift: 0, alpha: 1, sink: 0 });
   const spare = { ball: newBall(), flight: null, trail: [], swingT: -1, on: false };
   let duo = false; // a duel: both golfers stand on the tee
+  let speed = 1;    // a duel plays its shots faster
   let who = 0; // 0 while the variables hold my ball, 1 while they hold the opponent's
   function swap() {
     let t;
@@ -215,7 +216,7 @@ const scene = (() => {
   const sy = (x) => groundY - hole.elev(x) * vs;
 
   function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     W = cv.clientWidth; H = cv.clientHeight;
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     ppy = Math.max(W / WORLD, 2.5);
@@ -392,8 +393,8 @@ const scene = (() => {
       if (fade === 1 && fadeDir > 0) { hole = pending; pending = null; reset(); fadeDir = -1; }
       else if (fade === 0) fadeDir = 0;
     }
-    moveBall(dt);
-    if (spare.on) { swap(); moveBall(dt); swap(); }
+    moveBall(dt * speed);
+    if (spare.on) { swap(); moveBall(dt * speed); swap(); }
     for (const p of parts) { p.t += dt; p.vy += p.grav * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
     parts = parts.filter((p) => p.t < p.life);
     for (const r of rings) r.t += dt;
@@ -461,8 +462,8 @@ const scene = (() => {
       for (let px = 0; px <= W + 8; px += 8) { const wx = px + cam * ppy * par; g.lineTo(px, groundY - base - amp * Math.sin(wx * f + p) - amp * 0.4 * Math.sin(wx * f * 2.7 + p * 1.7)); }
       g.lineTo(W, H); g.closePath(); g.fillStyle = color; g.fill();
     };
-    hillLayer(0.12, groundY * 0.2, groundY * 0.07, 0.0042, h.hills[0], `color-mix(in srgb, ${bot} 58%, #2f5f58)`);
-    hillLayer(0.25, groundY * 0.11, groundY * 0.05, 0.0068, h.hills[1], `color-mix(in srgb, ${bot} 32%, #285443)`);
+    hillLayer(0.12, groundY * 0.2, groundY * 0.07, 0.0042, h.hills[0], h.far ??= mixHex(bot, '#2f5f58', 0.58));
+    hillLayer(0.25, groundY * 0.11, groundY * 0.05, 0.0068, h.hills[1], h.near ??= mixHex(bot, '#285443', 0.32));
     // tree line
     for (const t of h.trees) { const px = (t.x - cam * 0.72) * ppy * 1.02; if (px > -60 && px < W + 60) tree(px, groundY - h.elev(clamp(t.x, 0, WORLD)) * vs * 0.55 - 5, t.s * 0.95 * ts, t.pine, t.tone, true); }
 
@@ -558,18 +559,26 @@ const scene = (() => {
     }
   }
 
+  // a share of hex colour a mixed with b
+  function mixHex(a, b, share) {
+    const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+    const x = p(a), y = p(b);
+    return '#' + x.map((v, i) => Math.round(v * share + y[i] * (1 - share)).toString(16).padStart(2, '0')).join('');
+  }
+
   function step(now, maxDt) {
     const dt = Math.min(maxDt, (now - last) / 1000); last = now;
     if (hole && W) { update(dt); draw(); }
   }
-  function frame(now) { step(now, 0.05); requestAnimationFrame(frame); }
+  const busy = () => flight || spare.flight || parts.length || rings.length || fadeDir || (swingT > -1 && swingT < 1) || (spare.swingT > -1 && spare.swingT < 1) || (markersOn && markers < MARKS.length + 1);
+  function frame(now) { if (busy() || now - last > 31) step(now, 0.05); requestAnimationFrame(frame); }
   // A hidden tab gets no animation frames: keep the shot moving so the round can still finish.
   setInterval(() => { const now = performance.now(); if (now - last > 400) step(now, 0.5); }, 250);
   window.addEventListener('resize', resize);
   resize();
   requestAnimationFrame(frame);
   // A duel shows both golfers on the tee from the start of the hole.
-  function setDuo(on) { duo = on; spare.on = on; }
+  function setDuo(on) { duo = on; spare.on = on; speed = on ? 1.6 : 1; }
   return { setHole, launch, resize, setDuo };
 })();
 
@@ -589,8 +598,9 @@ let phase = 'intro', hole = 0, results = [], shown = 0, endsAt = 0, lastTick = 9
 const stats = () => store.get(LS.stats, { history: {}, played: 0, total: 0, best: 0, streak: 0, maxStreak: 0, last: null });
 
 function countTo(node, from, to, ms = 800) {
-  const t0 = performance.now();
-  const step = (now) => { const u = Math.min(1, (now - t0) / ms); node.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - u, 4))); if (u < 1) requestAnimationFrame(step); };
+  const t0 = performance.now(), run = (node._count = (node._count || 0) + 1);
+  setTimeout(() => { if (node._count === run) node.textContent = to; }, ms + 80); // a hidden tab gets no frames
+  const step = (now) => { if (node._count !== run) return; const u = Math.min(1, (now - t0) / ms); node.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - u, 4))); if (u < 1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
 
