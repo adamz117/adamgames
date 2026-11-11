@@ -179,6 +179,98 @@ const MORE_PROMPTS = [
 ];
 PROMPTS.push(...MORE_PROMPTS);
 
+// Every Wikidata id below was checked against its English label on 2026-11-11.
+const BOOK_KINDS = 'VALUES ?kind { wd:Q7725634 wd:Q8261 wd:Q47461344 wd:Q1279564 wd:Q49084 wd:Q571 }';
+const booksOf = (...ids) => `VALUES ?who { ${values(ids)} } ?i wdt:P50 ?who; wdt:P31 ?kind. ${BOOK_KINDS}`;
+const WELL_KNOWN = '?i wikibase:sitelinks ?sl. FILTER(?sl >= 6)';
+const job = (id) => `?i wdt:P106 wd:${id}; wdt:P31 wd:Q5. ${WELL_KNOWN}`;
+const kindOf = (id) => `?i wdt:P279|wdt:P31 wd:${id}.`;
+
+const EVEN_MORE_PROMPTS = [
+  // geography and places
+  { id: 'waterfalls', group: 'geo', text: 'Name a waterfall', ...q('?i wdt:P31 wd:Q34038.') },
+  { id: 'national-parks', group: 'geo', text: 'Name a national park', ...q('?i wdt:P31 wd:Q46169.') },
+  { id: 'castles', group: 'geo', text: 'Name a castle', ...q('?i wdt:P31 wd:Q23413.') },
+  { id: 'bridges', group: 'geo', text: 'Name a bridge', ...q('?i wdt:P31 wd:Q12280.') },
+  { id: 'caves', group: 'geo', text: 'Name a cave', ...q('?i wdt:P31 wd:Q35509.') },
+  { id: 'peninsulas', group: 'geo', text: 'Name a peninsula', ...q('?i wdt:P31 wd:Q34763.') },
+  { id: 'straits', group: 'geo', text: 'Name a strait', ...q('?i wdt:P31 wd:Q37901.') },
+  { id: 'theme-parks', group: 'geo', text: 'Name a theme park', ...q('?i wdt:P31 wd:Q2416723.') },
+  { id: 'museums', group: 'geo', text: 'Name a museum or art gallery', ...q(`VALUES ?k { wd:Q33506 wd:Q207694 } ?i wdt:P31 ?k. ${WELL_KNOWN}`) },
+  { id: 'zoos', group: 'geo', text: 'Name a zoo', ...q('?i wdt:P31 wd:Q43501.') },
+  { id: 'japan-prefectures', group: 'geo', text: 'Name a prefecture of Japan', ...q('?i wdt:P31 wd:Q50337.') },
+  { id: 'german-states', group: 'geo', text: 'Name a state of Germany', ...q('?i wdt:P31 wd:Q1221156.') },
+  { id: 'english-counties', group: 'geo', text: 'Name a county of England', ...q('?i wdt:P31 wd:Q180673.') },
+  { id: 'us-cities', group: 'geo', text: 'Name a US city with more than 200,000 people', ...q('?i wdt:P31 wd:Q1093829; wdt:P1082 ?pop. FILTER(?pop > 200000)') },
+  { id: 'uk-cities', group: 'geo', text: 'Name a city in the United Kingdom', ...q('?i wdt:P31 wd:Q515; wdt:P17 wd:Q145.') },
+  { id: 'languages', group: 'geo', text: 'Name a language', ...q('?i wdt:P31 wd:Q34770.') },
+  { id: 'sa-universities', group: 'geo', text: 'Name a South African university', ...q('?i wdt:P31/wdt:P279? wd:Q3918; wdt:P17 wd:Q258.') },
+  { id: 'us-universities', group: 'geo', text: 'Name an American university', ...q('?i wdt:P31 wd:Q3918; wdt:P17 wd:Q30.') },
+  // golf
+  { id: 'golf-americans', group: 'golf', text: 'Name an American golfer', ...q('?i wdt:P106 wd:Q11303721; wdt:P27 wd:Q30.') },
+  { id: 'golf-australians', group: 'golf', text: 'Name an Australian golfer', ...q('?i wdt:P106 wd:Q11303721; wdt:P27 wd:Q408.') },
+  // sport
+  { id: 'mancity-players', group: 'sport', text: 'Name a footballer who has played for Manchester City', ...q(playedFor('Q50602')) },
+  { id: 'spurs-players', group: 'sport', text: 'Name a footballer who has played for Tottenham Hotspur', ...q(playedFor('Q18741')) },
+  { id: 'chiefs-players', group: 'sport', text: 'Name a footballer who has played for Kaizer Chiefs', ...q(playedFor('Q247731')) },
+  { id: 'pirates-players', group: 'sport', text: 'Name a footballer who has played for Orlando Pirates', ...q(playedFor('Q607939')) },
+  { id: 'sundowns-players', group: 'sport', text: 'Name a footballer who has played for Mamelodi Sundowns', ...q(playedFor('Q784965')) },
+  { id: 'bafana', group: 'sport', text: 'Name a footballer who has played for Bafana Bafana (South Africa)', ...q(playedFor('Q170327')) },
+  { id: 'all-blacks', group: 'sport', text: 'Name an All Black (New Zealand rugby international)', ...q(playedFor('Q55801')) },
+  { id: 'india-cricketers', group: 'sport', text: 'Name a cricketer who has played for India', ...q(playedFor('Q1143793')) },
+  { id: 'aussie-cricketers', group: 'sport', text: 'Name a cricketer who has played for Australia', ...q(playedFor('Q142555')) },
+  { id: 'basketball-players', group: 'sport', text: 'Name a basketball player', ...q(job('Q3665646')) },
+  { id: 'tennis-players', group: 'sport', text: 'Name a professional tennis player', ...q(job('Q10833314')) },
+  // music
+  { id: 'songs-icons', group: 'music', text: 'Name a song by Elton John, Madonna or Prince', ...q(songsBy('Q2808', 'Q1744', 'Q7542')) },
+  { id: 'songs-stadium', group: 'music', text: 'Name a song by Coldplay, U2 or Oasis', ...q(songsBy('Q45188', 'Q396', 'Q382890')) },
+  { id: 'songs-charts', group: 'music', text: 'Name a song by Bruno Mars, Justin Bieber or The Weeknd', ...q(songsBy('Q1450', 'Q34086', 'Q2121062')) },
+  { id: 'songs-legends', group: 'music', text: 'Name a song by Bob Dylan, David Bowie or Bob Marley', ...q(songsBy('Q392', 'Q5383', 'Q409')) },
+  { id: 'beatles-albums', group: 'music', text: 'Name a Beatles album', ...q('?i wdt:P175 wd:Q1299; wdt:P31 wd:Q482994.') },
+  { id: 'rappers', group: 'music', text: 'Name a rapper', ...q(job('Q2252262')) },
+  { id: 'boy-bands', group: 'music', text: 'Name a boy band', ...q('?i wdt:P31 wd:Q216337.') },
+  { id: 'jazz-musicians', group: 'music', text: 'Name a jazz musician', ...q(job('Q15981151')) },
+  // film, tv and games
+  { id: 'films-horror', group: 'film', text: 'Name a horror film', ...q('?i wdt:P31 wd:Q11424; wdt:P136 wd:Q200092.') },
+  { id: 'films-christmas', group: 'film', text: 'Name a Christmas film', ...q('?i wdt:P31 wd:Q11424; wdt:P136 wd:Q28026639.') },
+  { id: 'films-leads', group: 'film', text: 'Name a film starring Will Smith, Denzel Washington, Morgan Freeman or Samuel L. Jackson', ...q(filmsWith('wdt:P161', 'Q40096', 'Q42101', 'Q48337', 'Q172678')) },
+  { id: 'chars-friends', group: 'film', text: 'Name a character from Friends', ...q('?i wdt:P1441 wd:Q79784.') },
+  { id: 'sitcoms', group: 'film', text: 'Name a sitcom', ...q('?i wdt:P31 wd:Q5398426; wdt:P136 wd:Q170238.') },
+  { id: 'anime', group: 'film', text: 'Name an anime series', ...q('?i wdt:P31 wd:Q63952888.') },
+  { id: 'playstation-games', group: 'film', text: 'Name a PlayStation 2 or PlayStation 4 game', ...q('VALUES ?p { wd:Q10680 wd:Q5014725 } ?i wdt:P400 ?p; wdt:P31 wd:Q7889.') },
+  { id: 'comedians', group: 'film', text: 'Name a comedian', ...q(job('Q245068')) },
+  // books and art
+  { id: 'books-kids', group: 'books', text: 'Name a book by Dr. Seuss, Enid Blyton or J. K. Rowling', ...q(booksOf('Q298685', 'Q192069', 'Q34660')) },
+  { id: 'philosophers', group: 'books', text: 'Name a philosopher', ...q(job('Q4964182')) },
+  { id: 'paintings', group: 'books', text: 'Name a painting by Van Gogh, Picasso or Monet', ...q('VALUES ?who { wd:Q5582 wd:Q5593 wd:Q296 } ?i wdt:P170 ?who; wdt:P31 wd:Q3305213.') },
+  // history and people
+  { id: 'us-vice-presidents', group: 'history', text: 'Name a US vice president', ...q(held('Q11699')) },
+  { id: 'aus-pms', group: 'history', text: 'Name an Australian prime minister', ...q(held('Q319145')) },
+  { id: 'canada-pms', group: 'history', text: 'Name a Canadian prime minister', ...q(held('Q839078')) },
+  { id: 'french-presidents', group: 'history', text: 'Name a president of France', ...q(held('Q191954')) },
+  { id: 'german-chancellors', group: 'history', text: 'Name a chancellor of Germany', ...q(held('Q4970706')) },
+  { id: 'empires', group: 'history', text: 'Name an empire', ...q('?i wdt:P31 wd:Q48349.') },
+  { id: 'wars', group: 'history', text: 'Name a war', ...q('?i wdt:P31 wd:Q198.') },
+  { id: 'explorers', group: 'history', text: 'Name an explorer', ...q(job('Q11900058')) },
+  { id: 'inventors', group: 'history', text: 'Name an inventor', ...q(job('Q205375')) },
+  { id: 'mythical-creatures', group: 'history', text: 'Name a mythical creature', ...q('?i wdt:P31 wd:Q2239243.') },
+  // science and work
+  { id: 'physicists', group: 'science', text: 'Name a physicist', ...q(job('Q169470')) },
+  { id: 'mathematicians', group: 'science', text: 'Name a mathematician', ...q(job('Q170790')) },
+  { id: 'architects', group: 'science', text: 'Name an architect', ...q(job('Q42973')) },
+  { id: 'chefs', group: 'science', text: 'Name a chef', ...q(job('Q3499072')) },
+  // food, drink and companies
+  { id: 'grapes', group: 'food', text: 'Name a grape variety', ...q('?i wdt:P31 wd:Q958314.') },
+  { id: 'desserts', group: 'food', text: 'Name a dessert', ...q(kindOf('Q182940')) },
+  { id: 'curries', group: 'food', text: 'Name a curry', ...q(kindOf('Q164606')) },
+  { id: 'sandwiches', group: 'food', text: 'Name a sandwich', ...q(kindOf('Q28803')) },
+  { id: 'sauces', group: 'food', text: 'Name a sauce', ...q(kindOf('Q178359')) },
+  { id: 'soft-drinks', group: 'food', text: 'Name a soft drink', ...q(kindOf('Q147538')) },
+  { id: 'sp500', group: 'food', text: 'Name a company in the S&P 500', ...q('?i wdt:P361 wd:Q242345.') },
+  { id: 'ftse100', group: 'food', text: 'Name a company in the FTSE 100', ...q('?i wdt:P361 wd:Q466496.') },
+];
+PROMPTS.push(...EVEN_MORE_PROMPTS);
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // One request at a time with a pause between them, as the query service asks.

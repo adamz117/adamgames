@@ -920,7 +920,7 @@ muteIcon();
   drawPips();
   requestAnimationFrame(loop);
   try {
-    manifest = await (await fetch('data/manifest.json')).json();
+    manifest = await (await fetch('data/manifest.json', { cache: 'no-cache' })).json();
     if (params.has('duel') && window.PinHighDuel) {
       phase = 'duel'; // the daily round's clock and form handlers stand down
       ui.intro.hidden = true;

@@ -198,19 +198,30 @@ function closeConfirm() { A.ui.confirm.hidden = true; S.suggestion = null; }
 function newMatch() {
   if (!host() || !oppHere()) return;
   const matchId = C.newNonce().slice(0, 12);
-  send('round', { matchId, r: 1, history: [] });
   startMatch(matchId);
+  send('round', { matchId, r: 1, history: [], holes: holesMsg() });
   beginRound(1, 0);
 }
 
-function startMatch(matchId) {
+// holes: the duel's holes as seat 0 chose them. Seat 0 picks from its own topic list and sends the
+// picks with every round and state message, so both screens play the same holes even when one of
+// them loaded an older list.
+function startMatch(matchId, holes) {
   const keep = S ? { absentSince: S.absentSince } : {};
-  S = { ...blank(), ...keep, matchId, prompts: C.promptOrder(A.manifest.prompts, lobbyId + ':' + matchId) };
+  const given = cleanHoles(holes);
+  S = { ...blank(), ...keep, matchId, prompts: given || C.promptOrder(A.manifest.prompts, lobbyId + ':' + matchId) };
 }
+function cleanHoles(h) {
+  if (!Array.isArray(h) || !h.length || h.length > C.MAX_ROUNDS) return null;
+  const out = h.map((p) => (p && typeof p.id === 'string' && /^[a-z0-9-]{2,40}$/.test(p.id) && typeof p.text === 'string' && p.text.length <= 200 ? { id: p.id, text: p.text } : null));
+  return out.every(Boolean) ? out : null;
+}
+const holesMsg = () => S.prompts.map((p) => ({ id: p.id, text: p.text }));
 
 // elapsed: how far into the hole we already are (a player coming back mid-hole)
 function beginRound(r, elapsed) {
   const p = S.prompts[r - 1];
+  if (!p) return; // past the last hole on the list
   Object.assign(S, { round: r, prompt: p, data: null, index: null, mine: null, theirs: null, resolved: false, ready: [false, false], lastTick: 9, suggestion: null, phase: 'preview', hold: false, pending: null });
   if (elapsed < 800) multSplash(r);
   S.previewEnds = now() + C.PREVIEW_MS - elapsed;
@@ -373,7 +384,7 @@ function maybeAdvance(force) {
   if (!host() || S.phase !== 'result' || C.outcome(S.hp, S.history.length)) return;
   if (!force && !(S.ready[0] && S.ready[1])) return;
   const r = S.round + 1;
-  send('round', { matchId: S.matchId, r, history: S.history });
+  send('round', { matchId: S.matchId, r, history: S.history, holes: holesMsg() });
   beginRound(r, 0);
 }
 
@@ -415,7 +426,7 @@ async function onMsg(d) {
       await heal(d);
       break;
     case 'round':
-      if (d.r === 1 && typeof d.matchId === 'string' && d.matchId !== S.matchId) { startMatch(d.matchId); beginRound(1, 0); }
+      if (d.r === 1 && typeof d.matchId === 'string' && d.matchId !== S.matchId) { startMatch(d.matchId, d.holes); beginRound(1, 0); }
       else if (d.matchId === S.matchId && d.r > S.round && Array.isArray(d.history) && d.history.length === d.r - 1) {
         // seat 0's record of the duel is the one that counts
         takeHistory(d.history);
@@ -455,7 +466,7 @@ async function onMsg(d) {
     }
     case 'ready':
       if (d.r === S.round) { S.ready[opp] = true; maybeAdvance(false); }
-      else if (host() && d.r === S.round - 1 && !S.resolved) send('round', { matchId: S.matchId, r: S.round, history: S.history });
+      else if (host() && d.r === S.round - 1 && !S.resolved) send('round', { matchId: S.matchId, r: S.round, history: S.history, holes: holesMsg() });
       break;
     case 'rematch':
       S.rematch[opp] = true;
@@ -469,7 +480,7 @@ async function onMsg(d) {
 
 // Where I am, said every couple of seconds; enough for the other screen to catch up from.
 const stateMsg = () => ({
-  matchId: S.matchId, history: S.history, round: S.round,
+  matchId: S.matchId, history: S.history, round: S.round, holes: holesMsg(),
   live: !S.resolved && ['preview', 'answer', 'locked'].includes(S.phase),
   elapsed: now() - (S.previewEnds - C.PREVIEW_MS),
   commit: S.mine && S.mine.hash ? S.mine.hash : null,
@@ -515,7 +526,7 @@ async function heal(d) {
 function adopt(d) {
   if (typeof d.matchId !== 'string' || !Array.isArray(d.history)) return;
   const history = d.history.filter((h) => h && Array.isArray(h.idx) && Array.isArray(h.tiers)).slice(0, C.MAX_ROUNDS);
-  startMatch(d.matchId);
+  startMatch(d.matchId, d.holes);
   S.history = history; S.hp = C.replay(history).hp; S.round = history.length;
   if (C.outcome(S.hp, history.length)) return showOver();
   if (d.live && d.round === history.length + 1) {
