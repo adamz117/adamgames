@@ -164,8 +164,8 @@ kbd { font: 600 10px var(--body); opacity: .6; margin-left: 6px; letter-spacing:
 .next b { color: var(--text); font-variant-numeric: tabular-nums; }
 .credit { text-align: center; margin-top: 22px; font-size: 11px; color: #6f7d6f; line-height: 1.5; }
 
-/* ── duel: one against one ── */
-#duelHud { position: fixed; top: 12px; left: 14px; right: 62px; z-index: 5; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 9px 14px; border-radius: 18px; background: rgba(15, 34, 25, .78); border: 1px solid rgba(236, 234, 220, .12); backdrop-filter: blur(10px); }
+/* ── duel: two to four players ── */
+#duelHud { position: fixed; top: 12px; left: 14px; right: 62px; z-index: 5; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 16px; padding: 9px 14px; border-radius: 18px; background: rgba(15, 34, 25, .78); border: 1px solid rgba(236, 234, 220, .12); backdrop-filter: blur(10px); }
 body.duel .wordmark, body.duel .pips, body.duel #scoreBox { display: none; }
 body.duel #hud { pointer-events: none; }
 body.duel #stage { padding-top: 92px; }
@@ -173,17 +173,18 @@ body.duel #stage { padding-top: 92px; }
 .hp-name { font-size: 12px; font-weight: 600; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hp b { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .hp-bar { grid-column: 1 / -1; height: 8px; border-radius: 8px; background: rgba(236, 234, 220, .12); overflow: hidden; }
-.hp-bar i { display: block; height: 100%; border-radius: 8px; background: var(--text); transform-origin: left; }
-#hpOpp { text-align: right; grid-template-columns: auto 1fr; }
-#hpOpp .hp-name { text-align: right; }
-#hpOpp .hp-bar i { background: var(--accent); transform-origin: right; }
-.hp.low .hp-bar i, #hpOpp.low .hp-bar i { background: var(--danger); }
+.hp-bar i { display: block; height: 100%; border-radius: 8px; background: var(--c, var(--text)); transform-origin: left; }
+.hp-list { display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); gap: 8px 16px; min-width: 0; }
+.hp-list[data-n="1"] { --n: 1; } .hp-list[data-n="2"] { --n: 2; } .hp-list[data-n="3"] { --n: 3; } .hp-list[data-n="4"] { --n: 4; }
+.hp-name { color: var(--c, var(--text)); }
+.hp.low .hp-bar i { background: var(--danger); }
+.hp.dead { opacity: .45; }
+.hp.dead .hp-name::after { content: ' · out'; color: var(--danger); }
 .hp.low b { color: var(--danger); }
 .hp.away .hp-name::after { content: ' · away'; color: var(--danger); }
-#duelMid { text-align: center; font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--sage); white-space: nowrap; }
+#duelMid { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--sage); white-space: nowrap; }
 #duelMid b { display: block; font-size: 17px; letter-spacing: 0; color: var(--accent-bright); }
-.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; background: var(--text); vertical-align: baseline; }
-.dot.opp { background: var(--accent); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; background: var(--c, var(--text)); vertical-align: baseline; }
 #duelRoom { max-height: calc(100dvh - 108px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 #duelRoom h1 { font-family: var(--display); font-style: italic; font-weight: 600; font-size: clamp(42px, 9vw, 64px); line-height: .95; margin: 8px 0 12px; }
 #duelRoom p { margin: 0; color: var(--dim); font-size: 15px; line-height: 1.55; }
@@ -212,24 +213,34 @@ body.duel #stage { padding-top: 92px; }
 .room-holes b.good { color: var(--green); }
 .room-holes b.bad { color: var(--danger); }
 .vs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+.vs.n1 { grid-template-columns: 1fr; }
 .vs-side { padding: 12px 14px; border-radius: 14px; background: rgba(236, 234, 220, .04); border: 1px solid rgba(236, 234, 220, .08); min-width: 0; }
 .vs-who { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vs-ans { font-family: var(--display); font-weight: 600; font-size: clamp(19px, 3.6vw, 25px); line-height: 1.1; margin-top: 9px; overflow-wrap: anywhere; }
 .vs-ans.none { font-style: italic; color: var(--dim); }
 .vs-pts { font-size: 24px; font-weight: 700; color: var(--c); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.vs-pts small { display: block; margin-top: 2px; font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+.vs-pts small.bad { color: var(--danger); }
+.vs-pts small.good { color: var(--dim); }
+.room-rank { list-style: none; margin: 16px 0 6px; padding: 0; }
+.room-rank li { display: grid; grid-template-columns: 28px auto 1fr auto; align-items: center; gap: 4px; padding: 10px 2px; border-bottom: 1px solid var(--border); font-size: 16px; }
+.room-rank li.won { color: var(--accent-bright); }
+.room-rank .place { font-family: var(--display); font-size: 24px; font-weight: 600; color: var(--dim); }
+.room-rank li.won .place { color: var(--accent-bright); }
+.room-rank .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-rank small { color: var(--dim); font-size: 12px; margin-left: 4px; }
+.room-rank b { font-size: 13px; font-weight: 600; color: var(--dim); font-variant-numeric: tabular-nums; }
 /* health bars: the lost chunk shows red, then drains; the bar shakes; the damage floats off */
 .hp { position: relative; }
 .hp-bar { position: relative; }
 .hp-bar u { position: absolute; inset: 0; border-radius: 8px; background: var(--danger); transform-origin: left; transition: transform .85s var(--ease-out) .55s; }
-#hpOpp .hp-bar u { transform-origin: right; }
 .hp-bar i { position: relative; transition: transform .28s var(--ease-out), background .4s; }
 .hp.hit { animation: hpHit .5s; }
 .hp.hit .hp-bar i { animation: hpFlash .5s; }
 @keyframes hpHit { 15% { transform: translateX(-7px); } 30% { transform: translateX(6px); } 45% { transform: translateX(-4px); } 60% { transform: translateX(2px); } }
 @keyframes hpFlash { 0%, 40% { background: #fff; } }
 .hp-dmg { position: absolute; top: calc(100% + 4px); font: 800 22px var(--body); color: var(--danger); text-shadow: 0 2px 14px rgba(0, 0, 0, .6); pointer-events: none; animation: dmgFloat 1.5s var(--ease-out) forwards; }
-#hpMe .hp-dmg { left: 4px; }
-#hpOpp .hp-dmg { right: 4px; }
+.hp .hp-dmg { left: 2px; }
 @keyframes dmgFloat { 0% { opacity: 0; transform: translateY(-8px) scale(.5); } 14% { opacity: 1; transform: translateY(2px) scale(1.25); } 30% { transform: translateY(2px) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(22px); } }
 #duelMid.bump b { animation: bump .6s var(--spring); }
 
@@ -243,13 +254,22 @@ body.duel #stage { padding-top: 92px; }
 .fx-mult { font: 800 clamp(88px, 24vw, 160px)/1 var(--body); letter-spacing: -.04em; color: var(--accent-bright); text-shadow: 0 10px 60px rgba(226, 170, 78, .5); animation: fxSlam .55s var(--spring) .1s both; }
 .fx-note { margin-top: 8px; font-size: 12px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--text); animation: fxRise .45s var(--ease-out) .35s both; }
 .fx-note.up { color: var(--danger); }
-.fx-row { display: flex; align-items: flex-end; justify-content: center; gap: clamp(22px, 8vw, 64px); }
-.fx-side { min-width: 0; animation: fxRise .4s var(--ease-out) both; transition: opacity .3s, transform .3s; }
-.fx-side.opp { animation-delay: .08s; }
-.fx-side small { display: block; max-width: 38vw; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.fx-row { display: flex; align-items: flex-start; justify-content: center; gap: clamp(18px, 6vw, 56px); }
+.fx-row.n3, .fx-row.n4 { gap: clamp(10px, 3.5vw, 36px); }
+.fx-side { min-width: 0; display: flex; flex-direction: column; align-items: center; animation: fxRise .4s var(--ease-out) both; transition: opacity .3s, transform .3s; }
+.fx-side:nth-child(2) { animation-delay: .06s; } .fx-side:nth-child(3) { animation-delay: .12s; } .fx-side:nth-child(4) { animation-delay: .18s; }
+.fx-side em { font-style: normal; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--sage); margin-top: 4px; }
+.fx-side.top b { text-shadow: 0 0 40px color-mix(in srgb, var(--c) 60%, transparent); }
+.fx-side.safe { transform: scale(1.06); }
+.fx-each { min-height: 0; margin-top: 8px; }
+.fx-each .fx-gap { font-size: clamp(24px, 7vw, 40px); }
+.fx-each .fx-gap::before { content: none; }
+.fx-each .fx-total { margin-top: 0; font-size: clamp(36px, 11vw, 74px); }
+.fx-row.n3 .fx-side b, .fx-row.n4 .fx-side b { font-size: clamp(40px, 11vw, 74px); }
+.fx-row.n4 .fx-each .fx-total { font-size: clamp(30px, 9vw, 60px); }
+.fx-side small { display: block; max-width: 22vw; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
 .fx-side b { font: 800 clamp(54px, 15vw, 92px)/1 var(--body); font-variant-numeric: tabular-nums; }
-.fx-side.me b { color: var(--text); }
-.fx-side.opp b { color: var(--accent); }
+.fx-side b { color: var(--c, var(--text)); }
 .fx-side.lose { opacity: .4; transform: scale(.9); }
 .fx-calc { display: flex; align-items: baseline; justify-content: center; gap: 14px; min-height: 52px; margin-top: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .fx-gap { font-size: clamp(32px, 9vw, 48px); color: var(--text); animation: pop .4s var(--spring) both; }
@@ -268,7 +288,9 @@ body.duel #stage { padding-top: 92px; }
 }
 
 @media (max-width: 520px) {
-  #duelHud { left: 8px; right: 54px; top: 8px; padding: 8px 10px; gap: 8px; }
+  #duelHud { left: 8px; right: 54px; top: 8px; padding: 8px 10px; gap: 10px; }
+  .hp-list[data-n="3"], .hp-list[data-n="4"] { --n: 2; gap: 6px 12px; }
+  body.duel #stage { padding-top: 104px; }
   body.duel #stage { padding-top: 80px; }
   .hp-name { font-size: 11px; }
   .vs-side { padding: 10px; }
@@ -302,9 +324,8 @@ body.duel #stage { padding-top: 92px; }
 </header>
 
 <div id="duelHud" hidden>
-  <div class="hp" id="hpMe"><span class="hp-name"></span><b>300</b><div class="hp-bar"><u></u><i></i></div></div>
   <div id="duelMid">Duel</div>
-  <div class="hp" id="hpOpp"><b>300</b><span class="hp-name"></span><div class="hp-bar"><u></u><i></i></div></div>
+  <div class="hp-list" id="hpList"></div>
 </div>
 
 <div id="fx" hidden aria-hidden="true"></div>

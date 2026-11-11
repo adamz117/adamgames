@@ -22,7 +22,7 @@ const ERRORS: Record<string, string> = {
   not_found: 'There is no duel with that code.',
   closed: 'That duel has been closed.',
   not_open: 'That duel is no longer open.',
-  full: 'That duel already has two players.',
+  full: 'That duel is full.',
   wrong_game: 'That code is for a Nine Holes lobby, not a Pin High duel.',
   sign_in_failed: 'Could not sign you in as a guest. Try again.',
   failed: 'Something went wrong. Try again.',

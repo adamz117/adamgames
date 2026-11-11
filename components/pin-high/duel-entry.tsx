@@ -37,7 +37,7 @@ export default function DuelEntry() {
     <div className="club-lobby-actions">
       <div className="club-lobby-panel">
         <h2 className="club-lobby-h3">Start a duel</h2>
-        <p className="club-lobby-note">You get a code and a link to send to a friend. The duel starts when you are both in.</p>
+        <p className="club-lobby-note">You get a code and a link to send to up to three friends. Start it once everyone is in.</p>
         {asking ? (
           <GuestNameForm label="Start the duel" busy={busy} onSubmit={(n) => void create(n)} onCancel={() => setAsking(false)} />
         ) : (

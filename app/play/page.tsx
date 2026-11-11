@@ -20,7 +20,7 @@ export default async function PlayPage() {
         </p>
       )}
       <p className="club-lobby-lede">
-        After trivia instead? <Link href="/duel" className="club-link">Duel a friend at Pin High</Link>, one against one.
+        After trivia instead? <Link href="/duel" className="club-link">Duel friends at Pin High</Link>, two to four players.
       </p>
       <LobbyBrowser viewer={viewer} />
     </main>

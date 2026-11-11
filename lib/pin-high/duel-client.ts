@@ -1,11 +1,11 @@
 // Pin High duels ride on the lobbies Nine Holes already has (0004_multiplayer.sql): a private
-// lobby of two, found by its code, with the lobby's private Realtime channel carrying the duel.
-// The lobby stays 'open' for as long as the two play, so either can come back to it by the link.
+// lobby of up to four, found by its code, with the lobby's private Realtime channel carrying the
+// duel. The lobby stays 'open' for as long as they play, so anyone can come back to it by the link.
 import { createClient } from '@/lib/supabase/client';
 import { closeChannel, freshChannel } from '@/lib/mp/channel';
 import { presenceUserIds } from '@/lib/mp/protocol';
 
-export const DUEL_SETTINGS = { game: 'pin-high', maxPlayers: 2 } as const;
+export const DUEL_SETTINGS = { game: 'pin-high', maxPlayers: 4 } as const; // 2 to 4 players: the lobby holds 4
 export type DuelLobby = { id: string; code: string; status: string; isDuel: boolean };
 type Row = Record<string, unknown>;
 
