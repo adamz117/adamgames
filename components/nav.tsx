@@ -18,7 +18,12 @@ export default async function Nav() {
       className="site-header"
       style={{
         borderBottom: '1px solid var(--border)',
-        background: 'var(--surface)',
+        background: 'rgba(20, 41, 31, 0.82)',
+        backdropFilter: 'blur(14px) saturate(1.2)',
+        WebkitBackdropFilter: 'blur(14px) saturate(1.2)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 30,
       }}
     >
       <div

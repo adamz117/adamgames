@@ -7,16 +7,20 @@ const { buildIndex, resolve } = new Function(block + '; return { buildIndex, res
 const load = (id) => JSON.parse(fs.readFileSync(path.join(__dirname, `../../public/games/pin-high/data/${id}.json`), 'utf8'));
 const check = (id, cases) => {
   const d = load(id), ix = buildIndex(d.answers);
-  for (const [typed, want, sure] of cases) {
+  for (const [typed, want, sure, close] of cases) {
     const r = resolve(ix, typed), got = r ? d.answers[r.i][0] : null;
     assert.strictEqual(got, want, `${id}: "${typed}" -> ${got}, wanted ${want}`);
     if (want) assert.strictEqual(r.sure, sure, `${id}: "${typed}" sure=${r.sure}, wanted ${sure}`);
+    if (want && close !== undefined) assert.strictEqual(r.close, close, `${id}: "${typed}" close=${r.close}, wanted ${close}`);
   }
   console.log(`ok ${id} (${cases.length})`);
 };
 const sets = {
-  'countries-asia': [['japan', 'Japan', true], ['  JAPAN ', 'Japan', true], ['jpan', 'Japan', false], ['kazakhstn', 'Kazakhstan', false], ['srilanka', 'Sri Lanka', true], ['tajikistn', 'Tajikistan', false], ['france', null], ['xx', null], ['iran', 'Iran', true], ['iraq', 'Iraq', true]],
-  'golf-majors': [['tiger woods', 'Tiger Woods', true], ['mcilroy', 'Rory McIlroy', false], ['rory mcilroy', 'Rory McIlroy', true], ['rory mcilory', 'Rory McIlroy', false], ['ernie els', 'Ernie Els', true], ['lionel messi', null]],
+  'countries-asia': [['japan', 'Japan', true], ['  JAPAN ', 'Japan', true], ['jpan', null], ['austria', null], ['kazakstan', 'Kazakhstan', false, true], ['kazakhstn', 'Kazakhstan', false], ['srilanka', 'Sri Lanka', true], ['tajikistn', 'Tajikistan', false], ['france', null], ['xx', null], ['iran', 'Iran', true], ['iraq', 'Iraq', true]],
+  'golf-majors': [['tiger woods', 'Tiger Woods', true], ['mcilroy', 'Rory McIlroy', false], ['rory mcilroy', 'Rory McIlroy', true], ['rory mcilory', 'Rory McIlroy', false, true], ['rory mcllroyy', 'Rory McIlroy', false, false], ['ory mcilroy', null], ['ernie els', 'Ernie Els', true], ['lionel messi', null]],
+  // a name part shared by several answers points to none of them
+  'us-presidents': [['john', null], ['lincoln', 'Abraham Lincoln', false, false], ['obama', 'Barack Obama', false], ['george', null], ['regan', null], ['reagan', 'Ronald Reagan', false]],
+  'england-footballers': [['smith', null], ['beckham', 'David Beckham', false]],
   'elements': [['gold', 'Gold', true], ['sodum', 'Sodium', false], ['aluminum', 'Aluminium', true], ['unobtainium', null]],
 };
 for (const [id, cases] of Object.entries(sets)) {

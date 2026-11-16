@@ -313,10 +313,10 @@ function submit(text, final) {
   if (S.phase !== 'answer') return;
   if (!S.index) { if (final) lock(-1, text || null); else S.loading.then(() => submit(text, false)); return; }
   const hit = text ? A.resolve(S.index, text) : null;
-  if (hit && (hit.sure || final)) return lock(hit.i, text);
+  if (hit && (hit.sure || (final && hit.close))) return lock(hit.i, text);
   if (final) return lock(-1, text || null);
   if (hit) {
-    S.suggestion = { i: hit.i, text };
+    S.suggestion = { i: hit.i, text, close: hit.close };
     A.ui.confirmFrom.textContent = text; A.ui.confirmName.textContent = nameAt(hit.i);
     A.ui.confirm.hidden = false; A.$('#confirmYes').focus();
     return;
@@ -711,7 +711,7 @@ function tick() {
     ui.bar.style.transform = `scaleX(${Math.min(1, left / C.ANSWER_MS)})`;
     ui.play.classList.toggle('urgent', left <= 3050);
     if (secs <= 3 && secs > 0 && secs < S.lastTick) { S.lastTick = secs; A.sfx.play('tick'); }
-    if (left <= 0) { if (S.suggestion) lock(S.suggestion.i, S.suggestion.text); else submit(ui.input.value.trim(), true); }
+    if (left <= 0) { if (S.suggestion) lock(S.suggestion.close ? S.suggestion.i : -1, S.suggestion.text); else submit(ui.input.value.trim(), true); }
   }
   if (S.matchId && S.phase !== 'room' && t > S.saidAt + STATE_MS) { S.saidAt = t; send('state', stateMsg()); }
   // a player who has been away too long is out

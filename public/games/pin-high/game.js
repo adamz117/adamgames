@@ -56,21 +56,25 @@ const STOP = new Set(['the', 'of', 'and', 'in', 'for', 'von', 'van', 'der', 'del
 
 function buildIndex(answers) {
   const exact = new Map();   // every accepted spelling -> answer
-  const parts = new Map();   // a word or run of words from a name -> best-known answer with it
+  const parts = new Map();   // a word or run of words found in one answer's name only -> that answer
   const keys = [];           // [spelling, answer] pairs for the typo search
   const add = (k, i) => { if (k && !exact.has(k)) { exact.set(k, i); keys.push([k, i]); } };
   answers.forEach((a, i) => { add(norm(a[0]), i); });
   answers.forEach((a, i) => { for (let j = 3; j < a.length; j++) add(norm(a[j]), i); });
   for (const [k, i] of [...keys]) if (k.includes(' ')) { const s = k.replace(/ /g, ''); if (!exact.has(s)) exact.set(s, i); }
+  // A part of a name ("mcilroy") points to its answer only when no other answer shares it: "john"
+  // or "united" could be anyone, so they point to nothing.
+  const owner = new Map();
   answers.forEach((a, i) => {
     const t = norm(a[0]).split(' ');
     if (t.length < 2) return;
     for (let n = 1; n < t.length; n++) for (let s = 0; s + n <= t.length; s++) {
       const k = t.slice(s, s + n).join(' ');
-      if (k.length < 3 || (n === 1 && STOP.has(k)) || exact.has(k) || parts.has(k)) continue;
-      parts.set(k, i);
+      if (k.length < 4 || (n === 1 && STOP.has(k)) || exact.has(k)) continue;
+      owner.set(k, owner.has(k) && owner.get(k) !== i ? -1 : i);
     }
   });
+  for (const [k, i] of owner) if (i >= 0) parts.set(k, i);
   return { exact, parts, keys };
 }
 
@@ -95,55 +99,87 @@ function editDistance(a, b, max) {
   return prev[lb];
 }
 
-// -> { i, sure } where sure means it was typed as an accepted spelling; null when nothing is close.
+// -> { i, sure, close } or null when nothing is close enough.
+//   sure:  typed as one of the answer's accepted spellings; it counts straight away.
+//   close: one slip of the keyboard away (a typo, not a different word); when the clock runs out
+//          with this typed, it counts without asking.
+// Anything else that matches is only offered in the "did you mean" box.
+// A typo is matched only on words of five letters or more, starting with the same letter, and
+// only when one answer is clearly nearest; a part of a name only when no other answer has it.
 function resolve(index, text) {
   const k = norm(text);
   if (!k) return null;
-  if (index.exact.has(k)) return { i: index.exact.get(k), sure: true };
+  if (index.exact.has(k)) return { i: index.exact.get(k), sure: true, close: true };
   const squashed = k.replace(/ /g, '');
-  if (index.exact.has(squashed)) return { i: index.exact.get(squashed), sure: true };
-  if (index.parts.has(k)) return { i: index.parts.get(k), sure: false };
-  const max = k.length < 4 ? 0 : k.length < 6 ? 1 : k.length < 10 ? 2 : 3;
+  if (index.exact.has(squashed)) return { i: index.exact.get(squashed), sure: true, close: true };
+  if (index.parts.has(k)) return { i: index.parts.get(k), sure: false, close: false };
+  const max = k.length < 5 ? 0 : k.length < 8 ? 1 : k.length < 13 ? 2 : 3;
   if (!max) return null;
-  let best = null, bestD = max + 1;
-  const scan = (list) => { for (const [key, i] of list) { const d = editDistance(k, key, Math.min(max, bestD)); if (d < bestD || (d === bestD && best !== null && i < best)) { bestD = d; best = i; } } };
-  scan(index.keys);
-  if (best === null) { bestD = Math.min(max, 2) + 1; scan(index.parts); }
-  return best === null ? null : { i: best, sure: false };
+  let best = null, bestD = max + 1, tied = false;
+  for (const [key, i] of index.keys) {
+    if (key[0] !== k[0]) continue;
+    const d = editDistance(k, key, Math.min(max, bestD));
+    if (d < bestD) { bestD = d; best = i; tied = false; }
+    else if (d === bestD && d <= max && i !== best) tied = true;
+  }
+  if (best === null || tied) return null;
+  return { i: best, sure: false, close: bestD <= 1 };
 }
 
 // ---------- sound ----------
 const sfx = (() => {
-  let ac = null, muted = store.get(LS.mute, false);
-  const ctx = () => { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } } if (ac.state === 'suspended') ac.resume(); return ac; };
-  function tone(f0, f1, dur, peak, type = 'sine', delay = 0) {
+  let ac = null, out = null, muted = store.get(LS.mute, false);
+  // Everything goes through one output: a compressor so nothing barks, and a quiet filtered echo
+  // that gives the dry beeps a room to sit in.
+  function ctx() {
+    if (!ac) {
+      try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
+      const comp = ac.createDynamicsCompressor(), echo = ac.createDelay(0.5), fb = ac.createGain(), damp = ac.createBiquadFilter(), wet = ac.createGain();
+      out = ac.createGain(); out.gain.value = 0.8;
+      echo.delayTime.value = 0.13; fb.gain.value = 0.3; damp.type = 'lowpass'; damp.frequency.value = 2200; wet.gain.value = 0.22;
+      out.connect(comp); out.connect(echo); echo.connect(damp); damp.connect(fb); fb.connect(echo); damp.connect(wet); wet.connect(comp);
+      comp.connect(ac.destination);
+    }
+    if (ac.state === 'suspended') ac.resume();
+    return ac;
+  }
+  // a pitched note: attack seconds to peak, then an even fade over dur
+  function tone(f0, f1, dur, peak, type = 'sine', delay = 0, attack = 0.012) {
     const a = ctx(); if (!a || muted) return;
     const t = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
     o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.05);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(out); o.start(t); o.stop(t + dur + 0.05);
   }
-  function noise(dur, peak, f0, f1, delay = 0) {
+  // a small bell: the note, with a quieter octave and fifth above it that die away sooner
+  function bell(f, dur, peak, delay = 0) {
+    tone(f, f, dur, peak, 'sine', delay, 0.006);
+    tone(f * 2, f * 2, dur * 0.6, peak * 0.3, 'sine', delay, 0.006);
+    tone(f * 3, f * 3, dur * 0.35, peak * 0.12, 'sine', delay, 0.006);
+  }
+  function noise(dur, peak, f0, f1, delay = 0, q = 0.8) {
     const a = ctx(); if (!a || muted) return;
     const t = a.currentTime + delay, n = Math.floor(a.sampleRate * dur), buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
     const src = a.createBufferSource(), flt = a.createBiquadFilter(), g = a.createGain();
-    src.buffer = buf; flt.type = 'bandpass'; flt.Q.value = 0.8;
+    src.buffer = buf; flt.type = 'bandpass'; flt.Q.value = q;
     flt.frequency.setValueAtTime(f0, t); flt.frequency.exponentialRampToValueAtTime(f1, t + dur);
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + dur * 0.15); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(flt).connect(g).connect(a.destination); src.start(t);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(flt).connect(g).connect(out); src.start(t);
   }
   const play = {
-    swing() { noise(0.2, 0.35, 500, 3200, 0.2); tone(900, 300, 0.07, 0.25, 'triangle', 0.36); },
-    thud() { tone(150, 60, 0.16, 0.4); noise(0.08, 0.12, 900, 300); },
-    sand() { noise(0.3, 0.3, 2400, 700); tone(110, 50, 0.12, 0.25); },
-    splash() { noise(0.55, 0.35, 1800, 300); tone(300, 90, 0.25, 0.15); },
-    cup() { tone(640, 620, 0.09, 0.3, 'triangle'); noise(0.12, 0.12, 2600, 1800, 0.05); [784, 988, 1175, 1568].forEach((f, i) => tone(f, f, 0.5, 0.16, 'sine', 0.22 + i * 0.09)); },
-    green() { tone(150, 60, 0.14, 0.3); [659, 880].forEach((f, i) => tone(f, f, 0.35, 0.12, 'sine', 0.5 + i * 0.1)); },
-    tick() { tone(1000, 900, 0.05, 0.12, 'square'); },
-    no() { tone(180, 120, 0.18, 0.2, 'sawtooth'); },
-    go() { tone(520, 780, 0.12, 0.14, 'triangle'); },
-    click() { tone(700, 500, 0.05, 0.1, 'triangle'); },
+    // the club through the air, then the crack of the strike
+    swing() { noise(0.26, 0.3, 380, 2600, 0.14, 1.4); tone(1400, 420, 0.045, 0.32, 'triangle', 0.36, 0.002); noise(0.03, 0.2, 4200, 2600, 0.36); },
+    thud() { tone(130, 58, 0.2, 0.42); noise(0.09, 0.08, 520, 220); },
+    sand() { noise(0.34, 0.26, 3000, 900, 0, 0.6); tone(96, 52, 0.14, 0.22); },
+    splash() { noise(0.6, 0.3, 2200, 320, 0, 0.5); tone(260, 80, 0.3, 0.14); noise(0.5, 0.12, 5200, 1600, 0.08, 0.6); },
+    // the rattle in the cup, then a rising chord
+    cup() { tone(560, 520, 0.07, 0.28, 'triangle'); noise(0.1, 0.1, 2400, 1700, 0.05); [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => bell(f, 1.1, 0.13, 0.2 + i * 0.085)); bell(1318.5, 1.4, 0.07, 0.56); },
+    green() { tone(130, 58, 0.16, 0.3); bell(659.25, 0.7, 0.1, 0.42); bell(880, 0.9, 0.09, 0.53); },
+    tick() { tone(880, 640, 0.06, 0.16, 'sine', 0, 0.003); noise(0.02, 0.05, 2400, 1800); },
+    no() { tone(311, 294, 0.14, 0.16, 'triangle'); tone(233, 208, 0.22, 0.16, 'triangle', 0.11); },
+    go() { bell(523.25, 0.4, 0.11); bell(783.99, 0.6, 0.11, 0.09); },
+    click() { tone(420, 250, 0.07, 0.14, 'sine', 0, 0.003); },
   };
   return {
     play(name) { try { play[name]?.(); } catch {} },
@@ -721,15 +757,16 @@ const miss = (p, raw) => ({ promptId: p.id, promptText: p.text, raw, answer: nul
 
 function closeConfirm() { ui.confirm.hidden = true; suggestion = null; }
 
-// text: what was typed. final: the clock ran out, so take the nearest answer without asking.
+// text: what was typed. final: the clock ran out, so only an answer typed right (or one slip
+// away from right) still counts.
 function submit(text, final) {
   if (phase !== 'answering' || busy) return;
   const p = prompts[hole], d = indexes.get(p.id);
   const hit = text ? resolve(d, text) : null;
-  if (hit && (hit.sure || final)) return land(hit.i, text);
+  if (hit && (hit.sure || (final && hit.close))) return land(hit.i, text);
   if (final) return land(null, text || null);
   if (hit) {
-    suggestion = { i: hit.i, text };
+    suggestion = { i: hit.i, text, close: hit.close };
     data.get(p.id).then((pd) => {
       if (!suggestion || suggestion.i !== hit.i) return;
       ui.confirmFrom.textContent = text; ui.confirmName.textContent = pd.answers[hit.i][0];
@@ -904,7 +941,8 @@ function tick() {
     ui.play.classList.toggle('urgent', left <= 3050);
     if (secs <= 3 && secs > 0 && secs < lastTick) { lastTick = secs; sfx.play('tick'); }
     if (left <= 0) {
-      if (suggestion) land(suggestion.i, suggestion.text);
+      // an unanswered "did you mean" counts only if it was a plain typo
+      if (suggestion) land(suggestion.close ? suggestion.i : null, suggestion.text);
       else submit(ui.input.value.trim(), true);
     }
   }

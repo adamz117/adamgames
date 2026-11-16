@@ -636,3 +636,62 @@ li.club-friend-row { border-bottom: 1px solid var(--border); }
 /* 2v2: the host taps seats to swap players between teams */
 .club-lobby-seat { padding: 0; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: 8px; }
 .club-lobby-seat[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--accent); padding: 2px 8px; }
+
+/* ── polish: one calm motion language for the whole clubhouse ── */
+html { scroll-behavior: smooth; scrollbar-color: var(--border) var(--bg); }
+::selection { background: rgba(226, 170, 78, 0.35); color: var(--text); }
+a, button { -webkit-tap-highlight-color: transparent; }
+.club-button { box-shadow: 0 10px 24px -14px rgba(226, 170, 78, 0.7); }
+.club-card, .club-round-tile, .club-board, .club-real, .club-lobby-panel, .club-trophy {
+  transition: transform 260ms var(--ease-out), box-shadow 260ms var(--ease-out), background-color 260ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .club-button:hover { box-shadow: 0 14px 30px -12px rgba(226, 170, 78, 0.85); }
+  .club-round-tile:hover, .club-board:hover, .club-trophy:hover { transform: translateY(-3px); }
+  .club-real:hover { transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* every page settles in as it opens */
+  main { animation: clubArrive 520ms var(--ease-out) both; }
+  /* and each block rises into place as it scrolls into view, where the browser can do that itself */
+  @supports (animation-timeline: view()) {
+    .club-section, .club-rounds-grid > *, .club-boards > *, .club-trophies > * {
+      animation: clubRise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@keyframes clubRise { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+
+/* ── the trophy cabinet ── */
+.club-meter { height: 6px; max-width: 420px; margin-top: 22px; border-radius: 6px; background: rgba(236, 234, 220, 0.1); overflow: hidden; }
+.club-meter i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--accent), var(--accent-bright)); }
+.club-trophies { list-style: none; margin: 28px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.club-trophy {
+  position: relative; overflow: hidden; display: grid; grid-template-columns: 56px 1fr; gap: 14px; align-items: center;
+  padding: 16px 18px; border-radius: 18px; background: var(--surface); color: rgba(168, 174, 157, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(236, 234, 220, 0.07);
+}
+.club-trophy-medal svg { display: block; width: 56px; height: 56px; }
+.club-trophy-text { display: grid; gap: 2px; min-width: 0; }
+.club-trophy small { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+.club-trophy strong { font-family: var(--font-display); font-size: 24px; font-weight: 600; line-height: 1.1; color: var(--text-dim); }
+.club-trophy-text > span { font-size: 13px; line-height: 1.4; }
+.club-trophy em { margin-top: 4px; font-style: normal; font-size: 12px; font-weight: 600; font-variant-numeric: lining-nums tabular-nums; }
+.club-trophy.earned {
+  color: var(--accent); background: linear-gradient(155deg, #223d2c 0%, #15291f 70%);
+  box-shadow: inset 0 0 0 1px rgba(226, 170, 78, 0.5), 0 22px 34px -26px rgba(226, 170, 78, 0.55);
+}
+.club-trophy.earned strong { color: var(--text); }
+.club-trophy.earned .club-trophy-text > span { color: var(--text-dim); }
+.club-trophy.earned em { color: var(--accent-bright); }
+/* a slow glint across an earned trophy when the pointer is on it */
+.club-trophy.earned::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; transform: translateX(-120%);
+  background: linear-gradient(105deg, transparent 40%, rgba(239, 194, 116, 0.16) 50%, transparent 60%);
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .club-trophy.earned:hover::after { transform: translateX(120%); transition: transform 900ms var(--ease-out); }
+}

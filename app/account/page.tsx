@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import MemberCard from '@/components/member-card';
+import TrophyCabinet from '@/components/trophy-cabinet';
+import { achievements, readPinHigh } from '@/lib/achievements';
 import UsernameEditor from '@/components/username-editor';
 import { getProfileServer } from '@/lib/profile';
 import { getGameStatsServer } from '@/lib/game-stats';
@@ -19,7 +21,7 @@ const resultWord = (g: RecordRow) => (g.result === 'win' ? 'Won' : g.result === 
 export default async function AccountPage() {
   const profile = await getProfileServer();
   if (!profile) redirect('/login');
-  const [raw, results] = await Promise.all([getGameStatsServer('nine-holes'), getMyResultsServer()]);
+  const [raw, results, pin] = await Promise.all([getGameStatsServer('nine-holes'), getMyResultsServer(), getGameStatsServer('pin-high')]);
   const stats = readStats(raw);
   const counting = countingRounds(stats.history);
   const record = readRecord(results);
@@ -36,6 +38,8 @@ export default async function AccountPage() {
       <div style={{ marginTop: 34 }}>
         <MemberCard name="Your card" stats={stats} record={record} />
       </div>
+
+      <TrophyCabinet list={achievements(stats, readPinHigh(pin), record)} />
 
       <section className="club-section" style={{ paddingTop: 72 }}>
         <h2 className="club-h2">Your last {HANDICAP_WINDOW} daily rounds</h2>
